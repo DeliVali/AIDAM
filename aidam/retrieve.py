@@ -1,12 +1,19 @@
 """Recuperador multi-fuente y multilingüe (Módulo 2).
 
-Busca evidencia para un hecho atómico en fuentes heterogéneas y la etiqueta
-con su procedencia. La información es libre sin importar el idioma: además
-de buscar en el idioma de la afirmación, sigue los enlaces interlingüísticos
-de Wikipedia para traer el mismo artículo en otros idiomas — sin modelo de
-traducción, y cada edición de Wikipedia es una comunidad editorial distinta
-(una voz independiente más para el agregador). El verificador multilingüe
-juzga pares cruzados (afirmación en español, evidencia en chino) sin cambios.
+Busca evidencia para un hecho atómico en la mayor cantidad de fuentes posible
+y la etiqueta con su procedencia. Las fuentes viven en el registro `FUENTES`:
+añadir una nueva es escribir una función `(consulta, lang) -> list[Evidencia]`
+y registrarla — todas se consultan en paralelo.
+
+Familias actuales (todas con APIs libres, sin llaves):
+- Wikipedia en el idioma de la afirmación, con ranking léxico de pasajes.
+- Wikipedia multilingüe: el mismo artículo en otros idiomas vía enlaces
+  interlingüísticos — sin modelo de traducción; cada edición es una comunidad
+  editorial distinta (una voz independiente más).
+- Wikinews: periodismo colaborativo, mismo API de MediaWiki.
+- Web abierta (DuckDuckGo): miles de dominios vía snippets.
+- Académicas: Semantic Scholar, OpenAlex, arXiv y Europe PMC — resúmenes de
+  papers para afirmaciones científicas (corpus mayormente en inglés).
 
 La independencia de fuentes se aproxima por dominio: cien páginas del mismo
 dominio cuentan como una voz en el agregador.
@@ -17,6 +24,8 @@ Este módulo es ingeniería pura: cero parámetros de modelo.
 from __future__ import annotations
 
 import re
+import xml.etree.ElementTree as ET
+from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlparse
 
 import requests
@@ -30,6 +39,9 @@ _MAX_CHARS_PASAJE = 600
 # Wikipedias grandes y diversas geográficamente, en orden de preferencia
 # cuando hay que elegir un subconjunto de los idiomas disponibles.
 IDIOMAS_PREFERIDOS = ["en", "es", "fr", "de", "ru", "zh", "pt", "it", "ja", "ar"]
+
+
+# ───────────────────────── utilidades compartidas ─────────────────────────
 
 
 def _dominio(url: str) -> str:
@@ -59,23 +71,25 @@ def _relevancia(consulta: str, pasaje: str) -> int:
     return sum(1 for p in palabras if p in pasaje.lower())
 
 
-def _wiki_get(lang: str, params: dict) -> dict | None:
+def _get_json(url: str, params: dict | None = None) -> dict | None:
     try:
-        r = requests.get(
-            f"https://{lang}.wikipedia.org/w/api.php",
-            params={**params, "format": "json"},
-            headers=_UA,
-            timeout=_TIMEOUT,
-        )
+        r = requests.get(url, params=params, headers=_UA, timeout=_TIMEOUT)
         r.raise_for_status()
         return r.json()
-    except requests.RequestException:
+    except (requests.RequestException, ValueError):
         return None
 
 
-def _buscar_titulos(consulta: str, lang: str, max_articulos: int) -> list[str]:
-    datos = _wiki_get(
-        lang, {"action": "query", "list": "search", "srsearch": consulta, "srlimit": max_articulos}
+# ───────────────────────── MediaWiki (Wikipedia, Wikinews) ─────────────────
+
+
+def _mediawiki_get(host: str, params: dict) -> dict | None:
+    return _get_json(f"https://{host}/w/api.php", {**params, "format": "json"})
+
+
+def _buscar_titulos(consulta: str, host: str, max_articulos: int) -> list[str]:
+    datos = _mediawiki_get(
+        host, {"action": "query", "list": "search", "srsearch": consulta, "srlimit": max_articulos}
     )
     try:
         return [hit["title"] for hit in datos["query"]["search"]]
@@ -84,40 +98,39 @@ def _buscar_titulos(consulta: str, lang: str, max_articulos: int) -> list[str]:
 
 
 def _pasajes_de_articulo(
-    lang: str, titulo: str, max_pasajes: int, consulta: str | None = None
+    host: str,
+    titulo: str,
+    max_pasajes: int,
+    fuente: str,
+    idioma: str,
+    consulta: str | None = None,
 ) -> list[Evidencia]:
-    """Extrae pasajes de un artículo. Con `consulta` los ordena por relevancia
-    léxica; sin ella (idiomas que no comparten vocabulario con la consulta)
-    usa el orden del artículo, donde la introducción resume lo esencial."""
-    datos = _wiki_get(
-        lang,
+    """Extrae pasajes de un artículo MediaWiki. Con `consulta` los ordena por
+    relevancia léxica; sin ella (idiomas que no comparten vocabulario con la
+    consulta) usa el orden del artículo, donde la introducción resume lo esencial."""
+    datos = _mediawiki_get(
+        host,
         {"action": "query", "prop": "extracts", "explaintext": 1, "exchars": 6000, "titles": titulo},
     )
     try:
         extracto = next(iter(datos["query"]["pages"].values())).get("extract", "")
     except (TypeError, KeyError, StopIteration):
         return []
-    url = f"https://{lang}.wikipedia.org/wiki/{titulo.replace(' ', '_')}"
+    url = f"https://{host}/wiki/{titulo.replace(' ', '_')}"
     pasajes = _trocear(extracto)
     if consulta is not None:
         pasajes.sort(key=lambda p: _relevancia(consulta, p), reverse=True)
     return [
-        Evidencia(
-            texto=pasaje,
-            url=url,
-            titulo=titulo,
-            dominio=f"{lang}.wikipedia.org",
-            fuente="wikipedia",
-            idioma=lang,
-        )
-        for pasaje in pasajes[:max_pasajes]
+        Evidencia(texto=p, url=url, titulo=titulo, dominio=host, fuente=fuente, idioma=idioma)
+        for p in pasajes[:max_pasajes]
     ]
 
 
 def _idiomas_disponibles(lang: str, titulo: str) -> dict[str, str]:
     """idioma → título del mismo artículo en las demás Wikipedias (langlinks)."""
-    datos = _wiki_get(
-        lang, {"action": "query", "prop": "langlinks", "titles": titulo, "lllimit": 500}
+    datos = _mediawiki_get(
+        f"{lang}.wikipedia.org",
+        {"action": "query", "prop": "langlinks", "titles": titulo, "lllimit": 500},
     )
     try:
         enlaces = next(iter(datos["query"]["pages"].values())).get("langlinks", [])
@@ -140,9 +153,12 @@ def buscar_wikipedia(
     consulta: str, lang: str = "es", max_articulos: int = 2, max_pasajes: int = 4
 ) -> list[Evidencia]:
     """Busca artículos en la Wikipedia del idioma de la afirmación."""
+    host = f"{lang}.wikipedia.org"
     evidencias: list[Evidencia] = []
-    for titulo in _buscar_titulos(consulta, lang, max_articulos):
-        evidencias.extend(_pasajes_de_articulo(lang, titulo, max_pasajes, consulta=consulta))
+    for titulo in _buscar_titulos(consulta, host, max_articulos):
+        evidencias.extend(
+            _pasajes_de_articulo(host, titulo, max_pasajes, "wikipedia", lang, consulta=consulta)
+        )
     evidencias.sort(key=lambda e: _relevancia(consulta, e.texto), reverse=True)
     return evidencias[:max_pasajes]
 
@@ -160,14 +176,32 @@ def buscar_wikipedia_multilingue(
     """
     if max_idiomas <= 0:
         return []
-    titulos = _buscar_titulos(consulta, lang, max_articulos=1)
+    titulos = _buscar_titulos(consulta, f"{lang}.wikipedia.org", max_articulos=1)
     if not titulos:
         return []
     disponibles = _idiomas_disponibles(lang, titulos[0])
     evidencias: list[Evidencia] = []
     for idioma, titulo in _priorizar_idiomas(disponibles, excluir=lang, max_idiomas=max_idiomas):
-        evidencias.extend(_pasajes_de_articulo(idioma, titulo, max_pasajes_por_idioma))
+        evidencias.extend(
+            _pasajes_de_articulo(
+                f"{idioma}.wikipedia.org", titulo, max_pasajes_por_idioma, "wikipedia", idioma
+            )
+        )
     return evidencias
+
+
+def buscar_wikinews(consulta: str, lang: str = "es", max_pasajes: int = 3) -> list[Evidencia]:
+    """Periodismo colaborativo de Wikinews (mismo API de MediaWiki)."""
+    host = f"{lang}.wikinews.org"
+    evidencias: list[Evidencia] = []
+    for titulo in _buscar_titulos(consulta, host, max_articulos=2):
+        evidencias.extend(
+            _pasajes_de_articulo(host, titulo, 2, "wikinews", lang, consulta=consulta)
+        )
+    return evidencias[:max_pasajes]
+
+
+# ───────────────────────── web abierta ─────────────────────────
 
 
 def buscar_web(consulta: str, max_resultados: int = 8, lang: str = "") -> list[Evidencia]:
@@ -201,20 +235,186 @@ def buscar_web(consulta: str, max_resultados: int = 8, lang: str = "") -> list[E
     return evidencias
 
 
-def recuperar(
-    hecho: HechoAtomico, lang: str = "es", max_web: int = 8, max_idiomas: int = 5
+# ───────────────────────── fuentes académicas ─────────────────────────
+
+
+def _evidencias_de_resumen(
+    resumen: str, url: str, titulo: str, dominio: str, fuente: str, max_pasajes: int = 2
 ) -> list[Evidencia]:
-    """Recupera evidencia de todas las fuentes e idiomas, deduplicada."""
-    evidencias = (
-        buscar_wikipedia(hecho.texto, lang=lang)
-        + buscar_wikipedia_multilingue(hecho.texto, lang=lang, max_idiomas=max_idiomas)
-        + buscar_web(hecho.texto, max_resultados=max_web, lang=lang)
+    if not resumen or len(resumen) < 40:
+        return []
+    return [
+        Evidencia(texto=p, url=url, titulo=titulo, dominio=dominio, fuente=fuente, idioma="")
+        for p in _trocear(resumen)[:max_pasajes]
+    ]
+
+
+def buscar_semantic_scholar(consulta: str, lang: str = "", max_papers: int = 4) -> list[Evidencia]:
+    """Resúmenes de papers vía Semantic Scholar (API libre, sin llave)."""
+    datos = _get_json(
+        "https://api.semanticscholar.org/graph/v1/paper/search",
+        {"query": consulta, "limit": max_papers, "fields": "title,abstract,url"},
     )
+    evidencias: list[Evidencia] = []
+    for paper in (datos or {}).get("data", []):
+        evidencias.extend(
+            _evidencias_de_resumen(
+                paper.get("abstract") or "",
+                paper.get("url") or "https://www.semanticscholar.org",
+                paper.get("title", ""),
+                "semanticscholar.org",
+                "academica",
+            )
+        )
+    return evidencias
+
+
+def _reconstruir_resumen_openalex(indice_invertido: dict[str, list[int]]) -> str:
+    """OpenAlex publica los resúmenes como índice invertido palabra→posiciones;
+    lo reconstruimos ordenando las posiciones."""
+    posiciones: list[tuple[int, str]] = []
+    for palabra, sitios in indice_invertido.items():
+        posiciones.extend((sitio, palabra) for sitio in sitios)
+    return " ".join(palabra for _, palabra in sorted(posiciones))
+
+
+def buscar_openalex(consulta: str, lang: str = "", max_papers: int = 4) -> list[Evidencia]:
+    """Resúmenes de papers vía OpenAlex (API libre, sin llave)."""
+    datos = _get_json(
+        "https://api.openalex.org/works",
+        {"search": consulta, "per-page": max_papers, "select": "title,doi,abstract_inverted_index"},
+    )
+    evidencias: list[Evidencia] = []
+    for obra in (datos or {}).get("results", []):
+        indice = obra.get("abstract_inverted_index")
+        if not indice:
+            continue
+        evidencias.extend(
+            _evidencias_de_resumen(
+                _reconstruir_resumen_openalex(indice),
+                obra.get("doi") or "https://openalex.org",
+                obra.get("title", ""),
+                "openalex.org",
+                "academica",
+            )
+        )
+    return evidencias
+
+
+def buscar_arxiv(consulta: str, lang: str = "", max_papers: int = 3) -> list[Evidencia]:
+    """Resúmenes de preprints de arXiv (API libre, sin llave)."""
+    try:
+        r = requests.get(
+            "https://export.arxiv.org/api/query",
+            params={"search_query": f"all:{consulta}", "max_results": max_papers},
+            headers=_UA,
+            timeout=_TIMEOUT,
+        )
+        r.raise_for_status()
+        raiz = ET.fromstring(r.text)
+    except (requests.RequestException, ET.ParseError):
+        return []
+    ns = {"a": "http://www.w3.org/2005/Atom"}
+    evidencias: list[Evidencia] = []
+    for entrada in raiz.findall("a:entry", ns):
+        resumen = (entrada.findtext("a:summary", "", ns) or "").strip()
+        evidencias.extend(
+            _evidencias_de_resumen(
+                re.sub(r"\s+", " ", resumen),
+                (entrada.findtext("a:id", "", ns) or "").strip() or "https://arxiv.org",
+                (entrada.findtext("a:title", "", ns) or "").strip(),
+                "arxiv.org",
+                "academica",
+            )
+        )
+    return evidencias
+
+
+def buscar_europepmc(consulta: str, lang: str = "", max_papers: int = 4) -> list[Evidencia]:
+    """Resúmenes biomédicos de Europe PMC (API libre, sin llave)."""
+    datos = _get_json(
+        "https://www.ebi.ac.uk/europepmc/webservices/rest/search",
+        {"query": consulta, "format": "json", "pageSize": max_papers, "resultType": "core"},
+    )
+    resultados = ((datos or {}).get("resultList") or {}).get("result", [])
+    evidencias: list[Evidencia] = []
+    for articulo in resultados:
+        pmid = articulo.get("id", "")
+        evidencias.extend(
+            _evidencias_de_resumen(
+                articulo.get("abstractText") or "",
+                f"https://europepmc.org/article/{articulo.get('source', 'MED')}/{pmid}",
+                articulo.get("title", ""),
+                "europepmc.org",
+                "academica",
+            )
+        )
+    return evidencias
+
+
+# ───────────────────────── registro y orquestación ─────────────────────────
+
+# nombre → (descripción, función (consulta, lang, max_idiomas) -> list[Evidencia]).
+# Para añadir una fuente: escribe una función con esa firma y regístrala aquí.
+FUENTES: dict[str, tuple[str, object]] = {
+    "wikipedia": (
+        "Wikipedia en el idioma de la afirmación (pasajes por relevancia)",
+        lambda c, lang, mi: buscar_wikipedia(c, lang=lang),
+    ),
+    "wikipedia-multilingue": (
+        "El mismo artículo en otros idiomas vía enlaces interlingüísticos",
+        lambda c, lang, mi: buscar_wikipedia_multilingue(c, lang=lang, max_idiomas=mi),
+    ),
+    "wikinews": (
+        "Periodismo colaborativo de Wikinews",
+        lambda c, lang, mi: buscar_wikinews(c, lang=lang),
+    ),
+    "web": (
+        "Web abierta vía DuckDuckGo (miles de dominios, snippets)",
+        lambda c, lang, mi: buscar_web(c, lang=lang),
+    ),
+    "semantic-scholar": (
+        "Resúmenes académicos de Semantic Scholar",
+        lambda c, lang, mi: buscar_semantic_scholar(c, lang=lang),
+    ),
+    "openalex": (
+        "Resúmenes académicos de OpenAlex",
+        lambda c, lang, mi: buscar_openalex(c, lang=lang),
+    ),
+    "arxiv": (
+        "Preprints científicos de arXiv",
+        lambda c, lang, mi: buscar_arxiv(c, lang=lang),
+    ),
+    "europepmc": (
+        "Literatura biomédica de Europe PMC",
+        lambda c, lang, mi: buscar_europepmc(c, lang=lang),
+    ),
+}
+
+
+def recuperar(hecho: HechoAtomico, lang: str = "es", max_idiomas: int = 5) -> list[Evidencia]:
+    """Consulta todas las fuentes registradas en paralelo y deduplica.
+
+    Cada fuente falla en silencio (devuelve lista vacía): la caída de un API
+    externo nunca tumba la verificación, solo reduce la evidencia disponible.
+    """
+
+    def _segura(nombre_y_fuente) -> list[Evidencia]:
+        _descripcion, funcion = nombre_y_fuente
+        try:
+            return funcion(hecho.texto, lang, max_idiomas)
+        except Exception:
+            return []
+
+    with ThreadPoolExecutor(max_workers=len(FUENTES)) as ejecutor:
+        lotes = ejecutor.map(_segura, FUENTES.values())
+
     vistas: set[tuple[str, str]] = set()
-    unicas = []
-    for e in evidencias:
-        clave = (e.dominio, e.texto[:120])
-        if clave not in vistas:
-            vistas.add(clave)
-            unicas.append(e)
+    unicas: list[Evidencia] = []
+    for lote in lotes:
+        for e in lote:
+            clave = (e.dominio, e.texto[:120])
+            if clave not in vistas:
+                vistas.add(clave)
+                unicas.append(e)
     return unicas

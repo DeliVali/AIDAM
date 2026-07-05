@@ -82,7 +82,16 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_verificar.add_argument("--json", action="store_true", help="salida en JSON")
 
+    sub.add_parser("fuentes", help="listar las fuentes de evidencia registradas")
+
     args = parser.parse_args(argv)
+
+    if args.comando == "fuentes":
+        from .retrieve import FUENTES
+
+        for nombre, (descripcion, _funcion) in FUENTES.items():
+            print(f"{nombre:22s} {descripcion}")
+        return 0
 
     from .pipeline import verificar
 

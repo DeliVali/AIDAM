@@ -59,8 +59,27 @@ pasada — optimización futura.
 
 ## Módulo 2 — Recuperador multi-fuente
 
-**Qué hace:** para cada hecho atómico, busca evidencia en fuentes heterogéneas y la
-prepara para el verificador.
+**Qué hace:** para cada hecho atómico, busca evidencia en la mayor cantidad de fuentes
+posible y la prepara para el verificador. Las fuentes viven en un **registro**
+(`FUENTES` en `retrieve.py`): añadir una es escribir una función
+`(consulta, lang) -> list[Evidencia]` — todas se consultan **en paralelo**, y la caída
+de un API externo nunca tumba la verificación.
+
+**Familias actuales (8, todas con APIs libres y sin llaves):**
+
+| Fuente | Aporta |
+|---|---|
+| Wikipedia (idioma de la afirmación) | enciclopedia, pasajes por relevancia |
+| Wikipedia multilingüe (langlinks) | el mismo artículo en otros idiomas |
+| Wikinews | periodismo colaborativo |
+| Web abierta (DuckDuckGo) | miles de dominios vía snippets |
+| Semantic Scholar | resúmenes académicos |
+| OpenAlex | resúmenes académicos (índice invertido reconstruido) |
+| arXiv | preprints científicos |
+| Europe PMC | literatura biomédica |
+
+Candidatas futuras: PubMed, Stack Exchange, GDELT (titulares de prensa mundial),
+Wikidata (hechos estructurados), y APIs de noticias con llave opcional.
 
 **Diseño clave:** el valor de la evidencia depende de la **independencia** de las fuentes.
 Cien sitios que copian el mismo comunicado de prensa cuentan como *una* fuente. El

@@ -40,6 +40,11 @@ competitivo en español.
 
 ## Fase 2 — Lógica comparativa seria (1–2 meses)
 
+- [x] **Ampliación de fuentes (2026-07-05)**: registro extensible con 8 familias en
+      paralelo — Wikipedia (mono y multilingüe), Wikinews, web abierta, Semantic
+      Scholar, OpenAlex, arXiv y Europe PMC. *Verificado: afirmación médica juzgada
+      con FDA, papers académicos en ambos lados, Wikinews y Wikipedia francesa,
+      en 7.3 s.* Añadir una fuente = una función registrada (ver CONTRIBUTING).
 - [x] **Recuperación multilingüe (2026-07-05)**: enlaces interlingüísticos de Wikipedia
       → evidencia en en/fr/de/ru/zh/… sin modelo de traducción; el verificador juzga
       pares cruzados de idioma directamente. `--max-idiomas` en la CLI.

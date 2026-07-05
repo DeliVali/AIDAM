@@ -34,7 +34,7 @@ El [roadmap](docs/ROADMAP.md) manda. Áreas abiertas por dificultad:
 
 | Nivel | Área |
 |---|---|
-| Fácil | Más fuentes en el recuperador (APIs abiertas, datasets públicos) |
+| Fácil | Más fuentes en el recuperador: escribe una función `(consulta, lang) -> list[Evidencia]` y regístrala en `FUENTES` (`aidam/retrieve.py`) — hay 8 de ejemplo |
 | Fácil | Mejorar la salida de la CLI, traducciones, documentación |
 | Medio | Heurísticas del descompositor; tests de casos difíciles |
 | Medio | Métricas del agregador (independencia de fuentes, temporalidad) |
