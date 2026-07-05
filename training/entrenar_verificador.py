@@ -76,6 +76,14 @@ def main() -> None:
     parser.add_argument("--solo-evaluar", action="store_true")
     parser.add_argument("--smoke", action="store_true", help="30 pasos, para validar el script")
     parser.add_argument("--ejemplos", type=int, default=120_000, help="ejemplos de entrenamiento")
+    parser.add_argument(
+        "--ejemplos-nli",
+        type=int,
+        default=60_000,
+        help="ejemplos de MNLI mezclados para conservar la clase neutral. Medido en "
+        "producción: entrenar solo con VitaminC (contrastivo) hace que el modelo "
+        "sobre-refute con pasajes relacionados pero no probatorios",
+    )
     parser.add_argument("--eval-ejemplos", type=int, default=10_000, help="ejemplos de test")
     parser.add_argument("--checkpoint", default=CHECKPOINT_BASE)
     args = parser.parse_args()
@@ -108,6 +116,26 @@ def main() -> None:
         .select(range(min(args.eval_ejemplos, len(datos["test"]))))
         .map(preparar, batched=True, remove_columns=datos["test"].column_names)
     )
+
+    if args.ejemplos_nli > 0 and not args.smoke:
+        from datasets import concatenate_datasets
+
+        por_nombre = {n.lower(): i for i, n in modelo.config.id2label.items()}
+        mnli = load_dataset("nyu-mll/multi_nli", split="train").shuffle(seed=SEMILLA)
+        mnli = mnli.select(range(min(args.ejemplos_nli, len(mnli))))
+        # MNLI etiqueta 0/1/2 = entailment/neutral/contradiction
+        ids_mnli = {0: por_nombre["entailment"], 1: por_nombre["neutral"], 2: por_nombre["contradiction"]}
+
+        def preparar_mnli(lote):
+            entradas = tokenizer(
+                lote["premise"], lote["hypothesis"], truncation=True, max_length=MAX_LEN
+            )
+            entradas["labels"] = [ids_mnli[e] for e in lote["label"]]
+            return entradas
+
+        nli = mnli.map(preparar_mnli, batched=True, remove_columns=mnli.column_names)
+        train = concatenate_datasets([train, nli]).shuffle(seed=SEMILLA)
+        print(f"[entrenar] mezcla: {len(train)} ejemplos (VitaminC + {len(nli)} MNLI)")
 
     argumentos = TrainingArguments(
         output_dir=str(SALIDA.parent / "checkpoints"),

@@ -89,8 +89,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.comando == "fuentes":
         from .retrieve import FUENTES
 
-        for nombre, (descripcion, _funcion) in FUENTES.items():
-            print(f"{nombre:22s} {descripcion}")
+        for nombre, (descripcion, categorias, _funcion) in FUENTES.items():
+            ambito = ", ".join(sorted(categorias)) if categorias else "todas las categorías"
+            print(f"{nombre:22s} {descripcion}  [{ambito}]")
         return 0
 
     from .pipeline import verificar

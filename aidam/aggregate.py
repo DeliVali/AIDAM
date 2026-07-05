@@ -76,10 +76,19 @@ def peso_fuente(evidencia: Evidencia) -> float:
     return PESO_BASE
 
 
+_MIN_PALABRAS_ECO = 6
+
+
 def _es_eco(hecho: HechoAtomico, evidencia: Evidencia) -> bool:
-    """¿El pasaje solo repite la afirmación sin aportar contenido propio?"""
+    """¿El pasaje solo repite la afirmación sin aportar contenido propio?
+
+    Solo aplica a afirmaciones largas y específicas (≥6 palabras de contenido,
+    el perfil de una afirmación viral). En afirmaciones técnicas cortas
+    («Python lists are mutable») cualquier pasaje legítimo sobre el tema
+    contiene todas las palabras — eso es cobertura, no eco.
+    """
     palabras = set(re.findall(r"\w{4,}", hecho.texto.lower()))
-    if not palabras:
+    if len(palabras) < _MIN_PALABRAS_ECO:
         return False
     presentes = sum(1 for p in palabras if p in evidencia.texto.lower())
     return presentes / len(palabras) >= _UMBRAL_ECO
@@ -90,20 +99,25 @@ def _peso(par: VeredictoPar) -> float:
     peso = peso_fuente(par.evidencia)
     if (
         par.etiqueta is EtiquetaPar.SUSTENTA
-        and par.evidencia.fuente == "web"
+        and par.evidencia.fuente in ("web", "desmentidos")
         and _es_eco(par.hecho, par.evidencia)
     ):
         peso *= PESO_ECO
     return peso
 
 
-def _mejor_por_dominio(pares: list[VeredictoPar]) -> dict[tuple[str, str], VeredictoPar]:
-    """Se queda con el juicio de mayor señal ponderada de cada (dominio, lado)."""
-    mejores: dict[tuple[str, str], VeredictoPar] = {}
+def _mejor_por_dominio(pares: list[VeredictoPar]) -> dict[str, VeredictoPar]:
+    """Un dominio, una sola voz: su juicio de mayor señal ponderada.
+
+    Si un mismo sitio tiene pasajes en ambos lados (típico de un fact-check,
+    que narra el mito antes de desmentirlo), vota solo con su señal más
+    fuerte — su postura real — en vez de contarse dos veces.
+    """
+    mejores: dict[str, VeredictoPar] = {}
     for par in pares:
         if par.etiqueta is EtiquetaPar.NO_CONCLUYE or par.prob < UMBRAL_SENAL:
             continue
-        clave = (par.evidencia.dominio, par.etiqueta.value)
+        clave = par.evidencia.dominio
         if clave not in mejores or par.prob * _peso(par) > mejores[clave].prob * _peso(
             mejores[clave]
         ):

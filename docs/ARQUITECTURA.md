@@ -65,21 +65,35 @@ posible y la prepara para el verificador. Las fuentes viven en un **registro**
 `(consulta, lang) -> list[Evidencia]` — todas se consultan **en paralelo**, y la caída
 de un API externo nunca tumba la verificación.
 
-**Familias actuales (8, todas con APIs libres y sin llaves):**
+**El router de categorías (`router.py`):** el agente decide *dónde* buscar según el
+tema del hecho — no va a Wikipedia por un bug ni a Stack Overflow por una afirmación
+médica. Dos niveles: palabras clave (determinista, testeable) y zero-shot con el
+propio verificador NLI para los casos ambiguos — la misma habilidad comparativa que
+usa para verificar, reutilizada para clasificar. Cada fuente declara sus categorías
+en el registro; las universales se consultan siempre.
 
-| Fuente | Aporta |
-|---|---|
-| Wikipedia (idioma de la afirmación) | enciclopedia, pasajes por relevancia |
-| Wikipedia multilingüe (langlinks) | el mismo artículo en otros idiomas |
-| Wikinews | periodismo colaborativo |
-| Web abierta (DuckDuckGo) | miles de dominios vía snippets |
-| Semantic Scholar | resúmenes académicos |
-| OpenAlex | resúmenes académicos (índice invertido reconstruido) |
-| arXiv | preprints científicos |
-| Europe PMC | literatura biomédica |
+**Evidencia de página completa:** los snippets truncados de un buscador repiten
+titulares; el veredicto de un artículo vive en su cuerpo (medido en AVeriTeC: juzgar
+snippets era el cuello de botella). Los mejores resultados web se descargan completos
+(extracción con trafilatura) y se trocean en pasajes rankeados por relevancia.
 
-Candidatas futuras: PubMed, Stack Exchange, GDELT (titulares de prensa mundial),
-Wikidata (hechos estructurados), y APIs de noticias con llave opcional.
+**Familias actuales (10, todas con APIs libres y sin llaves):**
+
+| Fuente | Categorías | Aporta |
+|---|---|---|
+| Wikipedia (idioma de la afirmación) | todas | enciclopedia, pasajes por relevancia |
+| Wikipedia multilingüe (langlinks) | todas | el mismo artículo en otros idiomas |
+| Web abierta (DuckDuckGo) | todas | páginas completas + snippets |
+| **Desmentidos** (búsqueda dirigida) | todas | artículos de fact-checkers, texto completo |
+| Wikinews | actualidad, general | periodismo colaborativo |
+| Stack Exchange | programación | preguntas y respuestas técnicas |
+| Semantic Scholar | ciencia, medicina, programación | resúmenes académicos |
+| OpenAlex | ciencia, medicina, programación | resúmenes académicos |
+| arXiv | ciencia, programación | preprints científicos |
+| Europe PMC | medicina, ciencia | literatura biomédica |
+
+Candidatas futuras: PubMed, GDELT (titulares de prensa mundial), Wikidata (hechos
+estructurados), documentación oficial de lenguajes/frameworks, y APIs con llave opcional.
 
 **Diseño clave:** el valor de la evidencia depende de la **independencia** de las fuentes.
 Cien sitios que copian el mismo comunicado de prensa cuentan como *una* fuente. El
@@ -127,9 +141,17 @@ en cientos de millones de parámetros. MiniCheck lo demostró: 770M ≈ GPT-4 en
 hechos al veredicto de la afirmación completa. Aquí vive la "lógica comparativa" que da
 nombre al proyecto.
 
-**Es matemática explícita, no una red neuronal** (transparente y auditable):
-- ponderación bayesiana por fiabilidad histórica de la fuente y por independencia,
-- penalización por antigüedad en topics volátiles; no en hechos estables,
+**Es matemática explícita, no una red neuronal** (transparente y auditable). Cada
+regla nació de un fallo medido:
+- **un dominio, una voz**: cien copias no pesan más que una fuente, y si un mismo
+  sitio tiene pasajes en ambos lados (un fact-check narra el mito antes de
+  desmentirlo), vota solo con su señal más fuerte,
+- **priores de fiabilidad**: fact-checkers 8x, enciclopedias/academia 2.5x,
+  organismos oficiales 2x — un desmentido profesional vale más que la afirmación
+  de un dominio desconocido,
+- **el eco no es evidencia**: repetir la afirmación casi palabra por palabra no es
+  sostenerla; refutar exige contenido propio,
+- penalización por antigüedad en topics volátiles; no en hechos estables (pendiente),
 - detección de patrón *cherry-picking*: afirmaciones técnicamente ciertas que engañan
   por omisión (clase de veredicto tomada de AVeriTeC),
 - salida en 4 clases: **sustentado / refutado / evidencia contradictoria / evidencia

@@ -34,10 +34,13 @@ def verificar(
     hechos = descomponer(afirmacion)
     avisar(f"Afirmación descompuesta en {len(hechos)} hecho(s) atómico(s)")
 
+    from .router import clasificar
+
     veredictos_hechos = []
     for hecho in hechos:
-        avisar(f"Buscando evidencia: «{hecho.texto[:70]}»")
-        evidencias = recuperar(hecho, lang=lang, max_idiomas=max_idiomas)
+        categoria = clasificar(hecho.texto, verificador)
+        avisar(f"Buscando evidencia [{categoria}]: «{hecho.texto[:70]}»")
+        evidencias = recuperar(hecho, lang=lang, max_idiomas=max_idiomas, categoria=categoria)
         idiomas = sorted({e.idioma for e in evidencias if e.idioma})
         avisar(
             f"  {len(evidencias)} pasajes de {len({e.dominio for e in evidencias})} dominios"

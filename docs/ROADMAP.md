@@ -37,6 +37,13 @@ Replicar y luego intentar superar la receta MiniCheck con datos propios.
       Script en `training/entrenar_verificador.py`.
       ⚠️ Con transformers v5 (5.13) el entrenamiento colapsa a una sola clase
       (regresión de DeBERTa-v3); por eso `pyproject.toml` fija `<5`.
+- [x] **v1 con neutral restaurado (2026-07-05)**: entrenar solo con VitaminC
+      (contrastivo) volvió al modelo propenso a "refutar" con pasajes relacionados
+      pero no probatorios — detectado conduciendo la CLI, no en el benchmark.
+      Arreglo: mezcla 120k VitaminC + 60k MNLI. VitaminC test se mantiene (88.75%)
+      y la sobre-refutación baja. Residuo conocido: intros enciclopédicas aún votan
+      "contra" en ~70-79% — el objetivo #1 de los datos sintéticos es generar pares
+      neutrales-difíciles (intro genérica × afirmación específica).
 - [ ] Generador de datos sintéticos: errores factuales sutiles, multi-frase, multi-salto
 - [ ] Datos de entrenamiento en español (VitaminC es inglés; el modelo conserva el
       español del checkpoint base, pero hay que medirlo y reforzarlo)
@@ -66,11 +73,20 @@ competitivo en español.
       **Resultado A/B en AVeriTeC-100**: refutadas correctas 13→20, exactitud 30→31%,
       F1 macro bajó 0.25→0.21 (algunas afirmaciones ciertas ahora se refutan por
       desmentidos parciales). Ayuda, pero el techo lo pone la evidencia: ver siguiente.
-- [ ] **Evidencia de página completa + búsqueda dirigida a desmentidos** (el paso con
-      mayor palanca según los datos): descargar el texto completo de los mejores
-      resultados web (no solo snippets truncados) y añadir una búsqueda reformulada
-      («\<afirmación\> fact check») para traer a los verificadores a la mesa.
+- [x] **Evidencia de página completa + búsqueda dirigida a desmentidos (2026-07-05)**:
+      texto completo de los mejores resultados (trafilatura) y consulta reformulada
+      («\<afirmación\> fact check»). Con el resto de arreglos: AVeriTeC-100 30%→37%,
+      Refuted F1 0.529, y «la Gran Muralla se ve desde la Luna» → REFUTADO 93%.
+- [x] **Router de categorías + gate probatorio + eco recalibrado (2026-07-05)**:
+      el agente elige fuentes por tema (programación→Stack Overflow, medicina→Europe
+      PMC; las académicas son universales: un misroute añade ruido, nunca quita señal);
+      los pasajes que no comparten ≥2 palabras de contenido con el hecho no se juzgan
+      (las intros genéricas se leían como contradicción); el anti-eco solo aplica a
+      afirmaciones largas (en las cortas, cobertura ≠ eco). Todo salió de un `/verify`
+      en runtime que falló — cada regla tiene su test de regresión.
 - [ ] Afinar los priores con datos (aprendidos de aciertos históricos, no a mano)
+- [ ] Clase "evidencia contradictoria": F1 0.095 en AVeriTeC-100 — la más débil;
+      necesita detección real de cherry-picking, no solo el empate de señales
 - [ ] Manejo temporal: hechos volátiles vs. estables
 - [ ] Detección de cherry-picking (clase AVeriTeC "evidencia contradictoria")
 - [ ] Búsqueda activa de evidencia contraria (anti-sesgo de confirmación)

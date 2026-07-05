@@ -204,20 +204,73 @@ def buscar_wikinews(consulta: str, lang: str = "es", max_pasajes: int = 3) -> li
 # ───────────────────────── web abierta ─────────────────────────
 
 
-def buscar_web(consulta: str, max_resultados: int = 8, lang: str = "") -> list[Evidencia]:
-    """Busca en la web (DuckDuckGo) y usa los snippets como evidencia."""
+def _texto_de_pagina(url: str) -> str:
+    """Descarga una página y extrae su texto principal (sin menús ni anuncios).
+
+    Los snippets truncados de un buscador repiten titulares; el veredicto de un
+    artículo vive en su cuerpo. Medido en AVeriTeC: juzgar snippets era el
+    cuello de botella del sistema.
+    """
+    try:
+        import trafilatura
+
+        r = requests.get(url, headers=_UA, timeout=8)
+        r.raise_for_status()
+        return trafilatura.extract(r.text) or ""
+    except Exception:
+        return ""
+
+
+def _buscar_ddg(consulta: str, max_resultados: int) -> list[dict]:
     try:
         from ddgs import DDGS
-    except ImportError:
-        return []
-    try:
+
         with DDGS() as ddgs:
-            hits = list(ddgs.text(consulta, max_results=max_resultados))
+            return list(ddgs.text(consulta, max_results=max_resultados))
     except Exception:
         return []
 
-    evidencias = []
-    for hit in hits:
+
+def _evidencias_de_paginas(
+    hits: list[dict],
+    consulta: str,
+    fuente: str,
+    lang: str,
+    max_paginas: int,
+    max_pasajes_por_pagina: int = 3,
+) -> list[Evidencia]:
+    """Texto completo de los mejores resultados, en paralelo, con ranking léxico."""
+    candidatos = [h for h in hits if h.get("href")][:max_paginas]
+    with ThreadPoolExecutor(max_workers=max(1, len(candidatos))) as ejecutor:
+        textos = list(ejecutor.map(lambda h: _texto_de_pagina(h["href"]), candidatos))
+    evidencias: list[Evidencia] = []
+    for hit, texto in zip(candidatos, textos):
+        pasajes = _trocear(texto)
+        pasajes.sort(key=lambda p: _relevancia(consulta, p), reverse=True)
+        for pasaje in pasajes[:max_pasajes_por_pagina]:
+            if len(pasaje) < 40:
+                continue
+            evidencias.append(
+                Evidencia(
+                    texto=pasaje,
+                    url=hit["href"],
+                    titulo=hit.get("title", hit["href"]),
+                    dominio=_dominio(hit["href"]),
+                    fuente=fuente,
+                    idioma=lang,
+                )
+            )
+    return evidencias
+
+
+def buscar_web(
+    consulta: str, max_resultados: int = 8, lang: str = "", paginas_completas: int = 3
+) -> list[Evidencia]:
+    """Busca en la web (DuckDuckGo): texto completo de los mejores resultados,
+    snippets del resto."""
+    hits = _buscar_ddg(consulta, max_resultados)
+    evidencias = _evidencias_de_paginas(hits, consulta, "web", lang, paginas_completas)
+    for hit in hits[paginas_completas:]:
         url = hit.get("href", "")
         cuerpo = hit.get("body", "")
         if not url or len(cuerpo) < 40:
@@ -230,6 +283,56 @@ def buscar_web(consulta: str, max_resultados: int = 8, lang: str = "") -> list[E
                 dominio=_dominio(url),
                 fuente="web",
                 idioma=lang,
+            )
+        )
+    return evidencias
+
+
+def buscar_desmentidos(consulta: str, lang: str = "es") -> list[Evidencia]:
+    """Búsqueda dirigida a verificaciones: trae a los fact-checkers a la mesa.
+
+    Medido en AVeriTeC: en la mayoría de las mentiras que pasaban como
+    sustentadas, el fact-checker ni aparecía en la evidencia. Esta consulta
+    reformulada lo busca explícitamente, y lee el artículo completo (el
+    veredicto no cabe en un snippet).
+    """
+    sufijo = "fact check" if lang == "en" else "verificación bulo fact check"
+    hits = _buscar_ddg(f"{consulta} {sufijo}", max_resultados=5)
+    return _evidencias_de_paginas(hits, consulta, "desmentidos", lang, max_paginas=3)
+
+
+# ───────────────────────── técnicas / programación ─────────────────────────
+
+
+def buscar_stackexchange(consulta: str, lang: str = "", max_resultados: int = 4) -> list[Evidencia]:
+    """Preguntas y respuestas de Stack Overflow (API libre, sin llave).
+
+    Para afirmaciones de programación: nadie va a Wikipedia por un bug.
+    """
+    datos = _get_json(
+        "https://api.stackexchange.com/2.3/search/excerpts",
+        {
+            "order": "desc",
+            "sort": "relevance",
+            "q": consulta,
+            "site": "stackoverflow",
+            "pagesize": max_resultados,
+        },
+    )
+    evidencias: list[Evidencia] = []
+    for item in (datos or {}).get("items", []):
+        extracto = re.sub(r"<[^>]+>", " ", item.get("excerpt", "")).strip()
+        qid = item.get("question_id")
+        if len(extracto) < 40 or not qid:
+            continue
+        evidencias.append(
+            Evidencia(
+                texto=extracto,
+                url=f"https://stackoverflow.com/q/{qid}",
+                titulo=item.get("title", ""),
+                dominio="stackoverflow.com",
+                fuente="stackexchange",
+                idioma="en",
             )
         )
     return evidencias
@@ -354,50 +457,102 @@ def buscar_europepmc(consulta: str, lang: str = "", max_papers: int = 4) -> list
 
 # ───────────────────────── registro y orquestación ─────────────────────────
 
-# nombre → (descripción, función (consulta, lang, max_idiomas) -> list[Evidencia]).
+# nombre → (descripción, categorías que atiende o None = universal,
+#           función (consulta, lang, max_idiomas) -> list[Evidencia]).
 # Para añadir una fuente: escribe una función con esa firma y regístrala aquí.
-FUENTES: dict[str, tuple[str, object]] = {
+# Las categorías vienen del router (aidam/router.py): el agente no va a
+# Wikipedia por un bug ni a Stack Overflow por una afirmación médica.
+FUENTES: dict[str, tuple[str, set[str] | None, object]] = {
     "wikipedia": (
         "Wikipedia en el idioma de la afirmación (pasajes por relevancia)",
+        None,
         lambda c, lang, mi: buscar_wikipedia(c, lang=lang),
     ),
     "wikipedia-multilingue": (
         "El mismo artículo en otros idiomas vía enlaces interlingüísticos",
+        None,
         lambda c, lang, mi: buscar_wikipedia_multilingue(c, lang=lang, max_idiomas=mi),
     ),
     "wikinews": (
         "Periodismo colaborativo de Wikinews",
+        {"actualidad", "general"},
         lambda c, lang, mi: buscar_wikinews(c, lang=lang),
     ),
     "web": (
-        "Web abierta vía DuckDuckGo (miles de dominios, snippets)",
+        "Web abierta vía DuckDuckGo (páginas completas + snippets)",
+        None,
         lambda c, lang, mi: buscar_web(c, lang=lang),
     ),
+    "desmentidos": (
+        "Búsqueda dirigida a fact-checkers (artículo completo)",
+        None,
+        lambda c, lang, mi: buscar_desmentidos(c, lang=lang),
+    ),
+    "stackexchange": (
+        "Preguntas y respuestas de Stack Overflow",
+        {"programacion"},
+        lambda c, lang, mi: buscar_stackexchange(c),
+    ),
+    # Universales: un misroute del router debe AÑADIR ruido, nunca QUITAR señal
+    # (medido: una afirmación médica enrutada a "general" perdía sus papers).
     "semantic-scholar": (
         "Resúmenes académicos de Semantic Scholar",
+        None,
         lambda c, lang, mi: buscar_semantic_scholar(c, lang=lang),
     ),
     "openalex": (
         "Resúmenes académicos de OpenAlex",
+        None,
         lambda c, lang, mi: buscar_openalex(c, lang=lang),
     ),
     "arxiv": (
         "Preprints científicos de arXiv",
+        {"ciencia", "programacion"},
         lambda c, lang, mi: buscar_arxiv(c, lang=lang),
     ),
     "europepmc": (
         "Literatura biomédica de Europe PMC",
+        {"medicina", "ciencia"},
         lambda c, lang, mi: buscar_europepmc(c, lang=lang),
     ),
 }
 
 
-def recuperar(hecho: HechoAtomico, lang: str = "es", max_idiomas: int = 5) -> list[Evidencia]:
-    """Consulta todas las fuentes registradas en paralelo y deduplica.
+def _es_probatoria(hecho_texto: str, evidencia: Evidencia, lang: str) -> bool:
+    """¿El pasaje habla de lo que afirma el hecho, o solo del tema en general?
 
-    Cada fuente falla en silencio (devuelve lista vacía): la caída de un API
-    externo nunca tumba la verificación, solo reduce la evidencia disponible.
+    Un pasaje en el idioma de la afirmación que comparte <2 de sus palabras de
+    contenido no puede probar ni refutar nada específico (medido: las
+    introducciones genéricas de Wikipedia se juzgaban como contradicción).
+    La evidencia en otros idiomas queda exenta — el solape léxico no significa
+    nada entre idiomas; su ranking cruzado llegará con embeddings multilingües.
     """
+    if evidencia.idioma and evidencia.idioma != lang:
+        return True
+    palabras = set(re.findall(r"\w{4,}", hecho_texto.lower()))
+    if len(palabras) < 3:
+        return True
+    presentes = sum(1 for p in palabras if p in evidencia.texto.lower())
+    return presentes >= 2
+
+
+def recuperar(
+    hecho: HechoAtomico,
+    lang: str = "es",
+    max_idiomas: int = 5,
+    categoria: str | None = None,
+) -> list[Evidencia]:
+    """Consulta en paralelo las fuentes relevantes a la categoría y deduplica.
+
+    Sin categoría se consultan todas. Cada fuente falla en silencio (devuelve
+    lista vacía): la caída de un API externo nunca tumba la verificación,
+    solo reduce la evidencia disponible.
+    """
+    activas = [
+        (descripcion, funcion)
+        for descripcion, categorias, funcion in FUENTES.values()
+        if categoria is None or categorias is None or categoria in categorias
+    ]
 
     def _segura(nombre_y_fuente) -> list[Evidencia]:
         _descripcion, funcion = nombre_y_fuente
@@ -406,15 +561,15 @@ def recuperar(hecho: HechoAtomico, lang: str = "es", max_idiomas: int = 5) -> li
         except Exception:
             return []
 
-    with ThreadPoolExecutor(max_workers=len(FUENTES)) as ejecutor:
-        lotes = ejecutor.map(_segura, FUENTES.values())
+    with ThreadPoolExecutor(max_workers=len(activas)) as ejecutor:
+        lotes = ejecutor.map(_segura, activas)
 
     vistas: set[tuple[str, str]] = set()
     unicas: list[Evidencia] = []
     for lote in lotes:
         for e in lote:
             clave = (e.dominio, e.texto[:120])
-            if clave not in vistas:
+            if clave not in vistas and _es_probatoria(hecho.texto, e, lang):
                 vistas.add(clave)
                 unicas.append(e)
     return unicas

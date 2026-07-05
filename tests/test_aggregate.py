@@ -82,21 +82,74 @@ def test_un_verificador_le_gana_a_la_mentira_viral():
     assert resultado.veredicto is Veredicto.REFUTADO
 
 
+HECHO_VIRAL = HechoAtomico(
+    texto="En una carta a Steve Jobs, Sean Connery rechazó aparecer en un comercial de Apple",
+    origen="…",
+)
+
+
 def test_el_eco_no_es_evidencia():
-    """Un snippet web que solo repite la afirmación pesa poco como soporte."""
+    """Un snippet web que solo repite una afirmación viral pesa poco como soporte."""
     evidencia_eco = Evidencia(
-        texto="Confirmado: la Torre Eiffel está en París, dicen",
+        texto="Viral: en una carta a Steve Jobs, Sean Connery rechazó aparecer "
+        "en un comercial de Apple, según reportes",
         url="https://viral.com/x",
         titulo="t",
         dominio="viral.com",
         fuente="web",
     )
     eco = VeredictoPar(
-        hecho=HECHO, evidencia=evidencia_eco, etiqueta=EtiquetaPar.SUSTENTA, prob=0.95
+        hecho=HECHO_VIRAL, evidencia=evidencia_eco, etiqueta=EtiquetaPar.SUSTENTA, prob=0.95
     )
-    contra = [_par(EtiquetaPar.REFUTA, 0.75, "museo.org")]
-    resultado = agregar_hecho(HECHO, [eco] + contra)
+    contra = [
+        VeredictoPar(
+            hecho=HECHO_VIRAL,
+            evidencia=Evidencia(
+                texto="La carta es una sátira fabricada; el actor nunca la escribió",
+                url="https://museo.org/x",
+                titulo="t",
+                dominio="museo.org",
+                fuente="web",
+            ),
+            etiqueta=EtiquetaPar.REFUTA,
+            prob=0.75,
+        )
+    ]
+    resultado = agregar_hecho(HECHO_VIRAL, [eco] + contra)
     assert resultado.veredicto is Veredicto.REFUTADO
+
+
+def test_afirmacion_tecnica_corta_no_es_eco():
+    """Regresión medida en /verify: en afirmaciones cortas («Python lists are
+    mutable») todo pasaje legítimo contiene sus palabras — es cobertura, no eco."""
+    evidencia = Evidencia(
+        texto="Python lists are mutable: you can add, remove or change elements "
+        "in place with append, pop or slicing",
+        url="https://tutorial.org/x",
+        titulo="t",
+        dominio="tutorial.org",
+        fuente="web",
+    )
+    hecho_corto = HechoAtomico(texto="Python lists are mutable", origen="…")
+    par = VeredictoPar(
+        hecho=hecho_corto, evidencia=evidencia, etiqueta=EtiquetaPar.SUSTENTA, prob=0.95
+    )
+    resultado = agregar_hecho(hecho_corto, [par])
+    assert resultado.veredicto is Veredicto.SUSTENTADO
+    assert resultado.confianza > 0.3  # sin la penalización de eco
+
+
+def test_un_dominio_una_voz():
+    """Un fact-check narra el mito (pasaje 'a favor') antes de desmentirlo
+    (pasaje 'en contra' más fuerte): el dominio vota una sola vez, con su
+    señal más fuerte."""
+    pares = [
+        _par(EtiquetaPar.SUSTENTA, 0.78, "chequeado.com"),
+        _par(EtiquetaPar.REFUTA, 0.95, "chequeado.com"),
+    ]
+    resultado = agregar_hecho(HECHO, pares)
+    assert resultado.veredicto is Veredicto.REFUTADO
+    assert not resultado.a_favor  # la narración del mito no cuenta como voz
 
 
 def test_wikipedia_sustenta_aunque_haya_eco_en_contrario():

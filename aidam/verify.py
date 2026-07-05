@@ -54,6 +54,27 @@ class VerificadorNLI:
             for i, nombre in self.modelo.config.id2label.items()
         }
 
+    def puntuar_entailment(self, premisa: str, hipotesis: list[str]) -> list[float]:
+        """Probabilidad de que la premisa sustente cada hipótesis.
+
+        Uso genérico de la habilidad comparativa del modelo (p. ej. el router
+        la usa para clasificar temas en zero-shot).
+        """
+        entradas = self.tokenizer(
+            [premisa] * len(hipotesis),
+            hipotesis,
+            truncation=True,
+            max_length=512,
+            padding=True,
+            return_tensors="pt",
+        ).to(self.device)
+        with self._torch.inference_mode():
+            probs = self._torch.softmax(self.modelo(**entradas).logits, dim=-1)
+        indice_entailment = next(
+            i for i, et in self._etiquetas.items() if et is EtiquetaPar.SUSTENTA
+        )
+        return [float(fila[indice_entailment]) for fila in probs]
+
     def juzgar(
         self,
         hecho: HechoAtomico,

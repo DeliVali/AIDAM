@@ -50,6 +50,51 @@ def test_trocear_respeta_frases():
     assert all(p.endswith(".") for p in pasajes)
 
 
+def test_gate_probatorio_descarta_intro_generica():
+    """Regresión medida en /verify: la intro genérica del artículo de Python
+    (que no menciona listas) se juzgaba como contradicción del hecho."""
+    from aidam.models import Evidencia
+    from aidam.retrieve import _es_probatoria
+
+    intro = Evidencia(
+        texto="Python is a high-level, general-purpose programming language that "
+        "emphasizes code readability and simplicity",
+        url="https://en.wikipedia.org/wiki/Python",
+        titulo="Python",
+        dominio="en.wikipedia.org",
+        fuente="wikipedia",
+        idioma="en",
+    )
+    assert not _es_probatoria("Python lists are mutable", intro, lang="en")
+
+    especifica = Evidencia(
+        texto="Lists in Python are mutable sequences: elements can be changed in place",
+        url="https://en.wikipedia.org/wiki/Python",
+        titulo="Python",
+        dominio="en.wikipedia.org",
+        fuente="wikipedia",
+        idioma="en",
+    )
+    assert _es_probatoria("Python lists are mutable", especifica, lang="en")
+
+
+def test_gate_probatorio_exime_otros_idiomas():
+    """El solape léxico no significa nada entre idiomas: la evidencia
+    cruzada no se filtra (su ranking llegará con embeddings multilingües)."""
+    from aidam.models import Evidencia
+    from aidam.retrieve import _es_probatoria
+
+    zh = Evidencia(
+        texto="富士山是日本最高的山峰",
+        url="https://zh.wikipedia.org/wiki/富士山",
+        titulo="富士山",
+        dominio="zh.wikipedia.org",
+        fuente="wikipedia",
+        idioma="zh",
+    )
+    assert _es_probatoria("El Monte Fuji es la montaña más alta de Japón", zh, lang="es")
+
+
 def test_reconstruir_resumen_openalex():
     indice = {"hierve": [1], "El": [0], "a": [2], "100": [3], "grados.": [4]}
     assert _reconstruir_resumen_openalex(indice) == "El hierve a 100 grados."
@@ -67,11 +112,32 @@ def test_registro_de_fuentes_completo():
         "wikipedia-multilingue",
         "wikinews",
         "web",
+        "desmentidos",
+        "stackexchange",
         "semantic-scholar",
         "openalex",
         "arxiv",
         "europepmc",
     } <= set(FUENTES)
-    for nombre, (descripcion, funcion) in FUENTES.items():
+    from aidam.router import CATEGORIAS
+
+    for nombre, (descripcion, categorias, funcion) in FUENTES.items():
         assert descripcion, f"fuente sin descripción: {nombre}"
         assert callable(funcion), f"fuente sin función: {nombre}"
+        if categorias is not None:
+            assert categorias <= set(CATEGORIAS), f"categoría desconocida en {nombre}"
+
+
+def test_categorias_enrutan_fuentes():
+    """Programación llega a Stack Overflow; medicina no; universales siempre."""
+    def activas(categoria):
+        return {
+            nombre
+            for nombre, (_d, cats, _f) in FUENTES.items()
+            if cats is None or categoria in cats
+        }
+
+    assert "stackexchange" in activas("programacion")
+    assert "stackexchange" not in activas("medicina")
+    assert "europepmc" in activas("medicina")
+    assert {"wikipedia", "web", "desmentidos"} <= activas("general")
