@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/aidamlogo.svg" alt="AIDAM" width="380">
+</p>
+
 # AIDAM — Agente de Inteligencia por Deducción y Análisis Multi-fuente
 
 Un sistema agéntico de **lógica comparativa**: no memoriza el conocimiento del mundo en sus

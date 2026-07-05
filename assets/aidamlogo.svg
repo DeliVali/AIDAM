@@ -1,0 +1,36 @@
+<svg width="720" height="340" viewBox="0 0 720 340" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="AIdam">
+  <!-- pure white canvas -->
+  <rect width="720" height="340" fill="#ffffff"/>
+
+  <!-- wordmark: fully legible, elegant serif, letter-spaced -->
+  <text x="362" y="248" text-anchor="middle"
+        font-family="'Cormorant Garamond', 'EB Garamond', Garamond, 'Times New Roman', serif"
+        font-size="126" font-weight="500" letter-spacing="7"
+        fill="#26262c">AIdam</text>
+
+  <!-- the signature rule beneath the title (Final Fantasy language) -->
+  <g stroke="#26262c" stroke-width="2" stroke-linecap="round">
+    <line x1="150" y1="278" x2="574" y2="278"/>
+    <line x1="150" y1="271" x2="150" y2="285"/>
+    <line x1="574" y1="271" x2="574" y2="285"/>
+  </g>
+
+  <!-- small, flat bitten apple crowning the title -->
+  <g transform="translate(362 118)">
+    <!-- stem -->
+    <path d="M1 -50 C -2 -64, -9 -74, -18 -80" stroke="#7a4a2b" stroke-width="6" stroke-linecap="round" fill="none"/>
+    <!-- flat leaf -->
+    <path d="M4 -58 C 24 -80, 52 -76, 58 -54 C 40 -47, 16 -52, 4 -58 Z" fill="#43a047"/>
+    <!-- flat apple body with a bite on the right -->
+    <path d="M0 -44
+             C -13 -58, -46 -58, -58 -36
+             C -70 -14, -63 30, -40 52
+             C -26 68, -9 74, 1 66
+             C 12 74, 30 68, 42 50
+             C 52 38, 58 22, 60 8
+             C 46 12, 37 3, 37 -9
+             C 37 -21, 46 -30, 60 -26
+             C 61 -42, 30 -58, 0 -44 Z"
+          fill="#e63329"/>
+  </g>
+</svg>
