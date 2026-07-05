@@ -71,6 +71,44 @@ def test_cien_copias_cuentan_como_una_voz():
     assert resultado.veredicto is Veredicto.REFUTADO
 
 
+def test_un_verificador_le_gana_a_la_mentira_viral():
+    """Priores de fiabilidad: el caso AVeriTeC — muchos sitios repiten la
+    mentira, un fact-checker la desmiente. Debe ganar el fact-checker."""
+    virales = [
+        _par(EtiquetaPar.SUSTENTA, 0.95, f"viral{i}.com") for i in range(3)
+    ]
+    desmentido = [_par(EtiquetaPar.REFUTA, 0.95, "politifact.com")]
+    resultado = agregar_hecho(HECHO, virales + desmentido)
+    assert resultado.veredicto is Veredicto.REFUTADO
+
+
+def test_el_eco_no_es_evidencia():
+    """Un snippet web que solo repite la afirmación pesa poco como soporte."""
+    evidencia_eco = Evidencia(
+        texto="Confirmado: la Torre Eiffel está en París, dicen",
+        url="https://viral.com/x",
+        titulo="t",
+        dominio="viral.com",
+        fuente="web",
+    )
+    eco = VeredictoPar(
+        hecho=HECHO, evidencia=evidencia_eco, etiqueta=EtiquetaPar.SUSTENTA, prob=0.95
+    )
+    contra = [_par(EtiquetaPar.REFUTA, 0.75, "museo.org")]
+    resultado = agregar_hecho(HECHO, [eco] + contra)
+    assert resultado.veredicto is Veredicto.REFUTADO
+
+
+def test_wikipedia_sustenta_aunque_haya_eco_en_contrario():
+    """Los priores no rompen el caso legítimo: enciclopedia + web coinciden."""
+    pares = [
+        _par(EtiquetaPar.SUSTENTA, 0.9, "es.wikipedia.org"),
+        _par(EtiquetaPar.SUSTENTA, 0.9, "detallada.org"),
+        _par(EtiquetaPar.REFUTA, 0.7, "confuso.com"),
+    ]
+    assert agregar_hecho(HECHO, pares).veredicto is Veredicto.SUSTENTADO
+
+
 def _vh(veredicto: Veredicto, confianza: float = 0.8) -> VeredictoHecho:
     return VeredictoHecho(hecho=HECHO, veredicto=veredicto, confianza=confianza)
 

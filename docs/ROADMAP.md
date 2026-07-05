@@ -14,7 +14,15 @@ la arquitectura antes de entrenar nada, y nos da la línea base a superar.
       porque funciona en español desde el día uno
 - [x] Agregador v0: mayoría ponderada auditable, 4 clases de veredicto, con tests
 - [x] CLI: `aidam verificar "afirmación"` → veredicto + citas (7.9 s por afirmación real)
-- [ ] Evaluación en el dev set de **AVeriTeC** y en **LLM-AggreFact**
+- [x] **Evaluación AVeriTeC (2026-07-05, primeras 100 del dev)**: exactitud 30–31%,
+      F1 macro 0.21–0.25 (baseline mayoritario: 61%). El número es duro y es el punto:
+      ahora cada cambio se mide. Script en `evaluacion/eval_averitec.py` (recuperación
+      viva, no la pista oficial del shared task). Pendiente: LLM-AggreFact.
+      **Diagnóstico medido**: el fallo dominante es mentira viral → "sustentado"
+      (25/100); en la mayoría de esos casos el fact-checker ni aparece en la evidencia,
+      y cuando aparece, su snippet truncado *repite* la afirmación y el verificador lo
+      lee como apoyo. El cuello de botella es la calidad de la evidencia (snippets),
+      no la agregación.
 
 **Criterio de éxito:** el pipeline completo verifica una afirmación real en <1 minuto
 (el estándar del shared task de AVeriTeC 2025) y publica su puntuación.
@@ -52,11 +60,17 @@ competitivo en español.
       y alemán (95%).* Pendiente: ranking de relevancia cruzado con embeddings
       multilingües (hoy los idiomas lejanos aportan solo su introducción).
 - [ ] Modelo de independencia de fuentes (detección de contenido sindicado/copiado)
-- [ ] Priores de fiabilidad por fuente, aprendidos de aciertos históricos, transparentes.
-      *Caso motivador (2026-07-05): «la Gran Muralla se ve desde la Luna» → tres sitios
-      turísticos que repiten el mito empatan con Wikipedia y el veredicto queda en
-      "contradictorio" cuando debería ser "refutado". Sin fiabilidad por fuente, la
-      web ruidosa empata con la web fiable.*
+- [x] **Priores de fiabilidad v0 + regla anti-eco (2026-07-05)**: fact-checkers pesan
+      8x, enciclopedias/academia 2.5x, .gov/.edu 2x; y un snippet que solo repite la
+      afirmación casi no pesa como soporte ("el eco no es evidencia"). Con tests.
+      **Resultado A/B en AVeriTeC-100**: refutadas correctas 13→20, exactitud 30→31%,
+      F1 macro bajó 0.25→0.21 (algunas afirmaciones ciertas ahora se refutan por
+      desmentidos parciales). Ayuda, pero el techo lo pone la evidencia: ver siguiente.
+- [ ] **Evidencia de página completa + búsqueda dirigida a desmentidos** (el paso con
+      mayor palanca según los datos): descargar el texto completo de los mejores
+      resultados web (no solo snippets truncados) y añadir una búsqueda reformulada
+      («\<afirmación\> fact check») para traer a los verificadores a la mesa.
+- [ ] Afinar los priores con datos (aprendidos de aciertos históricos, no a mano)
 - [ ] Manejo temporal: hechos volátiles vs. estables
 - [ ] Detección de cherry-picking (clase AVeriTeC "evidencia contradictoria")
 - [ ] Búsqueda activa de evidencia contraria (anti-sesgo de confirmación)

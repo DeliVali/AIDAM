@@ -4,15 +4,25 @@ Matemática explícita y auditable — sin red neuronal, a propósito. Combina l
 juicios por par en un veredicto por hecho, y los veredictos por hecho en el
 veredicto de la afirmación completa.
 
-Reglas de independencia: cada dominio aporta una sola voz por lado (su mejor
-evidencia). Así, cien páginas que copian el mismo comunicado no pesan más que
-una fuente original.
+Reglas de independencia y fiabilidad (cada una nació de un fallo medido):
+1. Cada dominio aporta una sola voz por lado (su mejor evidencia). Cien
+   páginas que copian el mismo comunicado no pesan más que una fuente.
+2. Priores de fiabilidad por tipo de fuente: los verificadores profesionales,
+   enciclopedias, academia y organismos oficiales pesan más que un dominio
+   desconocido. Motivado por AVeriTeC: sin esto, la mentira viral repetida en
+   muchos sitios le gana al fact-checker que la desmiente.
+3. El eco no es evidencia: un snippet web que solo repite la afirmación casi
+   palabra por palabra no aporta información propia — sostener no es repetir.
+   (Solo aplica al lado que sustenta: refutar exige contenido propio.)
 """
 
 from __future__ import annotations
 
+import re
+
 from .models import (
     EtiquetaPar,
+    Evidencia,
     HechoAtomico,
     Informe,
     Veredicto,
@@ -28,15 +38,75 @@ DOMINANCIA = 2.0
 # Fuentes independientes necesarias para confianza plena.
 FUENTES_PLENAS = 3
 
+# ── Priores de fiabilidad (transparentes y discutibles en el repo) ──
+# Verificadores profesionales de hechos (miembros/afines a la red IFCN).
+VERIFICADORES = {
+    "politifact.com", "snopes.com", "factcheck.org", "fullfact.org",
+    "chequeado.com", "maldita.es", "newtral.es", "factual.afp.com",
+    "factcheck.afp.com", "leadstories.com", "checkyourfact.com",
+    "boomlive.in", "altnews.in", "colombiacheck.com", "verificado.com.mx",
+    "aosfatos.org", "lupa.uol.com.br", "correctiv.org", "pagellapolitica.it",
+}
+# Un desmentido profesional vale ~un orden de magnitud más que la afirmación
+# de un dominio desconocido: con 8.0, un fact-checker le gana a 3 sitios
+# virales, pero 6+ sitios independientes aún fuerzan "contradictorio".
+PESO_VERIFICADOR = 8.0
+PESO_ENCICLOPEDIA = 2.5  # *.wikipedia.org
+PESO_ACADEMICO = 2.5  # papers (fuente == "academica")
+PESO_OFICIAL = 2.0  # dominios .gov / .edu
+PESO_WIKINEWS = 1.5
+PESO_BASE = 1.0
+PESO_ECO = 0.3  # multiplicador para el eco (regla 3)
+_UMBRAL_ECO = 0.8  # fracción de palabras de la afirmación presentes en el pasaje
+
+
+def peso_fuente(evidencia: Evidencia) -> float:
+    """Prior de fiabilidad del dominio. Explícito para poder auditarlo."""
+    dominio = evidencia.dominio
+    if dominio in VERIFICADORES:
+        return PESO_VERIFICADOR
+    if dominio.endswith(".wikipedia.org"):
+        return PESO_ENCICLOPEDIA
+    if evidencia.fuente == "academica":
+        return PESO_ACADEMICO
+    if dominio.endswith((".gov", ".edu")) or ".gov." in dominio or ".edu." in dominio:
+        return PESO_OFICIAL
+    if evidencia.fuente == "wikinews":
+        return PESO_WIKINEWS
+    return PESO_BASE
+
+
+def _es_eco(hecho: HechoAtomico, evidencia: Evidencia) -> bool:
+    """¿El pasaje solo repite la afirmación sin aportar contenido propio?"""
+    palabras = set(re.findall(r"\w{4,}", hecho.texto.lower()))
+    if not palabras:
+        return False
+    presentes = sum(1 for p in palabras if p in evidencia.texto.lower())
+    return presentes / len(palabras) >= _UMBRAL_ECO
+
+
+def _peso(par: VeredictoPar) -> float:
+    """Peso total de un juicio: prior de fiabilidad × penalización por eco."""
+    peso = peso_fuente(par.evidencia)
+    if (
+        par.etiqueta is EtiquetaPar.SUSTENTA
+        and par.evidencia.fuente == "web"
+        and _es_eco(par.hecho, par.evidencia)
+    ):
+        peso *= PESO_ECO
+    return peso
+
 
 def _mejor_por_dominio(pares: list[VeredictoPar]) -> dict[tuple[str, str], VeredictoPar]:
-    """Se queda con el juicio más seguro de cada (dominio, lado)."""
+    """Se queda con el juicio de mayor señal ponderada de cada (dominio, lado)."""
     mejores: dict[tuple[str, str], VeredictoPar] = {}
     for par in pares:
         if par.etiqueta is EtiquetaPar.NO_CONCLUYE or par.prob < UMBRAL_SENAL:
             continue
         clave = (par.evidencia.dominio, par.etiqueta.value)
-        if clave not in mejores or par.prob > mejores[clave].prob:
+        if clave not in mejores or par.prob * _peso(par) > mejores[clave].prob * _peso(
+            mejores[clave]
+        ):
             mejores[clave] = par
     return mejores
 
@@ -54,8 +124,8 @@ def agregar_hecho(hecho: HechoAtomico, pares: list[VeredictoPar]) -> VeredictoHe
         key=lambda p: p.prob,
         reverse=True,
     )
-    senal_favor = sum(p.prob for p in a_favor)
-    senal_contra = sum(p.prob for p in en_contra)
+    senal_favor = sum(p.prob * _peso(p) for p in a_favor)
+    senal_contra = sum(p.prob * _peso(p) for p in en_contra)
     total = senal_favor + senal_contra
     cobertura = min(1.0, len(voces) / FUENTES_PLENAS)
 
