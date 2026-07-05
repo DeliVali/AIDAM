@@ -9,6 +9,9 @@ igual y el resto del pipeline no cambia.
 
 from __future__ import annotations
 
+import os
+from pathlib import Path
+
 from .models import EtiquetaPar, Evidencia, HechoAtomico, VeredictoPar
 
 _MAPA_NLI = {
@@ -18,20 +21,31 @@ _MAPA_NLI = {
 }
 
 
+def _resolver_modelo() -> str:
+    """Prioridad: variable de entorno > modelo entrenado local > checkpoint público."""
+    if entorno := os.environ.get("AIDAM_MODELO_VERIFICADOR"):
+        return entorno
+    local = Path(__file__).resolve().parent.parent / "modelos" / "verificador-v0"
+    if (local / "config.json").exists():
+        return str(local)
+    return VerificadorNLI.MODELO
+
+
 class VerificadorNLI:
     """Verificador basado en NLI multilingüe: premisa=evidencia, hipótesis=hecho."""
 
     MODELO = "MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7"
 
-    def __init__(self, device: str | None = None):
+    def __init__(self, device: str | None = None, modelo: str | None = None):
         import torch
         from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
         self._torch = torch
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
-        self.tokenizer = AutoTokenizer.from_pretrained(self.MODELO)
+        ruta = modelo or _resolver_modelo()
+        self.tokenizer = AutoTokenizer.from_pretrained(ruta)
         self.modelo = (
-            AutoModelForSequenceClassification.from_pretrained(self.MODELO)
+            AutoModelForSequenceClassification.from_pretrained(ruta)
             .to(self.device)
             .eval()
         )

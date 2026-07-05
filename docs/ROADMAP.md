@@ -8,11 +8,12 @@ público**. Nada de arquitecturas en el aire durante meses.
 Construir el sistema completo de punta a punta usando modelos ya publicados. Esto valida
 la arquitectura antes de entrenar nada, y nos da la línea base a superar.
 
-- [ ] Descompositor: LLM abierto pequeño + prompts estilo VeriScore
-- [ ] Recuperador: API de búsqueda web + Wikipedia + clustering de fuentes por independencia
-- [ ] Verificador: **MiniCheck off-the-shelf** (`Liyan06/MiniCheck` en HuggingFace)
-- [ ] Agregador v0: reglas simples de mayoría ponderada, 4 clases de veredicto
-- [ ] CLI: `aidam verificar "afirmación"` → veredicto + citas
+- [x] Descompositor v0 (heurístico; el neuronal estilo VeriScore queda para Fase 1)
+- [x] Recuperador: Wikipedia + búsqueda web, una voz por dominio (independencia)
+- [x] Verificador: NLI multilingüe mDeBERTa-v3 (~280M) — elegido sobre MiniCheck
+      porque funciona en español desde el día uno
+- [x] Agregador v0: mayoría ponderada auditable, 4 clases de veredicto, con tests
+- [x] CLI: `aidam verificar "afirmación"` → veredicto + citas (7.9 s por afirmación real)
 - [ ] Evaluación en el dev set de **AVeriTeC** y en **LLM-AggreFact**
 
 **Criterio de éxito:** el pipeline completo verifica una afirmación real en <1 minuto

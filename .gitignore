@@ -20,4 +20,6 @@ venv/
 
 # Datos locales / artefactos de experimentos
 data/local/
+modelos/
+training/checkpoints/
 *.log
