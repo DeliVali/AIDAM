@@ -2,12 +2,31 @@
 
 from __future__ import annotations
 
+from functools import lru_cache
 from typing import Callable
 
 from .aggregate import agregar_hecho, agregar_informe
 from .decompose import descomponer
 from .models import Informe
 from .retrieve import recuperar
+
+
+@lru_cache(maxsize=1)
+def _generador_preguntas():
+    """Carga el generador (4.7 GB) UNA sola vez por proceso.
+
+    Cargarlo por llamada filtra VRAM hasta agotar la GPU — medido: una
+    evaluación de 100 afirmaciones murió en la #7 por esto. Si la carga
+    falla, devuelve None y el pipeline sigue sin esa etapa.
+    """
+    from .preguntas import GeneradorPreguntas, ruta_modelo
+
+    if ruta_modelo() is None:
+        return None
+    try:
+        return GeneradorPreguntas()
+    except Exception:
+        return None
 
 
 def verificar(
@@ -39,13 +58,10 @@ def verificar(
 
     generador = None
     if preguntas:
-        from .preguntas import GeneradorPreguntas, ruta_modelo
-
-        if ruta_modelo() is not None:
-            avisar("Cargando el generador de preguntas (MiMo)…")
-            generador = GeneradorPreguntas()
-        else:
-            avisar("Sin modelo generador de preguntas; sigo sin esa etapa")
+        avisar("Cargando el generador de preguntas (MiMo)…")
+        generador = _generador_preguntas()
+        if generador is None:
+            avisar("Generador de preguntas no disponible; sigo sin esa etapa")
 
     veredictos_hechos = []
     for hecho in hechos:

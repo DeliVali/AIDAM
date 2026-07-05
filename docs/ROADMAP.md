@@ -44,7 +44,13 @@ Replicar y luego intentar superar la receta MiniCheck con datos propios.
       y la sobre-refutación baja. Residuo conocido: intros enciclopédicas aún votan
       "contra" en ~70-79% — el objetivo #1 de los datos sintéticos es generar pares
       neutrales-difíciles (intro genérica × afirmación específica).
-- [ ] Generador de datos sintéticos: errores factuales sutiles, multi-frase, multi-salto
+- [x] **v2 con neutrales-difíciles (2026-07-05)**: 30k pares mecánicos desde la
+      estructura de VitaminC (misma página, hecho distinto — receta Auto-GDA,
+      `training/generar_neutrales.py`). La refutación espuria del par medido cayó
+      de 86% a 53% (bajo el umbral de señal); VitaminC test 88.21%.
+      «Python lists are mutable»: REFUTADO 74% → SUSTENTADO 100%.
+- [ ] Generador de datos sintéticos con LLM: errores factuales sutiles, multi-frase,
+      multi-salto (los neutrales mecánicos de v2 son el primer paso)
 - [ ] Datos de entrenamiento en español (VitaminC es inglés; el modelo conserva el
       español del checkpoint base, pero hay que medirlo y reforzarlo)
 - [ ] Calibración de probabilidades + evaluación de abstención
@@ -84,6 +90,12 @@ competitivo en español.
       (las intros genéricas se leían como contradicción); el anti-eco solo aplica a
       afirmaciones largas (en las cortas, cobertura ≠ eco). Todo salió de un `/verify`
       en runtime que falló — cada regla tiene su test de regresión.
+- [x] **Generación de preguntas de búsqueda (2026-07-05)**: MiMo-7B-RL de Xiaomi
+      cuantizado (Q4, llama.cpp) genera las preguntas cuya respuesta confirmaría o
+      refutaría la afirmación — la técnica de los ganadores de AVeriTeC 2.0. Flag
+      `--preguntas`. **Con verificador v2 + preguntas: AVeriTeC-100 37% → 39%,
+      F1 macro 0.254 → 0.308, NEI F1 0.077 → 0.300** (serie: 30→31→37→39).
+      24.5 s/afirmación, dentro del presupuesto de 1 min del shared task.
 - [ ] Afinar los priores con datos (aprendidos de aciertos históricos, no a mano)
 - [ ] Clase "evidencia contradictoria": F1 0.095 en AVeriTeC-100 — la más débil;
       necesita detección real de cherry-picking, no solo el empate de señales
