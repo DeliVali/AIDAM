@@ -67,8 +67,18 @@ Cien sitios que copian el mismo comunicado de prensa cuentan como *una* fuente. 
 recuperador:
 
 - agrupa documentos por origen probable (clustering de similitud + análisis de dominio),
-- registra metadatos: fecha, tipo de fuente (primaria/secundaria/terciaria), dominio,
+- registra metadatos: fecha, tipo de fuente (primaria/secundaria/terciaria), dominio, idioma,
 - busca activamente evidencia **en contra**, no solo a favor (anti-sesgo de confirmación).
+
+**La información es libre sin importar el idioma:** el recuperador no se limita al
+idioma de la afirmación. Vía los enlaces interlingüísticos de Wikipedia trae el mismo
+artículo en otros idiomas (inglés, chino, ruso, árabe…) **sin modelo de traducción**,
+y el verificador multilingüe juzga los pares cruzados directamente (afirmación en
+español, evidencia en alemán). Bono de independencia: cada edición de Wikipedia es una
+comunidad editorial distinta — más voces para la lógica comparativa. Limitación actual:
+los pasajes en idiomas que no comparten vocabulario con la consulta se toman de la
+introducción del artículo (no hay ranking léxico cruzado); la mejora natural son
+embeddings multilingües para rankear relevancia entre idiomas.
 
 **Sin entrenamiento:** este módulo es ingeniería pura (APIs de búsqueda, embeddings para
 clustering, reglas). Cero parámetros gastados.

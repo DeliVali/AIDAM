@@ -61,9 +61,11 @@ La primera ejecución descarga el verificador (~1 GB); después todo corre local
 GPU o CPU. Salida: veredicto (**sustentado / refutado / contradictorio / insuficiente**)
 con confianza y **citas a la evidencia** de cada fuente consultada.
 
-**Estado actual (Fase 0):** pipeline completo funcionando — descompositor heurístico,
-recuperación desde Wikipedia + búsqueda web, verificador NLI multilingüe (~280M params,
-funciona en español), agregador auditable con independencia de fuentes. Ver el
+**Estado actual:** pipeline completo funcionando — descompositor heurístico,
+recuperación **multilingüe** (Wikipedia en varios idiomas vía enlaces interlingüísticos
++ búsqueda web), verificador propio entrenado (Fase 1 v0: **88.8% en VitaminC**, desde
+73.3% del checkpoint base) que juzga evidencia en cualquier idioma contra afirmaciones
+en español, y agregador auditable con independencia de fuentes. Ver el
 [roadmap](docs/ROADMAP.md) para lo que viene.
 
 ## Documentación

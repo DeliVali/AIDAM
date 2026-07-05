@@ -40,6 +40,12 @@ competitivo en español.
 
 ## Fase 2 — Lógica comparativa seria (1–2 meses)
 
+- [x] **Recuperación multilingüe (2026-07-05)**: enlaces interlingüísticos de Wikipedia
+      → evidencia en en/fr/de/ru/zh/… sin modelo de traducción; el verificador juzga
+      pares cruzados de idioma directamente. `--max-idiomas` en la CLI.
+      *Verificado: afirmación en español sustentada por las Wikipedias en inglés (96%)
+      y alemán (95%).* Pendiente: ranking de relevancia cruzado con embeddings
+      multilingües (hoy los idiomas lejanos aportan solo su introducción).
 - [ ] Modelo de independencia de fuentes (detección de contenido sindicado/copiado)
 - [ ] Priores de fiabilidad por fuente, aprendidos de aciertos históricos, transparentes.
       *Caso motivador (2026-07-05): «la Gran Muralla se ve desde la Luna» → tres sitios

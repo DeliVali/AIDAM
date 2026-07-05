@@ -13,6 +13,7 @@ from .retrieve import recuperar
 def verificar(
     afirmacion: str,
     lang: str = "es",
+    max_idiomas: int = 5,
     verificador=None,
     progreso: Callable[[str], None] | None = None,
 ) -> Informe:
@@ -36,8 +37,12 @@ def verificar(
     veredictos_hechos = []
     for hecho in hechos:
         avisar(f"Buscando evidencia: «{hecho.texto[:70]}»")
-        evidencias = recuperar(hecho, lang=lang)
-        avisar(f"  {len(evidencias)} pasajes de {len({e.dominio for e in evidencias})} dominios")
+        evidencias = recuperar(hecho, lang=lang, max_idiomas=max_idiomas)
+        idiomas = sorted({e.idioma for e in evidencias if e.idioma})
+        avisar(
+            f"  {len(evidencias)} pasajes de {len({e.dominio for e in evidencias})} dominios"
+            f" · idiomas: {', '.join(idiomas) or lang}"
+        )
         pares = verificador.juzgar(hecho, evidencias) if evidencias else []
         veredictos_hechos.append(agregar_hecho(hecho, pares))
 

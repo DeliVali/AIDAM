@@ -38,9 +38,10 @@ def _imprimir(informe: Informe) -> None:
         consola.print(f"  [{color_h}]{titulo_h}[/] · confianza {vh.confianza:.0%}")
         for etiqueta, pares in (("A favor", vh.a_favor), ("En contra", vh.en_contra)):
             for par in pares[:3]:
+                idioma = f" · {par.evidencia.idioma}" if par.evidencia.idioma else ""
                 consola.print(
                     f"  [{color_h}]•[/] {etiqueta} ({par.prob:.0%}) "
-                    f"[dim]{par.evidencia.dominio}[/dim]\n"
+                    f"[dim]{par.evidencia.dominio}{idioma}[/dim]\n"
                     f"    «{par.evidencia.texto[:200]}…»\n"
                     f"    [dim underline]{par.evidencia.url}[/dim underline]"
                 )
@@ -71,7 +72,14 @@ def main(argv: list[str] | None = None) -> int:
 
     p_verificar = sub.add_parser("verificar", help="verificar una afirmación")
     p_verificar.add_argument("afirmacion", help="texto de la afirmación a verificar")
-    p_verificar.add_argument("--lang", default="es", help="idioma de búsqueda (es, en, …)")
+    p_verificar.add_argument("--lang", default="es", help="idioma de la afirmación (es, en, …)")
+    p_verificar.add_argument(
+        "--max-idiomas",
+        type=int,
+        default=5,
+        help="Wikipedias adicionales a consultar vía enlaces interlingüísticos "
+        "(0 = solo el idioma de la afirmación; un valor alto consulta todas las que existan)",
+    )
     p_verificar.add_argument("--json", action="store_true", help="salida en JSON")
 
     args = parser.parse_args(argv)
@@ -79,7 +87,9 @@ def main(argv: list[str] | None = None) -> int:
     from .pipeline import verificar
 
     progreso = None if args.json else lambda m: print(f"[aidam] {m}", file=sys.stderr)
-    informe = verificar(args.afirmacion, lang=args.lang, progreso=progreso)
+    informe = verificar(
+        args.afirmacion, lang=args.lang, max_idiomas=args.max_idiomas, progreso=progreso
+    )
 
     if args.json:
         print(_a_json(informe))

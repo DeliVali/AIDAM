@@ -40,6 +40,7 @@ class Evidencia:
     titulo: str
     dominio: str
     fuente: str  # "wikipedia" | "web"
+    idioma: str = ""  # código ISO del idioma del pasaje ("es", "en", "zh", …)
 
 
 @dataclass
