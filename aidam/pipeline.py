@@ -14,6 +14,7 @@ def verificar(
     afirmacion: str,
     lang: str = "es",
     max_idiomas: int = 5,
+    preguntas: bool = False,
     verificador=None,
     progreso: Callable[[str], None] | None = None,
 ) -> Informe:
@@ -36,11 +37,30 @@ def verificar(
 
     from .router import clasificar
 
+    generador = None
+    if preguntas:
+        from .preguntas import GeneradorPreguntas, ruta_modelo
+
+        if ruta_modelo() is not None:
+            avisar("Cargando el generador de preguntas (MiMo)…")
+            generador = GeneradorPreguntas()
+        else:
+            avisar("Sin modelo generador de preguntas; sigo sin esa etapa")
+
     veredictos_hechos = []
     for hecho in hechos:
         categoria = clasificar(hecho.texto, verificador)
         avisar(f"Buscando evidencia [{categoria}]: «{hecho.texto[:70]}»")
         evidencias = recuperar(hecho, lang=lang, max_idiomas=max_idiomas, categoria=categoria)
+
+        if generador is not None:
+            from .retrieve import buscar_web
+
+            for pregunta in generador.preguntas(hecho.texto, n=2, lang=lang):
+                avisar(f"  pregunta de búsqueda: «{pregunta[:70]}»")
+                evidencias.extend(
+                    buscar_web(pregunta, max_resultados=4, lang=lang, paginas_completas=1)
+                )
         idiomas = sorted({e.idioma for e in evidencias if e.idioma})
         avisar(
             f"  {len(evidencias)} pasajes de {len({e.dominio for e in evidencias})} dominios"

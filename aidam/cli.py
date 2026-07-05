@@ -80,6 +80,13 @@ def main(argv: list[str] | None = None) -> int:
         help="Wikipedias adicionales a consultar vía enlaces interlingüísticos "
         "(0 = solo el idioma de la afirmación; un valor alto consulta todas las que existan)",
     )
+    p_verificar.add_argument(
+        "--preguntas",
+        action="store_true",
+        help="generar preguntas de búsqueda con un LLM local (MiMo) para dirigir "
+        "la recuperación — técnica ganadora de AVeriTeC 2.0; requiere el modelo "
+        "en modelos/mimo/",
+    )
     p_verificar.add_argument("--json", action="store_true", help="salida en JSON")
 
     sub.add_parser("fuentes", help="listar las fuentes de evidencia registradas")
@@ -98,7 +105,11 @@ def main(argv: list[str] | None = None) -> int:
 
     progreso = None if args.json else lambda m: print(f"[aidam] {m}", file=sys.stderr)
     informe = verificar(
-        args.afirmacion, lang=args.lang, max_idiomas=args.max_idiomas, progreso=progreso
+        args.afirmacion,
+        lang=args.lang,
+        max_idiomas=args.max_idiomas,
+        preguntas=args.preguntas,
+        progreso=progreso,
     )
 
     if args.json:

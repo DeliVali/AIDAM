@@ -1,5 +1,37 @@
 # Estado del arte anotado (julio 2026)
 
+## Incorporado al sistema (julio 2026)
+
+- **MiMo-7B-RL (Xiaomi)** — [GitHub](https://github.com/XiaomiMiMo/MiMo) ·
+  [GGUF cuantizado](https://huggingface.co/jedisct1/MiMo-7B-RL-GGUF)
+  Modelo de razonamiento de 7B a nivel o1-mini, open source, cuantizado Q4 en
+  ~4.7 GB — corre en la GPU de consumo del proyecto vía llama.cpp.
+  → *Es nuestro generador de preguntas de búsqueda (`aidam/preguntas.py`).
+  Truco necesario: prefill de `<think></think>` vacío, porque el modelo RL gasta
+  cientos de tokens razonando antes de responder.*
+
+- **AVeriTeC 2.0 Shared Task (ACL 2025)** — [paper](https://aclanthology.org/2025.fever-1.15/) ·
+  ganador CTU AIC con 33.17% de AVeriTeC score (métrica estricta con calidad de
+  evidencia; no comparable con exactitud simple). Técnica común a los sistemas
+  punteros: **generación de preguntas por afirmación** para dirigir la
+  recuperación — en vez de buscar la afirmación literal (que devuelve páginas
+  que la repiten), preguntar lo que la confirmaría o refutaría.
+  → *Implementado con MiMo en el flag `--preguntas` de la CLI.*
+
+- **Hard negatives sintéticos / Auto-GDA** — [Auto-GDA (Amazon)](https://arxiv.org/pdf/2410.03461) ·
+  [claim matching con LLMs](https://arxiv.org/pdf/2402.05904)
+  La receta publicada para nuestro fallo medido (pasajes del mismo tema juzgados
+  como contradicción): generar pares "alineados en tema, irrelevantes en
+  semántica". → *`training/generar_neutrales.py` los fabrica mecánicamente desde
+  la estructura de VitaminC (misma página, hecho distinto) — 30k pares sin
+  necesitar LLM.*
+
+- **Herramientas de entrenamiento 2026** — [panorama](https://codersera.com/blog/fine-tuning-llms-complete-guide-2026/)
+  Unsloth (QLoRA en GPU de 6 GB, kernels Triton), TRL v1.0 (SFT/DPO/GRPO
+  unificados), Axolotl con quantization-aware training. → *Para cuando toquen
+  modelos generativos propios (descompositor neuronal, Fase 3-4); el verificador
+  encoder de 280M no los necesita.*
+
 Referencias que sostienen cada decisión de diseño de AIDAM. Cada entrada dice *qué nos
 enseña* para este proyecto.
 

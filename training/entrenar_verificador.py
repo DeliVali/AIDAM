@@ -85,6 +85,13 @@ def main() -> None:
         "sobre-refute con pasajes relacionados pero no probatorios",
     )
     parser.add_argument("--eval-ejemplos", type=int, default=10_000, help="ejemplos de test")
+    parser.add_argument(
+        "--neutrales-dificiles",
+        type=Path,
+        default=Path("data/local/neutrales_dificiles.jsonl"),
+        help="pares neutrales-difíciles (training/generar_neutrales.py); "
+        "atacan el fallo medido: intros genéricas juzgadas como contradicción",
+    )
     parser.add_argument("--checkpoint", default=CHECKPOINT_BASE)
     args = parser.parse_args()
 
@@ -134,8 +141,18 @@ def main() -> None:
             return entradas
 
         nli = mnli.map(preparar_mnli, batched=True, remove_columns=mnli.column_names)
-        train = concatenate_datasets([train, nli]).shuffle(seed=SEMILLA)
-        print(f"[entrenar] mezcla: {len(train)} ejemplos (VitaminC + {len(nli)} MNLI)")
+        partes = [train, nli]
+        etiqueta_mezcla = f"VitaminC + {len(nli)} MNLI"
+
+        if args.neutrales_dificiles.exists():
+            duros = load_dataset(
+                "json", data_files=str(args.neutrales_dificiles), split="train"
+            ).map(preparar, batched=True, remove_columns=["claim", "evidence", "label", "origen"])
+            partes.append(duros)
+            etiqueta_mezcla += f" + {len(duros)} neutrales-difíciles"
+
+        train = concatenate_datasets(partes).shuffle(seed=SEMILLA)
+        print(f"[entrenar] mezcla: {len(train)} ejemplos ({etiqueta_mezcla})")
 
     argumentos = TrainingArguments(
         output_dir=str(SALIDA.parent / "checkpoints"),

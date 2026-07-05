@@ -97,6 +97,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--limite", type=int, default=500)
     parser.add_argument("--max-idiomas", type=int, default=3)
+    parser.add_argument(
+        "--preguntas", action="store_true", help="generación de preguntas con MiMo"
+    )
     parser.add_argument("--pausa", type=float, default=2.0, help="segundos entre afirmaciones")
     parser.add_argument("--salida", type=Path, default=RUTA_RESULTADOS)
     args = parser.parse_args()
@@ -118,6 +121,7 @@ def main() -> None:
                     ejemplo["claim"],
                     lang="en",
                     max_idiomas=args.max_idiomas,
+                    preguntas=args.preguntas,
                     verificador=verificador,
                 )
                 prediccion = A_AVERITEC[informe.veredicto.value]
