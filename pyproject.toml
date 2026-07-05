@@ -16,9 +16,15 @@ dependencies = [
 [project.optional-dependencies]
 verificador = [
     "torch>=2.2",
-    "transformers>=4.44",
+    # <5: transformers v5 (probado con 5.13) tiene una regresión que colapsa el
+    # entrenamiento de DeBERTa-v3 a una sola clase; v4.57 entrena bien.
+    "transformers>=4.44,<5",
     "sentencepiece>=0.2",
     "protobuf>=4.0",
+]
+entrenamiento = [
+    "datasets>=3.0",
+    "accelerate>=1.0",
 ]
 dev = ["pytest>=8.0"]
 

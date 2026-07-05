@@ -23,9 +23,15 @@ la arquitectura antes de entrenar nada, y nos da la línea base a superar.
 
 Replicar y luego intentar superar la receta MiniCheck con datos propios.
 
+- [x] **v0 entrenado (2026-07-05)**: fine-tuning contrastivo sobre VitaminC (120k pares)
+      desde el checkpoint NLI multilingüe, en una RTX 5070 (11 min).
+      **VitaminC test: 73.3% → 88.8% exactitud, F1 macro 0.664 → 0.845.**
+      Script en `training/entrenar_verificador.py`.
+      ⚠️ Con transformers v5 (5.13) el entrenamiento colapsa a una sola clase
+      (regresión de DeBERTa-v3); por eso `pyproject.toml` fija `<5`.
 - [ ] Generador de datos sintéticos: errores factuales sutiles, multi-frase, multi-salto
-- [ ] Añadir español desde el día uno (MiniCheck es solo inglés — **ventaja competitiva real**)
-- [ ] Fine-tuning con Liger Kernel + bf16 + LoRA en GPU de consumo
+- [ ] Datos de entrenamiento en español (VitaminC es inglés; el modelo conserva el
+      español del checkpoint base, pero hay que medirlo y reforzarlo)
 - [ ] Calibración de probabilidades + evaluación de abstención
 - [ ] Publicar en HuggingFace con pesos abiertos
 
@@ -35,7 +41,11 @@ competitivo en español.
 ## Fase 2 — Lógica comparativa seria (1–2 meses)
 
 - [ ] Modelo de independencia de fuentes (detección de contenido sindicado/copiado)
-- [ ] Priores de fiabilidad por fuente, aprendidos de aciertos históricos, transparentes
+- [ ] Priores de fiabilidad por fuente, aprendidos de aciertos históricos, transparentes.
+      *Caso motivador (2026-07-05): «la Gran Muralla se ve desde la Luna» → tres sitios
+      turísticos que repiten el mito empatan con Wikipedia y el veredicto queda en
+      "contradictorio" cuando debería ser "refutado". Sin fiabilidad por fuente, la
+      web ruidosa empata con la web fiable.*
 - [ ] Manejo temporal: hechos volátiles vs. estables
 - [ ] Detección de cherry-picking (clase AVeriTeC "evidencia contradictoria")
 - [ ] Búsqueda activa de evidencia contraria (anti-sesgo de confirmación)

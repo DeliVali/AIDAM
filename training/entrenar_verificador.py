@@ -113,16 +113,26 @@ def main() -> None:
         output_dir=str(SALIDA.parent / "checkpoints"),
         num_train_epochs=1,
         max_steps=30 if args.smoke else -1,
-        # batch efectivo 32; DeBERTa-v3 no cabe con batch directo de 32 en 12 GB
-        per_device_train_batch_size=16,
-        gradient_accumulation_steps=2,
+        # batch efectivo 32; DeBERTa-v3 no cabe con batch directo de 32 en 12 GB.
+        # Sin gradient checkpointing: su backward mostró inestabilidad (colapso
+        # a una clase en la corrida v1); batch 8 + acumulación 4 cabe sin él.
+        per_device_train_batch_size=8,
+        gradient_accumulation_steps=4,
         per_device_eval_batch_size=32,
-        gradient_checkpointing=True,
-        learning_rate=2e-5,
+        learning_rate=1e-5,
         warmup_ratio=0.06,
         bf16=True,  # DeBERTa-v3 produce NaNs con fp16; bf16 es estable
         logging_steps=100,
-        save_strategy="no",
+        # Red de seguridad contra colapso tardío: evalúa periódicamente y
+        # recupera el mejor checkpoint del camino, no el último.
+        eval_strategy="no" if args.smoke else "steps",
+        eval_steps=500,
+        save_strategy="no" if args.smoke else "steps",
+        save_steps=500,
+        save_total_limit=1,
+        load_best_model_at_end=not args.smoke,
+        metric_for_best_model="eval_exactitud",
+        greater_is_better=True,
         report_to="none",
         seed=SEMILLA,
     )
