@@ -97,8 +97,15 @@ competitivo en español.
       F1 macro 0.254 → 0.308, NEI F1 0.077 → 0.300** (serie: 30→31→37→39).
       24.5 s/afirmación, dentro del presupuesto de 1 min del shared task.
 - [ ] Afinar los priores con datos (aprendidos de aciertos históricos, no a mano)
-- [ ] Clase "evidencia contradictoria": F1 0.095 en AVeriTeC-100 — la más débil;
-      necesita detección real de cherry-picking, no solo el empate de señales
+- [x] **Desempate por fiabilidad (2026-07-05)**: en zona de empate, conflicto real
+      solo si AMBOS lados tienen una voz fiable; ruido web empatando con un
+      desmentido creíble = refutación (medido: 13/16 "contradictorias" predichas
+      eran refutadas). **AVeriTeC-100: 39% → 41%, Refuted F1 0.577** (serie
+      completa: 30→31→37→39→41). Trade-off honesto: la clase "contradictoria"
+      queda casi vacía (F1 0.074→0) — estaba rota de origen y ahora es explícito.
+- [ ] Clase "evidencia contradictoria": necesita detección real de cherry-picking
+      (¿la evidencia que sustenta omite contexto que la refutaría?) — candidato
+      natural: MiMo como juez de omisión. Hoy es la clase peor (F1 0).
 - [ ] Manejo temporal: hechos volátiles vs. estables
 - [ ] Detección de cherry-picking (clase AVeriTeC "evidencia contradictoria")
 - [ ] Búsqueda activa de evidencia contraria (anti-sesgo de confirmación)

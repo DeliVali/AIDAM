@@ -52,12 +52,42 @@ def test_refutacion_dominante_refuta():
     assert agregar_hecho(HECHO, pares).veredicto is Veredicto.REFUTADO
 
 
-def test_senales_parejas_son_contradictorias():
+def test_conflicto_real_exige_fiabilidad_en_ambos_lados():
+    """Empate con evidencia creíble en ambos lados = contradicción genuina."""
     pares = [
-        _par(EtiquetaPar.SUSTENTA, 0.85, "d1.org"),
-        _par(EtiquetaPar.REFUTA, 0.80, "d2.org"),
+        _par(EtiquetaPar.SUSTENTA, 0.85, "es.wikipedia.org"),
+        _par(EtiquetaPar.REFUTA, 0.80, "politifact.com"),
+        _par(EtiquetaPar.SUSTENTA, 0.9, "viral1.com"),
+        _par(EtiquetaPar.SUSTENTA, 0.9, "viral2.com"),
     ]
     assert agregar_hecho(HECHO, pares).veredicto is Veredicto.CONTRADICTORIO
+
+
+def test_ruido_web_no_establece_conflicto():
+    """El patrón AVeriTeC medido: viral sustenta en masa, un desmentido creíble
+    refuta, la señal empata — pero no es conflicto: es refutación."""
+    pares = [
+        _par(EtiquetaPar.SUSTENTA, 0.97, "viral1.com"),
+        _par(EtiquetaPar.SUSTENTA, 0.96, "viral2.com"),
+        _par(EtiquetaPar.SUSTENTA, 0.95, "viral3.com"),
+        _par(EtiquetaPar.SUSTENTA, 0.95, "viral4.com"),
+        _par(EtiquetaPar.SUSTENTA, 0.94, "viral5.com"),
+        _par(EtiquetaPar.REFUTA, 0.95, "politifact.com"),
+    ]
+    assert agregar_hecho(HECHO, pares).veredicto is Veredicto.REFUTADO
+
+
+def test_empate_sin_fiabilidad_gana_la_mayoria():
+    """Web débil contra web débil: la lógica comparativa elige el lado con más
+    señal, con confianza naturalmente baja."""
+    pares = [
+        _par(EtiquetaPar.SUSTENTA, 0.85, "d1.org"),
+        _par(EtiquetaPar.SUSTENTA, 0.7, "d3.org"),
+        _par(EtiquetaPar.REFUTA, 0.80, "d2.org"),
+    ]
+    resultado = agregar_hecho(HECHO, pares)
+    assert resultado.veredicto is Veredicto.SUSTENTADO
+    assert resultado.confianza < 0.7
 
 
 def test_cien_copias_cuentan_como_una_voz():

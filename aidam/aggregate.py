@@ -125,6 +125,15 @@ def _mejor_por_dominio(pares: list[VeredictoPar]) -> dict[str, VeredictoPar]:
     return mejores
 
 
+def _hay_voz_fiable(pares: list[VeredictoPar]) -> bool:
+    """¿El lado incluye al menos una fuente con prior de fiabilidad alto?
+
+    La probabilidad NLI no sirve aquí: los sitios virales sustentan al 95-99%.
+    La fiabilidad viene del tipo de fuente, no de la seguridad del juicio.
+    """
+    return any(peso_fuente(p.evidencia) >= PESO_OFICIAL for p in pares)
+
+
 def agregar_hecho(hecho: HechoAtomico, pares: list[VeredictoPar]) -> VeredictoHecho:
     """Agrega los juicios por par en un veredicto para el hecho."""
     voces = _mejor_por_dominio(pares)
@@ -148,8 +157,26 @@ def agregar_hecho(hecho: HechoAtomico, pares: list[VeredictoPar]) -> VeredictoHe
     elif senal_favor > 0 and senal_contra > 0 and (
         max(senal_favor, senal_contra) < DOMINANCIA * min(senal_favor, senal_contra)
     ):
-        veredicto = Veredicto.CONTRADICTORIO
-        confianza = cobertura
+        # Zona de empate: la fiabilidad desempata. Conflicto real = evidencia
+        # creíble en AMBOS lados; ruido web empatando con un desmentido creíble
+        # no es conflicto (medido en AVeriTeC: 13 de 16 "contradictorias"
+        # predichas eran en realidad refutadas por ese patrón).
+        fiable_favor = _hay_voz_fiable(a_favor)
+        fiable_contra = _hay_voz_fiable(en_contra)
+        if fiable_favor and fiable_contra:
+            veredicto, confianza = Veredicto.CONTRADICTORIO, cobertura
+        elif fiable_favor:
+            veredicto = Veredicto.SUSTENTADO
+            confianza = (senal_favor / total) * cobertura
+        elif fiable_contra:
+            veredicto = Veredicto.REFUTADO
+            confianza = (senal_contra / total) * cobertura
+        elif senal_favor > senal_contra:
+            veredicto = Veredicto.SUSTENTADO
+            confianza = (senal_favor / total) * cobertura
+        else:
+            veredicto = Veredicto.REFUTADO
+            confianza = (senal_contra / total) * cobertura
     elif senal_favor > senal_contra:
         veredicto = Veredicto.SUSTENTADO
         confianza = (senal_favor / total) * cobertura
