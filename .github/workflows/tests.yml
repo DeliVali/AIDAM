@@ -1,0 +1,19 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Instalar
+        run: |
+          uv venv --python 3.12
+          uv pip install -e ".[dev]"
+      - name: Tests
+        run: .venv/bin/python -m pytest -q
