@@ -27,6 +27,17 @@ la arquitectura antes de entrenar nada, y nos da la línea base a superar.
 **Criterio de éxito:** el pipeline completo verifica una afirmación real en <1 minuto
 (el estándar del shared task de AVeriTeC 2025) y publica su puntuación.
 
+**Estado (2026-07-06) — dev set completo (500 afirmaciones):**
+- **AIDAM: 44.0% exactitud, F1 macro 0.318, 17.9 s/afirmación** (Refuted F1 0.604,
+  Supported 0.390). Serie sobre las primeras 100: 30→31→37→39→41; sobre las 500: 44.
+- **Duelo contra un modelo actual (2026) sin recuperación** — mismas 100 afirmaciones,
+  MiMo-7B-RL con razonamiento libre y solo memoria paramétrica: **25.0% / F1 0.186 /
+  63.7 s**. AIDAM: **41.0% / 0.274 / 20 s** → **+16 puntos y 3x más rápido**: la
+  evidencia viva le gana al recuerdo. (`evaluacion/eval_baseline_llm.py`)
+- Pendiente estructural: clase "contradictoria" sobre-predicha a escala (109 vs 38 de
+  oro — el juez de omisión dispara de más; afinar su umbral), NEI débil (F1 0.142),
+  y el techo del 61% mayoritario sigue arriba.
+
 ## Fase 1 — Entrenar el verificador propio (1–2 meses)
 
 Replicar y luego intentar superar la receta MiniCheck con datos propios.
