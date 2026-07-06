@@ -27,6 +27,15 @@ entrenamiento = [
     "datasets>=3.0",
     "accelerate>=1.0",
 ]
+# Verificación en CPU sin PyTorch (~50 MB de runtime en vez de ~3 GB):
+# requiere el modelo exportado con training/cuantizar_verificador.py
+verificador-cpu = [
+    "onnxruntime>=1.18",
+    "transformers>=4.44,<5",
+    "sentencepiece>=0.2",
+    "protobuf>=4.0",
+    "numpy>=1.24",
+]
 dev = ["pytest>=8.0"]
 
 [project.urls]

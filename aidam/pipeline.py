@@ -47,9 +47,9 @@ def verificar(
 
     if verificador is None:
         avisar("Cargando el núcleo verificador…")
-        from .verify import VerificadorNLI
+        from .verify import crear_verificador
 
-        verificador = VerificadorNLI()
+        verificador = crear_verificador()
 
     hechos = descomponer(afirmacion)
     avisar(f"Afirmación descompuesta en {len(hechos)} hecho(s) atómico(s)")

@@ -48,9 +48,19 @@ def _palabras(texto: str) -> set[str]:
     return set(re.findall(r"\w+", texto.lower()))
 
 
+_PREFIJOS = re.compile(r"^\s*(rewritten claim|claim|new claim|answer)\s*:\s*", re.IGNORECASE)
+
+
+def _limpiar(generada: str) -> str:
+    """Quita artefactos de formato del LLM: prefijos tipo 'Rewritten claim:',
+    markdown y comillas (medido: se colaban en la primera tanda generada)."""
+    generada = _PREFIJOS.sub("", generada.strip())
+    generada = generada.replace("**", "").strip().strip('"').strip()
+    return generada
+
+
 def _edicion_minima(original: str, generada: str) -> bool:
     """¿La reescritura es una edición mínima válida?"""
-    generada = generada.strip().strip('"')
     if not generada or generada.lower() == original.lower():
         return False
     po, pg = _palabras(original), _palabras(generada)
@@ -85,7 +95,7 @@ def main() -> None:
                 evidencia=fila["evidence"][:600], claim=fila["claim"][:300]
             )
             generada = generador._responder(prompt, max_tokens=120, temperature=0.4)
-            generada = generada.strip().splitlines()[0].strip() if generada.strip() else ""
+            generada = _limpiar(generada.strip().splitlines()[0]) if generada.strip() else ""
             if not _edicion_minima(fila["claim"], generada):
                 continue
             salida.write(

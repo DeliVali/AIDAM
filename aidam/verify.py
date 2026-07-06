@@ -31,6 +31,95 @@ def _resolver_modelo() -> str:
     return VerificadorNLI.MODELO
 
 
+def crear_verificador(device: str | None = None):
+    """Elige el mejor backend disponible: PyTorch (GPU/CPU) u ONNX INT8 (CPU).
+
+    Accesibilidad primero: si torch no está instalado pero hay un modelo
+    cuantizado y onnxruntime (~50 MB), la verificación funciona igual en
+    cualquier computadora. `AIDAM_BACKEND=onnx` lo fuerza.
+    """
+    # fp32: exactitud idéntica a torch y 1.4x más rápido en CPU. INT8 dinámico
+    # queda descartado por medición: DeBERTa-v3 cae de 88% a 51% (su atención
+    # desenredada no tolera cuantización dinámica de activaciones).
+    onnx_local = Path(__file__).resolve().parent.parent / "modelos" / "verificador-onnx"
+    forzado = os.environ.get("AIDAM_BACKEND", "").lower()
+    if forzado == "onnx":
+        return VerificadorONNX(str(onnx_local))
+    if forzado != "torch":
+        try:
+            import torch  # noqa: F401
+        except ImportError:
+            if (onnx_local / "config.json").exists():
+                return VerificadorONNX(str(onnx_local))
+    return VerificadorNLI(device=device)
+
+
+class VerificadorONNX:
+    """Verificador INT8/ONNX: mismo contrato que VerificadorNLI, cero GPU.
+
+    Cuantizado con `training/cuantizar_verificador.py`; corre con onnxruntime
+    en cualquier CPU. La eficiencia es un principio, no un extra.
+    """
+
+    def __init__(self, ruta: str):
+        import onnxruntime
+        from transformers import AutoTokenizer
+
+        self.tokenizer = AutoTokenizer.from_pretrained(ruta)
+        onnx_files = sorted(Path(ruta).glob("*.onnx"))
+        if not onnx_files:
+            raise FileNotFoundError(f"sin modelo ONNX en {ruta}")
+        self.sesion = onnxruntime.InferenceSession(
+            str(onnx_files[-1]), providers=["CPUExecutionProvider"]
+        )
+        self._entradas = {e.name for e in self.sesion.get_inputs()}
+        import json as _json
+
+        config = _json.loads((Path(ruta) / "config.json").read_text())
+        self._etiquetas = {
+            int(i): _MAPA_NLI[nombre.lower()] for i, nombre in config["id2label"].items()
+        }
+
+    def _predecir_lote(self, premisas: list[str], hipotesis: list[str]):
+        import numpy as np
+
+        entradas = self.tokenizer(
+            premisas, hipotesis, truncation=True, max_length=512, padding=True, return_tensors="np"
+        )
+        entradas = {k: v.astype("int64") for k, v in entradas.items() if k in self._entradas}
+        (logits,) = self.sesion.run(None, entradas)
+        exp = np.exp(logits - logits.max(axis=-1, keepdims=True))
+        return logits.argmax(axis=-1).tolist(), (exp / exp.sum(axis=-1, keepdims=True)).tolist()
+
+    def puntuar_entailment(self, premisa: str, hipotesis: list[str]) -> list[float]:
+        indice = next(i for i, et in self._etiquetas.items() if et is EtiquetaPar.SUSTENTA)
+        _indices, probs = self._predecir_lote([premisa] * len(hipotesis), hipotesis)
+        return [fila[indice] for fila in probs]
+
+    def juzgar(
+        self,
+        hecho: HechoAtomico,
+        evidencias: list[Evidencia],
+        batch_size: int = 8,
+    ) -> list[VeredictoPar]:
+        veredictos: list[VeredictoPar] = []
+        for inicio in range(0, len(evidencias), batch_size):
+            lote = evidencias[inicio : inicio + batch_size]
+            indices, probs = self._predecir_lote(
+                [e.texto for e in lote], [hecho.texto] * len(lote)
+            )
+            for evidencia, indice, fila in zip(lote, indices, probs):
+                veredictos.append(
+                    VeredictoPar(
+                        hecho=hecho,
+                        evidencia=evidencia,
+                        etiqueta=self._etiquetas[indice],
+                        prob=float(fila[indice]),
+                    )
+                )
+        return veredictos
+
+
 class VerificadorNLI:
     """Verificador basado en NLI multilingüe: premisa=evidencia, hipótesis=hecho."""
 

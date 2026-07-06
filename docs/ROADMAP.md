@@ -143,7 +143,15 @@ costo por tarea resuelta.
 
 ## Fase 5 — Eficiencia extrema (continuo)
 
-- [ ] Verificador en int8/ONNX → CPU de consumo (ganancia probada, sin drama)
+- [x] **Verificador en ONNX → cualquier CPU (2026-07-05)**: exactitud idéntica a
+      PyTorch (88.3%), 1.4x más rápido en CPU, y el runtime pesa ~50 MB en vez de
+      ~3 GB (`pip install aidam[verificador-cpu]`, backend auto si falta torch).
+      Export: `training/cuantizar_verificador.py`.
+      ⚠️ Hallazgo medido: el INT8 dinámico **rompe** DeBERTa-v3 (88.3% → 51.4%,
+      por canal tampoco rescata) — su atención desenredada no tolera cuantización
+      dinámica de activaciones. Camino: cuantización estática con calibración
+      excluyendo la atención, o QAT (quantization-aware training).
+- [ ] INT8 real del verificador vía QAT o estática con exclusión de atención
 - [ ] Experimento BitNet: fine-tuning de bitnet-b1.58-2B-4T + despliegue con bitnet.cpp
 - [ ] Distilar el descompositor a <500M
 - [ ] Fusionar descomposición+verificación en una pasada (estilo VeriFastScore)
