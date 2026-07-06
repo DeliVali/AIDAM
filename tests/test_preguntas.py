@@ -1,6 +1,13 @@
-"""Tests del parser de preguntas (sin modelo)."""
+"""Tests del parser de preguntas y del juez de omisión (sin modelo)."""
 
-from aidam.preguntas import _extraer_preguntas
+from aidam.preguntas import _extraer_preguntas, _parsear_omision
+
+
+def test_parsear_omision():
+    assert _parsear_omision("MISLEADING") == "enganosa"
+    assert _parsear_omision("COMPLETE.") == "completa"
+    assert _parsear_omision("<think>hmm MISLEADING?</think>COMPLETE") == "completa"
+    assert _parsear_omision("no estoy seguro") is None
 
 
 def test_extrae_preguntas_numeradas():

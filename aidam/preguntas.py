@@ -22,6 +22,16 @@ _BLOQUE_PENSAMIENTO = re.compile(r"<think>.*?(</think>|$)", re.DOTALL)
 _NUMERACION = re.compile(r"^\s*(?:[-*•]|\d+[.)])\s*")
 
 
+def _parsear_omision(texto: str) -> str | None:
+    """Interpreta la respuesta de una palabra del juez de omisión."""
+    texto = _BLOQUE_PENSAMIENTO.sub("", texto).upper()
+    if "MISLEADING" in texto:
+        return "enganosa"
+    if "COMPLETE" in texto:
+        return "completa"
+    return None
+
+
 def _extraer_preguntas(texto: str, n: int) -> list[str]:
     """Extrae las preguntas de la salida del modelo (que puede traer bloques
     de razonamiento <think> y numeración)."""
@@ -92,10 +102,14 @@ class GeneradorPreguntas:
             f"line, in {idioma}. No explanations.\n"
             f"Claim: {afirmacion}"
         )
+        texto = self._responder(prompt, max_tokens=160, temperature=0.3)
+        return _extraer_preguntas(texto, n)
+
+    def _responder(self, prompt: str, max_tokens: int, temperature: float) -> str:
         # Prefill de pensamiento vacío: MiMo-7B-RL es un modelo de razonamiento
-        # y gasta cientos de tokens en <think> antes de responder; para generar
-        # 2-3 preguntas cortas eso es latencia sin valor. El bloque vacío lo
-        # fuerza a responder directo (mismo truco que el /no_think de Qwen).
+        # y gasta cientos de tokens en <think> antes de responder; para salidas
+        # cortas eso es latencia sin valor. El bloque vacío lo fuerza a
+        # responder directo (mismo truco que el /no_think de Qwen).
         plantilla = (
             f"<|im_start|>user\n{prompt}<|im_end|>\n"
             "<|im_start|>assistant\n<think>\n\n</think>\n"
@@ -103,11 +117,40 @@ class GeneradorPreguntas:
         try:
             salida = self.llm.create_completion(
                 prompt=plantilla,
-                max_tokens=160,
-                temperature=0.3,
+                max_tokens=max_tokens,
+                temperature=temperature,
                 stop=["<|im_end|>"],
             )
-            texto = salida["choices"][0]["text"] or ""
+            return salida["choices"][0]["text"] or ""
         except Exception:
-            return []
-        return _extraer_preguntas(texto, n)
+            return ""
+
+    def juzgar_omision(
+        self,
+        afirmacion: str,
+        sustentos: list[str],
+        contexto: list[str],
+    ) -> str | None:
+        """¿La afirmación, aunque sustentada, engaña por omisión (cherry-picking)?
+
+        Solo se invoca con contexto contrario recuperado: el juicio se basa en
+        la evidencia de la mesa, nunca en la memoria paramétrica del modelo
+        (principio del proyecto: el conocimiento vive en las fuentes).
+        Devuelve "enganosa", "completa" o None (no concluyente).
+        """
+        if not sustentos or not contexto:
+            return None
+        lineas_s = "\n".join(f"- {s[:300]}" for s in sustentos[:3])
+        lineas_c = "\n".join(f"- {c[:300]}" for c in contexto[:3])
+        prompt = (
+            "You are a fact-checking judge. The claim below is supported by "
+            "evidence, but it may still mislead by omitting essential context "
+            "(cherry-picking).\n"
+            f"Claim: {afirmacion}\n"
+            f"Supporting evidence:\n{lineas_s}\n"
+            f"Contrary or contextual evidence:\n{lineas_c}\n"
+            "Based ONLY on the evidence above: does the claim give a fair "
+            "picture, or does it mislead by omission? Answer with exactly one "
+            "word: COMPLETE or MISLEADING."
+        )
+        return _parsear_omision(self._responder(prompt, max_tokens=12, temperature=0.0))

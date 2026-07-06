@@ -53,6 +53,14 @@ class VerificadorNLI:
             i: _MAPA_NLI[nombre.lower()]
             for i, nombre in self.modelo.config.id2label.items()
         }
+        # Temperatura de calibración (training/calibrar_verificador.py):
+        # divide los logits para que la confianza signifique frecuencia real.
+        self._temperatura = 1.0
+        calibracion = Path(ruta) / "calibracion.json" if Path(ruta).is_dir() else None
+        if calibracion and calibracion.exists():
+            import json
+
+            self._temperatura = float(json.loads(calibracion.read_text())["temperatura"])
 
     def puntuar_entailment(self, premisa: str, hipotesis: list[str]) -> list[float]:
         """Probabilidad de que la premisa sustente cada hipótesis.
@@ -95,7 +103,7 @@ class VerificadorNLI:
             ).to(self.device)
             with self._torch.inference_mode():
                 logits = self.modelo(**entradas).logits
-            probs = self._torch.softmax(logits, dim=-1)
+            probs = self._torch.softmax(logits / self._temperatura, dim=-1)
             for evidencia, fila in zip(lote, probs):
                 indice = int(fila.argmax())
                 veredictos.append(

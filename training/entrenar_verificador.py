@@ -92,6 +92,12 @@ def main() -> None:
         help="pares neutrales-difíciles (training/generar_neutrales.py); "
         "atacan el fallo medido: intros genéricas juzgadas como contradicción",
     )
+    parser.add_argument(
+        "--sinteticos",
+        type=Path,
+        default=Path("data/local/sinteticos_mimo.jsonl"),
+        help="errores sutiles generados con MiMo (training/generar_sinteticos_llm.py)",
+    )
     parser.add_argument("--checkpoint", default=CHECKPOINT_BASE)
     args = parser.parse_args()
 
@@ -144,12 +150,18 @@ def main() -> None:
         partes = [train, nli]
         etiqueta_mezcla = f"VitaminC + {len(nli)} MNLI"
 
-        if args.neutrales_dificiles.exists():
-            duros = load_dataset(
-                "json", data_files=str(args.neutrales_dificiles), split="train"
-            ).map(preparar, batched=True, remove_columns=["claim", "evidence", "label", "origen"])
-            partes.append(duros)
-            etiqueta_mezcla += f" + {len(duros)} neutrales-difíciles"
+        for ruta, nombre in (
+            (args.neutrales_dificiles, "neutrales-difíciles"),
+            (args.sinteticos, "sintéticos-MiMo"),
+        ):
+            if ruta.exists():
+                extra = load_dataset("json", data_files=str(ruta), split="train").map(
+                    preparar,
+                    batched=True,
+                    remove_columns=["claim", "evidence", "label", "origen"],
+                )
+                partes.append(extra)
+                etiqueta_mezcla += f" + {len(extra)} {nombre}"
 
         train = concatenate_datasets(partes).shuffle(seed=SEMILLA)
         print(f"[entrenar] mezcla: {len(train)} ejemplos ({etiqueta_mezcla})")

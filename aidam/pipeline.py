@@ -7,7 +7,7 @@ from typing import Callable
 
 from .aggregate import agregar_hecho, agregar_informe
 from .decompose import descomponer
-from .models import Informe
+from .models import EtiquetaPar, Informe, Veredicto
 from .retrieve import recuperar
 
 
@@ -82,7 +82,27 @@ def verificar(
             f"  {len(evidencias)} pasajes de {len({e.dominio for e in evidencias})} dominios"
             f" · idiomas: {', '.join(idiomas) or lang}"
         )
+
         pares = verificador.juzgar(hecho, evidencias) if evidencias else []
-        veredictos_hechos.append(agregar_hecho(hecho, pares))
+        vh = agregar_hecho(hecho, pares)
+
+        # Cherry-picking: una afirmación sustentada puede engañar por omisión.
+        # El juez (MiMo) decide SOLO con la evidencia de la mesa, y únicamente
+        # cuando hay contexto contrario recuperado que evaluar.
+        if generador is not None and vh.veredicto is Veredicto.SUSTENTADO:
+            contexto = [
+                p.evidencia.texto
+                for p in sorted(pares, key=lambda p: p.prob, reverse=True)
+                if p.etiqueta is EtiquetaPar.REFUTA
+            ]
+            juicio = generador.juzgar_omision(
+                hecho.texto, [p.evidencia.texto for p in vh.a_favor], contexto
+            )
+            if juicio == "enganosa":
+                avisar("  juez de omisión: engañosa por omisión → contradictoria")
+                vh.veredicto = Veredicto.CONTRADICTORIO
+                vh.confianza = round(min(vh.confianza, 0.6), 3)
+
+        veredictos_hechos.append(vh)
 
     return agregar_informe(afirmacion, veredictos_hechos)

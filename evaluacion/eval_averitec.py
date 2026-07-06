@@ -53,13 +53,16 @@ def _cargar_dev() -> list[dict]:
 
 
 def _cargar_previos(ruta: Path) -> dict[int, dict]:
+    """Registros previos para reanudar. Los ERROR no cuentan como hechos:
+    al relanzar se reintentan (un OOM transitorio no es un veredicto)."""
     if not ruta.exists():
         return {}
     previos = {}
     for linea in ruta.read_text().splitlines():
         if linea.strip():
             registro = json.loads(linea)
-            previos[registro["indice"]] = registro
+            if registro.get("prediccion") != "ERROR":
+                previos[registro["indice"]] = registro
     return previos
 
 
