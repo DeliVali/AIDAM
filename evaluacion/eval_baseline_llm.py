@@ -75,13 +75,9 @@ def main() -> None:
                 f"<|im_start|>user\n{_PROMPT.format(claim=ejemplo['claim'])}<|im_end|>\n"
                 "<|im_start|>assistant\n"
             )
-            try:
-                respuesta = generador.llm.create_completion(
-                    prompt=plantilla, max_tokens=900, temperature=0.0, stop=["<|im_end|>"]
-                )["choices"][0]["text"]
-            except Exception as error:
-                print(f"[baseline] #{indice} error: {error}")
-                respuesta = ""
+            respuesta = generador.completar(
+                plantilla, max_tokens=900, temperature=0.0, stop=["<|im_end|>"]
+            )
             prediccion = _parsear(respuesta) or "Not Enough Evidence"
             registro = {
                 "indice": indice,

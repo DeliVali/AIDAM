@@ -74,24 +74,98 @@ def ruta_modelo() -> Path | None:
 
 
 class GeneradorPreguntas:
-    """Genera preguntas de búsqueda para una afirmación con un LLM local."""
+    """Cliente del LLM local (MiMo) corriendo en un worker aislado.
+
+    llama.cpp vive en su propio proceso (`aidam.mimo_worker`): si corrompe
+    memoria — medido cohabitando con PyTorch — muere el worker, no la
+    verificación, y este cliente lo reinicia en la siguiente llamada.
+    """
+
+    _TIMEOUT_CARGA = 300  # cargar 4.7 GB puede tardar; en GPU son segundos
+    _TIMEOUT_RESPUESTA = 180
 
     def __init__(self, ruta: Path | None = None, n_gpu_layers: int = -1):
-        _precargar_cuda()
-        from llama_cpp import Llama
-
         ruta = ruta or ruta_modelo()
         if ruta is None:
             raise FileNotFoundError(
                 "No hay modelo generador de preguntas; descarga MiMo-7B-RL GGUF "
                 "a modelos/mimo/ o define AIDAM_MODELO_PREGUNTAS"
             )
-        self.llm = Llama(
-            model_path=str(ruta),
-            n_ctx=2048,
-            n_gpu_layers=n_gpu_layers,
-            verbose=False,
+        self._ruta = ruta
+        self._n_gpu_layers = n_gpu_layers
+        self._proceso = None
+        self._arrancar()
+
+    def _arrancar(self) -> None:
+        import subprocess
+        import sys
+
+        self.cerrar()
+        entorno = os.environ.copy()
+        entorno["AIDAM_MODELO_PREGUNTAS"] = str(self._ruta)
+        entorno["AIDAM_MIMO_GPU_LAYERS"] = str(self._n_gpu_layers)
+        self._proceso = subprocess.Popen(
+            [sys.executable, "-m", "aidam.mimo_worker"],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            env=entorno,
         )
+        saludo = self._leer(self._TIMEOUT_CARGA)
+        if not saludo or not saludo.get("listo"):
+            detalle = (saludo or {}).get("error", "sin respuesta del worker")
+            self.cerrar()
+            raise RuntimeError(f"el worker de MiMo no arrancó: {detalle}")
+
+    def _leer(self, timeout: float) -> dict | None:
+        import json as _json
+        import select
+
+        if self._proceso is None or self._proceso.stdout is None:
+            return None
+        listos, _, _ = select.select([self._proceso.stdout], [], [], timeout)
+        if not listos:
+            return None
+        linea = self._proceso.stdout.readline()
+        if not linea:
+            return None
+        try:
+            return _json.loads(linea)
+        except ValueError:
+            return None
+
+    def cerrar(self) -> None:
+        if self._proceso is not None:
+            self._proceso.kill()
+            self._proceso.wait()
+            self._proceso = None
+
+    def completar(self, prompt: str, max_tokens: int, temperature: float,
+                  stop: list[str] | None = None) -> str:
+        """Completa un prompt crudo en el worker, reiniciándolo si cayó."""
+        import json as _json
+
+        pedido = _json.dumps(
+            {"prompt": prompt, "max_tokens": max_tokens, "temperature": temperature,
+             "stop": stop or []},
+            ensure_ascii=False,
+        )
+        for _intento in range(2):
+            try:
+                if self._proceso is None or self._proceso.poll() is not None:
+                    self._arrancar()
+                assert self._proceso is not None and self._proceso.stdin is not None
+                self._proceso.stdin.write(pedido + "\n")
+                self._proceso.stdin.flush()
+                respuesta = self._leer(self._TIMEOUT_RESPUESTA)
+                if respuesta is None:  # caído o colgado: reiniciar y reintentar
+                    self.cerrar()
+                    continue
+                return respuesta.get("texto", "")
+            except Exception:
+                self.cerrar()
+        return ""
 
     def preguntas(self, afirmacion: str, n: int = 3, lang: str = "es") -> list[str]:
         idioma = "español" if lang == "es" else "the claim's language"
@@ -114,16 +188,7 @@ class GeneradorPreguntas:
             f"<|im_start|>user\n{prompt}<|im_end|>\n"
             "<|im_start|>assistant\n<think>\n\n</think>\n"
         )
-        try:
-            salida = self.llm.create_completion(
-                prompt=plantilla,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                stop=["<|im_end|>"],
-            )
-            return salida["choices"][0]["text"] or ""
-        except Exception:
-            return ""
+        return self.completar(plantilla, max_tokens, temperature, stop=["<|im_end|>"])
 
     def juzgar_omision(
         self,
