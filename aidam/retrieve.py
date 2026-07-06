@@ -24,6 +24,7 @@ Este módulo es ingeniería pura: cero parámetros de modelo.
 from __future__ import annotations
 
 import re
+import threading
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlparse
@@ -204,6 +205,13 @@ def buscar_wikinews(consulta: str, lang: str = "es", max_pasajes: int = 3) -> li
 # ───────────────────────── web abierta ─────────────────────────
 
 
+# libxml2 (dentro de trafilatura/lxml) NO es seguro entre hilos: extraer en
+# paralelo corrompe el heap (medido: SIGABRT en xmlFreeDoc, core dump en la
+# eval de 500). La red va en paralelo; la extracción, serializada — cuesta
+# ~30 ms por página, nada frente al fetch.
+_CANDADO_EXTRACCION = threading.Lock()
+
+
 def _texto_de_pagina(url: str) -> str:
     """Descarga una página y extrae su texto principal (sin menús ni anuncios).
 
@@ -216,7 +224,8 @@ def _texto_de_pagina(url: str) -> str:
 
         r = requests.get(url, headers=_UA, timeout=8)
         r.raise_for_status()
-        return trafilatura.extract(r.text) or ""
+        with _CANDADO_EXTRACCION:
+            return trafilatura.extract(r.text) or ""
     except Exception:
         return ""
 
