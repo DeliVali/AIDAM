@@ -38,19 +38,24 @@ def crear_verificador(device: str | None = None):
     cuantizado y onnxruntime (~50 MB), la verificación funciona igual en
     cualquier computadora. `AIDAM_BACKEND=onnx` lo fuerza.
     """
-    # fp32: exactitud idéntica a torch y 1.4x más rápido en CPU. INT8 dinámico
-    # queda descartado por medición: DeBERTa-v3 cae de 88% a 51% (su atención
-    # desenredada no tolera cuantización dinámica de activaciones).
-    onnx_local = Path(__file__).resolve().parent.parent / "modelos" / "verificador-onnx"
+    # fp32: exactitud idéntica a torch y 1.4x más rápido en CPU (por defecto
+    # sin torch). mini (int4+int8 weight-only): 319 MB y 2x más rápido a costa
+    # de −2.2 de exactitud — para máquinas con poca RAM (AIDAM_BACKEND=onnx-mini).
+    # INT8 dinámico está descartado por medición: cuantizar las activaciones
+    # de DeBERTa-v3 (outliers extremos) colapsa 88%→51%.
+    base = Path(__file__).resolve().parent.parent / "modelos"
     forzado = os.environ.get("AIDAM_BACKEND", "").lower()
+    if forzado == "onnx-mini":
+        return VerificadorONNX(str(base / "verificador-onnx-mini"))
     if forzado == "onnx":
-        return VerificadorONNX(str(onnx_local))
+        return VerificadorONNX(str(base / "verificador-onnx"))
     if forzado != "torch":
         try:
             import torch  # noqa: F401
         except ImportError:
-            if (onnx_local / "config.json").exists():
-                return VerificadorONNX(str(onnx_local))
+            for candidato in ("verificador-onnx", "verificador-onnx-mini"):
+                if (base / candidato / "config.json").exists():
+                    return VerificadorONNX(str(base / candidato))
     return VerificadorNLI(device=device)
 
 

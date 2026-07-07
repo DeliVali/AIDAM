@@ -162,7 +162,13 @@ costo por tarea resuelta.
       por canal tampoco rescata) — su atención desenredada no tolera cuantización
       dinámica de activaciones. Camino: cuantización estática con calibración
       excluyendo la atención, o QAT (quantization-aware training).
-- [ ] INT8 real del verificador vía QAT o estática con exclusión de atención
+- [x] **Cuantización real del verificador (2026-07-06)**: la ruta era weight-only,
+      no QAT — pesos INT4 por bloques (MatMulNBits) + embeddings INT8, activaciones
+      intactas en fp32 (los outliers de activación de DeBERTa-v3 eran el veneno:
+      hasta las FFN solas colapsaban con cuantización dinámica).
+      **Modelo "mini": 1.1 GB → 319 MB (3.4x), 86.1% (−2.2), 39 ms/par (2x)** —
+      `AIDAM_BACKEND=onnx-mini` para máquinas con poca RAM; fp32/ONNX sigue de
+      default en CPU. La misma familia de técnicas que usan los LLMs actuales.
 - [ ] Experimento BitNet: fine-tuning de bitnet-b1.58-2B-4T + despliegue con bitnet.cpp
 - [ ] Distilar el descompositor a <500M
 - [ ] Fusionar descomposición+verificación en una pasada (estilo VeriFastScore)
