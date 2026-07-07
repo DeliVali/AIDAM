@@ -207,15 +207,20 @@ class GeneradorPreguntas:
             return None
         lineas_s = "\n".join(f"- {s[:300]}" for s in sustentos[:3])
         lineas_c = "\n".join(f"- {c[:300]}" for c in contexto[:3])
+        # Prompt calibrado contra el sobre-disparo (medido en AVeriTeC-500:
+        # 109 "contradictorias" predichas vs 38 reales): la omisión debe socavar
+        # el punto CENTRAL; el desacuerdo menor no convierte verdad en engaño.
         prompt = (
-            "You are a fact-checking judge. The claim below is supported by "
-            "evidence, but it may still mislead by omitting essential context "
-            "(cherry-picking).\n"
+            "You are a strict fact-checking judge. The claim below is supported "
+            "by evidence. Most supported claims are simply TRUE; cherry-picking "
+            "is rare.\n"
             f"Claim: {afirmacion}\n"
             f"Supporting evidence:\n{lineas_s}\n"
             f"Contrary or contextual evidence:\n{lineas_c}\n"
-            "Based ONLY on the evidence above: does the claim give a fair "
-            "picture, or does it mislead by omission? Answer with exactly one "
-            "word: COMPLETE or MISLEADING."
+            "Based ONLY on the evidence above: answer MISLEADING only if the "
+            "contrary evidence directly undermines the CENTRAL point of the "
+            "claim, making it deceptive as stated. Minor caveats, exceptions "
+            "or side details do NOT count. Otherwise answer COMPLETE. "
+            "Answer with exactly one word: COMPLETE or MISLEADING."
         )
         return _parsear_omision(self._responder(prompt, max_tokens=12, temperature=0.0))

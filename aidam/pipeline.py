@@ -90,10 +90,13 @@ def verificar(
         # El juez (MiMo) decide SOLO con la evidencia de la mesa, y únicamente
         # cuando hay contexto contrario recuperado que evaluar.
         if generador is not None and vh.veredicto is Veredicto.SUSTENTADO:
+            # Freno medido (AVeriTeC-500: 109 contradictorias predichas vs 38
+            # reales): solo consultar al juez si el contexto contrario es
+            # sustancial — señal fuerte (≥0.75), no cualquier pasaje tibio.
             contexto = [
                 p.evidencia.texto
                 for p in sorted(pares, key=lambda p: p.prob, reverse=True)
-                if p.etiqueta is EtiquetaPar.REFUTA
+                if p.etiqueta is EtiquetaPar.REFUTA and p.prob >= 0.75
             ]
             juicio = generador.juzgar_omision(
                 hecho.texto, [p.evidencia.texto for p in vh.a_favor], contexto
