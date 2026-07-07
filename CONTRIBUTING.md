@@ -1,66 +1,67 @@
-# Contribuir a AIDAM
+# Contributing to AIDAM
 
-AIDAM es un proyecto abierto: el conocimiento es libre y las herramientas para
-verificarlo también deben serlo. Toda contribución es bienvenida — código, datos,
-evaluaciones, documentación, traducciones o ideas en los issues.
+AIDAM is an open project: knowledge is free and the tools to verify it should be
+too. Every contribution is welcome — code, data, evaluations, documentation,
+translations or ideas in the issues.
 
-## Preparar el entorno
+## Setting up
 
-Requisitos: Python ≥ 3.10 y [uv](https://docs.astral.sh/uv/) (recomendado).
+Requirements: Python ≥ 3.10 and [uv](https://docs.astral.sh/uv/) (recommended).
 
 ```bash
 git clone https://github.com/DeliVali/AIDAM.git
 cd AIDAM
 uv venv --python 3.12
-uv pip install -e ".[dev]"           # núcleo + tests
-uv pip install -e ".[verificador]"   # + modelo verificador (torch, transformers)
+uv pip install -e ".[dev]"           # core + tests
+uv pip install -e ".[verificador]"   # + verifier model (torch, transformers)
 ```
 
-Correr los tests (no necesitan GPU ni red):
+Run the tests (no GPU or network needed):
 
 ```bash
 .venv/bin/python -m pytest
 ```
 
-Probar el sistema completo (descarga el modelo la primera vez):
+Try the full system (downloads the model on first run):
 
 ```bash
-.venv/bin/aidam verificar "La Torre Eiffel está en París"
+.venv/bin/aidam verificar "The Eiffel Tower is in Paris" --lang en
 ```
 
-## Dónde ayudar
+## Where to help
 
-El [roadmap](docs/ROADMAP.md) manda. Áreas abiertas por dificultad:
+The [roadmap](docs/ROADMAP.md) rules. Open areas by difficulty:
 
-| Nivel | Área |
+| Level | Area |
 |---|---|
-| Fácil | Más fuentes en el recuperador: escribe una función `(consulta, lang) -> list[Evidencia]` y regístrala en `FUENTES` (`aidam/retrieve.py`) — hay 8 de ejemplo |
-| Fácil | Mejorar la salida de la CLI, traducciones, documentación |
-| Medio | Heurísticas del descompositor; tests de casos difíciles |
-| Medio | Métricas del agregador (independencia de fuentes, temporalidad) |
-| Difícil | Evaluación en AVeriTeC / LLM-AggreFact (Fase 0, criterio de éxito) |
-| Difícil | Generación de datos sintéticos y entrenamiento del verificador propio (Fase 1) |
+| Easy | More retriever sources: write a `(query, lang) -> list[Evidencia]` function and register it in `FUENTES` (`aidam/retrieve.py`) — there are 10 examples |
+| Easy | Better CLI output, translations, documentation |
+| Medium | Decomposer heuristics; tests for hard cases |
+| Medium | Aggregator metrics (source independence, temporality) |
+| Hard | AVeriTeC / LLM-AggreFact evaluation improvements |
+| Hard | Synthetic data generation and verifier training |
 
-## Reglas del juego
+## Ground rules
 
-1. **Todo veredicto cita su evidencia.** Ningún cambio puede hacer que el sistema
-   afirme algo sin fuente trazable.
-2. **El agregador se mantiene auditable.** Lógica explícita y testeada; nada de cajas
-   negras en el Módulo 4.
-3. **Hardware de consumo primero.** Si tu mejora exige una GPU de datacenter, no es
-   para este repo (o va detrás de un flag opcional).
-4. **Tests para la lógica.** Los módulos deterministas (descompositor, agregador) llevan
-   tests de unidad; los módulos con modelo llevan al menos un smoke test.
+1. **Every verdict cites its evidence.** No change may make the system assert
+   anything without a traceable source.
+2. **The aggregator stays auditable.** Explicit, tested logic; no black boxes in
+   Module 4.
+3. **Consumer hardware first.** If your improvement demands a datacenter GPU, it
+   doesn't belong in this repo (or it goes behind an optional flag).
+4. **Tests for the logic.** Deterministic modules (decomposer, aggregator) carry
+   unit tests; model-backed modules carry at least a smoke test.
 
-## Flujo
+## Workflow
 
-1. Abre un issue describiendo el cambio (o toma uno existente).
-2. Rama desde `main`, cambios pequeños y enfocados.
-3. `pytest` en verde.
-4. Pull request explicando *qué* y *por qué*; el CI y la revisión hacen el resto.
+1. Open an issue describing the change (or pick an existing one).
+2. Branch from `main`, small focused changes.
+3. `pytest` green.
+4. Pull request explaining *what* and *why*; CI and review do the rest.
 
-## Licencia
+## License
 
-Al contribuir aceptas que tu aporte se publique bajo [Apache 2.0](LICENSE), la misma
-licencia del proyecto: libre para usar, modificar y redistribuir, con concesión
-explícita de patentes. Tu código pertenece a todos, para siempre.
+By contributing you agree that your work is published under
+[Apache 2.0](LICENSE), the project's license: free to use, modify and
+redistribute, with an explicit patent grant. Your code belongs to everyone,
+forever.

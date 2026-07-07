@@ -1,30 +1,29 @@
-# Código de conducta
+# Code of conduct
 
-AIDAM existe para que la verificación del conocimiento sea accesible a todas las
-personas, sin restricciones ni discriminación. La comunidad se rige por el mismo
-principio.
+AIDAM exists so that verifying knowledge is accessible to everyone, without
+restrictions or discrimination. The community lives by the same principle.
 
-## Compromiso
+## Commitment
 
-Participar en este proyecto es abierto a cualquier persona, sin discriminación por
-origen, género, orientación, edad, discapacidad, religión, nacionalidad, nivel de
-experiencia ni ninguna otra condición. Aquí los argumentos se pesan por su evidencia,
-no por quién los dice.
+Participation in this project is open to anyone, without discrimination by
+origin, gender, orientation, age, disability, religion, nationality, experience
+level or any other condition. Here, arguments are weighed by their evidence,
+not by who says them.
 
-## Se espera
+## Expected
 
-- Debatir ideas con evidencia; criticar código, no personas.
-- Recibir y dar revisiones con honestidad y respeto.
-- Asumir buena fe; preguntar antes de suponer.
+- Debate ideas with evidence; criticize code, not people.
+- Give and receive reviews with honesty and respect.
+- Assume good faith; ask before assuming.
 
-## No se tolera
+## Not tolerated
 
-- Acoso, insultos o ataques personales en cualquier canal del proyecto.
-- Discriminación en la participación, revisión o aceptación de contribuciones.
-- Publicar información privada de otras personas sin su consentimiento.
+- Harassment, insults or personal attacks in any project channel.
+- Discrimination in participation, review or acceptance of contributions.
+- Publishing other people's private information without their consent.
 
-## Aplicación
+## Enforcement
 
-Los incidentes se reportan abriendo un issue confidencial o escribiendo a quien
-mantiene el proyecto. Las personas mantenedoras pueden editar, rechazar o eliminar
-contribuciones y participantes que violen este código, explicando el motivo.
+Incidents are reported by opening a confidential issue or writing to the
+maintainer. Maintainers may edit, reject or remove contributions and
+participants that violate this code, explaining why.

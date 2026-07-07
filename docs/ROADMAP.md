@@ -1,176 +1,189 @@
-# Roadmap de AIDAM
+# AIDAM roadmap
 
-Regla general: **cada fase produce algo que funciona y se mide contra un benchmark
-público**. Nada de arquitecturas en el aire durante meses.
+General rule: **every phase produces something that works and is measured against a
+public benchmark**. No architectures floating in the air for months.
 
-## Fase 0 — Pipeline funcional con piezas existentes (2–4 semanas)
+## Phase 0 — Working pipeline from existing pieces (2–4 weeks)
 
-Construir el sistema completo de punta a punta usando modelos ya publicados. Esto valida
-la arquitectura antes de entrenar nada, y nos da la línea base a superar.
+Build the complete end-to-end system using already-published models. This validates
+the architecture before training anything, and gives us the baseline to beat.
 
-- [x] Descompositor v0 (heurístico; el neuronal estilo VeriScore queda para Fase 1)
-- [x] Recuperador: Wikipedia + búsqueda web, una voz por dominio (independencia)
-- [x] Verificador: NLI multilingüe mDeBERTa-v3 (~280M) — elegido sobre MiniCheck
-      porque funciona en español desde el día uno
-- [x] Agregador v0: mayoría ponderada auditable, 4 clases de veredicto, con tests
-- [x] CLI: `aidam verificar "afirmación"` → veredicto + citas (7.9 s por afirmación real)
-- [x] **Evaluación AVeriTeC (2026-07-05, primeras 100 del dev)**: exactitud 30–31%,
-      F1 macro 0.21–0.25 (baseline mayoritario: 61%). El número es duro y es el punto:
-      ahora cada cambio se mide. Script en `evaluacion/eval_averitec.py` (recuperación
-      viva, no la pista oficial del shared task). Pendiente: LLM-AggreFact.
-      **Diagnóstico medido**: el fallo dominante es mentira viral → "sustentado"
-      (25/100); en la mayoría de esos casos el fact-checker ni aparece en la evidencia,
-      y cuando aparece, su snippet truncado *repite* la afirmación y el verificador lo
-      lee como apoyo. El cuello de botella es la calidad de la evidencia (snippets),
-      no la agregación.
+- [x] Decomposer v0 (heuristic; the neural VeriScore-style one is Phase 1)
+- [x] Retriever: Wikipedia + web search, one voice per domain (independence)
+- [x] Verifier: multilingual NLI mDeBERTa-v3 (~280M) — chosen over MiniCheck
+      because it works in Spanish from day one
+- [x] Aggregator v0: auditable weighted majority, 4 verdict classes, with tests
+- [x] CLI: `aidam verificar "claim"` → verdict + citations (7.9 s per real claim)
+- [x] **AVeriTeC evaluation (2026-07-05, first 100 of dev)**: 30–31% accuracy,
+      macro F1 0.21–0.25 (majority baseline: 61%). The number is harsh and that is
+      the point: from here on, every change gets measured. Script in
+      `evaluacion/eval_averitec.py` (live retrieval, not the shared task's official
+      track). **Measured diagnosis**: the dominant failure is viral lie → "supported"
+      (25/100); in most of those cases the fact-checker never appears in the evidence,
+      and when it does, its truncated snippet *repeats* the claim and the verifier
+      reads it as support. The bottleneck is evidence quality (snippets), not
+      aggregation.
 
-**Criterio de éxito:** el pipeline completo verifica una afirmación real en <1 minuto
-(el estándar del shared task de AVeriTeC 2025) y publica su puntuación.
+**Success criterion:** the full pipeline verifies a real claim in <1 minute (the
+AVeriTeC 2025 shared task standard) and publishes its score.
 
-**Estado (2026-07-06) — dev set completo (500 afirmaciones):**
-- **AIDAM: 44.0% exactitud, F1 macro 0.318, 17.9 s/afirmación** (Refuted F1 0.604,
-  Supported 0.390). Serie sobre las primeras 100: 30→31→37→39→41; sobre las 500: 44.
-- **Duelo contra un modelo actual (2026) sin recuperación** — mismas 100 afirmaciones,
-  MiMo-7B-RL con razonamiento libre y solo memoria paramétrica: **25.0% / F1 0.186 /
-  63.7 s**. AIDAM: **41.0% / 0.274 / 20 s** → **+16 puntos y 3x más rápido**: la
-  evidencia viva le gana al recuerdo. (`evaluacion/eval_baseline_llm.py`)
-- Pendiente estructural: clase "contradictoria" sobre-predicha a escala (109 vs 38 de
-  oro — el juez de omisión dispara de más; afinar su umbral), NEI débil (F1 0.142),
-  y el techo del 61% mayoritario sigue arriba.
+**Status (2026-07-06) — full dev set (500 claims):**
+- **AIDAM: 44.0% accuracy, macro F1 0.318, 17.9 s/claim** (Refuted F1 0.604,
+  Supported 0.390). Series on the first 100: 30→31→37→39→41→44→45.
+- **Head-to-head against a current (2026) model without retrieval** — same 100
+  claims, MiMo-7B-RL with free reasoning and only parametric memory: **25.0% /
+  F1 0.186 / 63.7 s**. AIDAM: **41.0% / 0.274 / 20 s** → **+16 points and 3x
+  faster**: live evidence beats recall. (`evaluacion/eval_baseline_llm.py`)
+- Structural pendings: NEI still weak, and the 61% majority ceiling still above.
+- **LLM-AggreFact (2026-07-06)**: verifier v3 scores **66.2% average balanced
+  accuracy** over the 11 test datasets (29,320 pairs) — above generic NLI
+  (roberta-large ≈64%), 8.5 points below MiniCheck-FT5 (≈74-75%). Best: Reveal
+  85.1%; weakest: ExpertQA 56.3%, WiCE 58.6%. Honest read: a multilingual model
+  competing on an English long-document benchmark — closing the gap is the
+  remaining Phase 1 item (synthetic data with long documents and multi-sentence
+  composition, the regime MiniCheck trained for).
 
-## Fase 1 — Entrenar el verificador propio (1–2 meses)
+## Phase 1 — Train our own verifier (1–2 months)
 
-Replicar y luego intentar superar la receta MiniCheck con datos propios.
+Replicate, then try to beat, the MiniCheck recipe with our own data.
 
-- [x] **v0 entrenado (2026-07-05)**: fine-tuning contrastivo sobre VitaminC (120k pares)
-      desde el checkpoint NLI multilingüe, en una RTX 5070 (11 min).
-      **VitaminC test: 73.3% → 88.8% exactitud, F1 macro 0.664 → 0.845.**
-      Script en `training/entrenar_verificador.py`.
-      ⚠️ Con transformers v5 (5.13) el entrenamiento colapsa a una sola clase
-      (regresión de DeBERTa-v3); por eso `pyproject.toml` fija `<5`.
-- [x] **v1 con neutral restaurado (2026-07-05)**: entrenar solo con VitaminC
-      (contrastivo) volvió al modelo propenso a "refutar" con pasajes relacionados
-      pero no probatorios — detectado conduciendo la CLI, no en el benchmark.
-      Arreglo: mezcla 120k VitaminC + 60k MNLI. VitaminC test se mantiene (88.75%)
-      y la sobre-refutación baja. Residuo conocido: intros enciclopédicas aún votan
-      "contra" en ~70-79% — el objetivo #1 de los datos sintéticos es generar pares
-      neutrales-difíciles (intro genérica × afirmación específica).
-- [x] **v2 con neutrales-difíciles (2026-07-05)**: 30k pares mecánicos desde la
-      estructura de VitaminC (misma página, hecho distinto — receta Auto-GDA,
-      `training/generar_neutrales.py`). La refutación espuria del par medido cayó
-      de 86% a 53% (bajo el umbral de señal); VitaminC test 88.21%.
-      «Python lists are mutable»: REFUTADO 74% → SUSTENTADO 100%.
-- [ ] Generador de datos sintéticos con LLM: errores factuales sutiles, multi-frase,
-      multi-salto (los neutrales mecánicos de v2 son el primer paso)
-- [ ] Datos de entrenamiento en español (VitaminC es inglés; el modelo conserva el
-      español del checkpoint base, pero hay que medirlo y reforzarlo)
-- [ ] Calibración de probabilidades + evaluación de abstención
-- [ ] Publicar en HuggingFace con pesos abiertos
+- [x] **v0 trained (2026-07-05)**: contrastive fine-tuning on VitaminC (120k pairs)
+      from the multilingual NLI checkpoint, on an RTX 5070 (11 min).
+      **VitaminC test: 73.3% → 88.8% accuracy, macro F1 0.664 → 0.845.**
+      Script in `training/entrenar_verificador.py`.
+      ⚠️ With transformers v5 (5.13) training collapses to a single class
+      (DeBERTa-v3 regression); that is why `pyproject.toml` pins `<5`.
+- [x] **v1 with neutral restored (2026-07-05)**: training on VitaminC alone
+      (contrastive) made the model prone to "refute" with related but non-probative
+      passages — caught by driving the CLI, not by the benchmark. Fix: mix 120k
+      VitaminC + 60k MNLI. VitaminC test holds (88.75%) and over-refutation drops.
+      Known residue: encyclopedic intros still vote "against" at ~70-79% — synthetic
+      data goal #1 is hard-neutral pairs (generic intro × specific claim).
+- [x] **v2 with hard neutrals (2026-07-05)**: 30k mechanical pairs from VitaminC's
+      structure (same page, different fact — Auto-GDA recipe,
+      `training/generar_neutrales.py`). The measured spurious refutation dropped
+      from 86% to 53% (below the signal threshold); VitaminC test 88.21%.
+      "Python lists are mutable": REFUTED 74% → SUPPORTED 100%.
+- [x] **v3 with LLM-generated subtle errors (2026-07-06)**: 4k pairs generated with
+      a local reasoning LLM (minimal edits that flip the label — MiniCheck recipe);
+      VitaminC test 87.8%, macro F1 0.832. Published at
+      [huggingface.co/DeliVali/aidam-verificador](https://huggingface.co/DeliVali/aidam-verificador),
+      including the 319 MB quantized `onnx-mini` variant.
+- [ ] Spanish training data (VitaminC is English; the model keeps the base
+      checkpoint's Spanish, but it must be measured — XNLI-es is contaminated for
+      this base — and reinforced)
+- [x] Probability calibration installed (temperature scaling; finding: the model was
+      already calibrated, T=1.007, ECE 1.2% — the AVeriTeC gap is domain shift)
+- [x] Published on HuggingFace with open weights (2026-07-06)
 
-**Criterio de éxito:** ≥ MiniCheck-FT5 en LLM-AggreFact; primer verificador pequeño
-competitivo en español.
+**Success criterion:** ≥ MiniCheck-FT5 on LLM-AggreFact; first competitive small
+verifier in Spanish.
 
-## Fase 2 — Lógica comparativa seria (1–2 meses)
+## Phase 2 — Serious comparative logic (1–2 months)
 
-- [x] **Ampliación de fuentes (2026-07-05)**: registro extensible con 8 familias en
-      paralelo — Wikipedia (mono y multilingüe), Wikinews, web abierta, Semantic
-      Scholar, OpenAlex, arXiv y Europe PMC. *Verificado: afirmación médica juzgada
-      con FDA, papers académicos en ambos lados, Wikinews y Wikipedia francesa,
-      en 7.3 s.* Añadir una fuente = una función registrada (ver CONTRIBUTING).
-- [x] **Recuperación multilingüe (2026-07-05)**: enlaces interlingüísticos de Wikipedia
-      → evidencia en en/fr/de/ru/zh/… sin modelo de traducción; el verificador juzga
-      pares cruzados de idioma directamente. `--max-idiomas` en la CLI.
-      *Verificado: afirmación en español sustentada por las Wikipedias en inglés (96%)
-      y alemán (95%).* Pendiente: ranking de relevancia cruzado con embeddings
-      multilingües (hoy los idiomas lejanos aportan solo su introducción).
-- [ ] Modelo de independencia de fuentes (detección de contenido sindicado/copiado)
-- [x] **Priores de fiabilidad v0 + regla anti-eco (2026-07-05)**: fact-checkers pesan
-      8x, enciclopedias/academia 2.5x, .gov/.edu 2x; y un snippet que solo repite la
-      afirmación casi no pesa como soporte ("el eco no es evidencia"). Con tests.
-      **Resultado A/B en AVeriTeC-100**: refutadas correctas 13→20, exactitud 30→31%,
-      F1 macro bajó 0.25→0.21 (algunas afirmaciones ciertas ahora se refutan por
-      desmentidos parciales). Ayuda, pero el techo lo pone la evidencia: ver siguiente.
-- [x] **Evidencia de página completa + búsqueda dirigida a desmentidos (2026-07-05)**:
-      texto completo de los mejores resultados (trafilatura) y consulta reformulada
-      («\<afirmación\> fact check»). Con el resto de arreglos: AVeriTeC-100 30%→37%,
-      Refuted F1 0.529, y «la Gran Muralla se ve desde la Luna» → REFUTADO 93%.
-- [x] **Router de categorías + gate probatorio + eco recalibrado (2026-07-05)**:
-      el agente elige fuentes por tema (programación→Stack Overflow, medicina→Europe
-      PMC; las académicas son universales: un misroute añade ruido, nunca quita señal);
-      los pasajes que no comparten ≥2 palabras de contenido con el hecho no se juzgan
-      (las intros genéricas se leían como contradicción); el anti-eco solo aplica a
-      afirmaciones largas (en las cortas, cobertura ≠ eco). Todo salió de un `/verify`
-      en runtime que falló — cada regla tiene su test de regresión.
-- [x] **Generación de preguntas de búsqueda (2026-07-05)**: MiMo-7B-RL de Xiaomi
-      cuantizado (Q4, llama.cpp) genera las preguntas cuya respuesta confirmaría o
-      refutaría la afirmación — la técnica de los ganadores de AVeriTeC 2.0. Flag
-      `--preguntas`. **Con verificador v2 + preguntas: AVeriTeC-100 37% → 39%,
-      F1 macro 0.254 → 0.308, NEI F1 0.077 → 0.300** (serie: 30→31→37→39).
-      24.5 s/afirmación, dentro del presupuesto de 1 min del shared task.
-- [ ] Afinar los priores con datos (aprendidos de aciertos históricos, no a mano)
-- [x] **Desempate por fiabilidad (2026-07-05)**: en zona de empate, conflicto real
-      solo si AMBOS lados tienen una voz fiable; ruido web empatando con un
-      desmentido creíble = refutación (medido: 13/16 "contradictorias" predichas
-      eran refutadas). **AVeriTeC-100: 39% → 41%, Refuted F1 0.577** (serie
-      completa: 30→31→37→39→41). Trade-off honesto: la clase "contradictoria"
-      queda casi vacía (F1 0.074→0) — estaba rota de origen y ahora es explícito.
-- [ ] Clase "evidencia contradictoria": necesita detección real de cherry-picking
-      (¿la evidencia que sustenta omite contexto que la refutaría?) — candidato
-      natural: MiMo como juez de omisión. Hoy es la clase peor (F1 0).
-- [ ] Manejo temporal: hechos volátiles vs. estables
-- [ ] Detección de cherry-picking (clase AVeriTeC "evidencia contradictoria")
-- [ ] Búsqueda activa de evidencia contraria (anti-sesgo de confirmación)
+- [x] **Source expansion (2026-07-05)**: extensible registry with parallel families —
+      Wikipedia (mono and multilingual), Wikinews, open web, Semantic Scholar,
+      OpenAlex, arXiv and Europe PMC. *Verified: medical claim judged with FDA,
+      academic papers on both sides, Wikinews and French Wikipedia, in 7.3 s.*
+      Adding a source = one registered function (see CONTRIBUTING).
+- [x] **Multilingual retrieval (2026-07-05)**: Wikipedia interlanguage links →
+      evidence in en/fr/de/ru/zh/… without a translation model; the verifier judges
+      cross-language pairs directly. `--max-idiomas` in the CLI. *Verified: Spanish
+      claim supported by the English (96%) and German (95%) Wikipedias.* Pending:
+      cross-lingual relevance ranking with multilingual embeddings (distant languages
+      currently contribute only their article lead).
+- [ ] Source-independence model (syndicated/copied content detection)
+- [x] **Reliability priors v0 + anti-echo rule (2026-07-05)**: fact-checkers weigh
+      8x, encyclopedias/academia 2.5x, .gov/.edu 2x; a snippet that merely repeats
+      the claim barely counts as support ("echo is not evidence"). With tests.
+      **A/B on AVeriTeC-100**: correct refutations 13→20, accuracy 30→31%, macro F1
+      dropped 0.25→0.21 (some true claims now refuted by partial debunks). It helps,
+      but evidence quality sets the ceiling: see next.
+- [x] **Full-page evidence + debunk-targeted search (2026-07-05)**: full text of top
+      results (trafilatura) and a reformulated query ("<claim> fact check"). With the
+      other fixes: AVeriTeC-100 30%→37%, Refuted F1 0.529, and "the Great Wall is
+      visible from the Moon" → REFUTED 93%.
+- [x] **Category router + probative gate + recalibrated echo (2026-07-05)**: the
+      agent picks sources by topic (programming→Stack Overflow, medicine→Europe PMC;
+      academic sources are universal: a misroute adds noise, never removes signal);
+      passages sharing <2 content words with the fact are not judged (generic intros
+      were being read as contradiction); anti-echo only applies to long claims (on
+      short ones, coverage ≠ echo). All of it came out of a failed runtime `/verify`
+      — each rule has its regression test.
+- [x] **Search-question generation (2026-07-05)**: a local quantized reasoning LLM
+      (Q4, llama.cpp, isolated worker process) generates the questions whose answers
+      would confirm or refute the claim — the technique of the AVeriTeC 2.0 winners.
+      `--preguntas` flag. **With verifier v2 + questions: AVeriTeC-100 37% → 39%,
+      macro F1 0.254 → 0.308, NEI F1 0.077 → 0.300.** 24.5 s/claim, within the
+      shared task's 1-minute budget.
+- [ ] Tune priors from data (learned from historical accuracy, not by hand)
+- [x] **Reliability tie-breaking (2026-07-05)**: in the tie zone, real conflict only
+      if BOTH sides have a reliable voice; web noise tying with a credible debunk =
+      refutation (measured: 13/16 predicted "conflicting" were refuted).
+      **AVeriTeC-100: 39% → 41%, Refuted F1 0.577.**
+- [x] **Omission judge for cherry-picking (2026-07-05/06)**: on SUPPORTED verdicts
+      with contrary context on the table, the local LLM judges whether the claim
+      misleads by omission — using ONLY retrieved evidence, never parametric memory.
+      First version over-fired at scale (109 predicted vs 38 gold on the 500);
+      tuned with two brakes (strong contrary signal ≥0.75 required, and the omission
+      must undermine the claim's CENTRAL point): **AVeriTeC-100 41% → 44%**,
+      over-firing 23→3.
+- [x] **The attribution trap (2026-07-06)**: passages that "support" while carrying
+      debunk markers ("purportedly", "hoax", "fact check"…) are articles describing
+      the myth, not asserting it — their support is discounted.
+      **AVeriTeC-100: 44% → 45%, Refuted F1 0.627** (series:
+      30→31→37→39→41→44→45).
+- [ ] Temporal handling: volatile vs. stable facts
+- [ ] Active search for contrary evidence (anti-confirmation bias)
 
-**Criterio de éxito:** mejora medible en la clase "conflicting evidence" de AVeriTeC,
-la más difícil del benchmark.
+**Success criterion:** measurable improvement on AVeriTeC's "conflicting evidence"
+class, the hardest in the benchmark.
 
-## Fase 3 — Modo frontera (2–3 meses, investigación)
+## Phase 3 — Frontier mode (2–3 months, research)
 
-- [ ] Router: ¿este hecho sin evidencia es computable, deducible, o solo proponible?
-- [ ] Sandbox de ejecución de código para hechos computables
-- [ ] Motor de deducción sobre hechos ya verificados (reglas explícitas, auditable)
-- [ ] Generador de protocolos de verificación para lo no computable
+- [ ] Router: is this evidence-less fact computable, deducible, or only proposable?
+- [ ] Code-execution sandbox for computable facts
+- [ ] Deduction engine over already-verified facts (explicit rules, auditable)
+- [ ] Verification-protocol generator for the non-computable
 
-**Criterio de éxito:** en un conjunto de preguntas sin respuesta directa en la web pero
-computables (ej. "¿un cubo de agua de 3m cabe en X?"), el sistema las resuelve por
-simulación en vez de responder "no sé".
+**Success criterion:** on a set of questions with no direct answer on the web but
+computable (e.g. "does a 3 m cube of water fit in X?"), the system solves them by
+simulation instead of answering "I don't know".
 
-## Fase 4 — Generación verificada (puede arrancar tras la Fase 1, en paralelo)
+## Phase 4 — Verified generation (can start after Phase 1, in parallel)
 
-El bucle generar→verificar→seleccionar, empezando por el dominio donde la verificación
-es objetiva: **código**.
+The generate→verify→select loop, starting with the domain where verification is
+objective: **code**.
 
-- [ ] Sandbox de ejecución (contenedores) con tests, benchmark y perfilado automáticos
-- [ ] Generador de código: Qwen3-Coder pequeño cuantizado (Q4) en GPU de consumo
-- [ ] Bucle best-of-N: N candidatos → puntuación por ejecución → sobrevive el mejor;
-      si ninguno pasa, reintento con el feedback del fallo
-- [ ] "Modo eficiencia": la puntuación incluye tiempo y memoria medidos, no solo corrección
-- [ ] Escritura anclada: todo texto generado pasa por el Módulo 3 antes de entregarse
-- [ ] Imágenes: orquestar FLUX.2 Klein / Z-Image Turbo locales + score de adherencia al prompt
+- [ ] Execution sandbox (containers) with automatic tests, benchmark and profiling
+- [ ] Code generator: small quantized Qwen3-Coder (Q4) on a consumer GPU
+- [ ] Best-of-N loop: N candidates → execution-based score → the best survives;
+      if none passes, retry with the failure feedback
+- [ ] "Efficiency mode": the score includes measured time and memory, not just
+      correctness
+- [ ] Anchored writing: all generated text passes through Module 3 before delivery
+- [ ] Images: orchestrate local FLUX.2 Klein / Z-Image Turbo + prompt-adherence score
 
-**Criterio de éxito:** en un conjunto de tareas de código con tests, AIDAM (generador
-pequeño + verificador) iguala la tasa de éxito de un asistente de frontera a <10% del
-costo por tarea resuelta.
+**Success criterion:** on a set of code tasks with tests, AIDAM (small generator +
+verifier) matches a frontier assistant's success rate at <10% of the cost per solved
+task.
 
-## Fase 5 — Eficiencia extrema (continuo)
+## Phase 5 — Extreme efficiency (ongoing)
 
-- [x] **Verificador en ONNX → cualquier CPU (2026-07-05)**: exactitud idéntica a
-      PyTorch (88.3%), 1.4x más rápido en CPU, y el runtime pesa ~50 MB en vez de
-      ~3 GB (`pip install aidam[verificador-cpu]`, backend auto si falta torch).
+- [x] **Verifier on ONNX → any CPU (2026-07-05)**: accuracy identical to PyTorch
+      (88.3%), 1.4x faster on CPU, and the runtime weighs ~50 MB instead of ~3 GB
+      (`pip install aidam[verificador-cpu]`, automatic backend when torch is absent).
       Export: `training/cuantizar_verificador.py`.
-      ⚠️ Hallazgo medido: el INT8 dinámico **rompe** DeBERTa-v3 (88.3% → 51.4%,
-      por canal tampoco rescata) — su atención desenredada no tolera cuantización
-      dinámica de activaciones. Camino: cuantización estática con calibración
-      excluyendo la atención, o QAT (quantization-aware training).
-- [x] **Cuantización real del verificador (2026-07-06)**: la ruta era weight-only,
-      no QAT — pesos INT4 por bloques (MatMulNBits) + embeddings INT8, activaciones
-      intactas en fp32 (los outliers de activación de DeBERTa-v3 eran el veneno:
-      hasta las FFN solas colapsaban con cuantización dinámica).
-      **Modelo "mini": 1.1 GB → 319 MB (3.4x), 86.1% (−2.2), 39 ms/par (2x)** —
-      `AIDAM_BACKEND=onnx-mini` para máquinas con poca RAM; fp32/ONNX sigue de
-      default en CPU. La misma familia de técnicas que usan los LLMs actuales.
-- [ ] Experimento BitNet: fine-tuning de bitnet-b1.58-2B-4T + despliegue con bitnet.cpp
-- [ ] Distilar el descompositor a <500M
-- [ ] Fusionar descomposición+verificación en una pasada (estilo VeriFastScore)
-
----
+      ⚠️ Measured finding: dynamic INT8 **breaks** DeBERTa-v3 (88.3% → 51.4%;
+      per-channel doesn't rescue it either) — its activation outliers don't tolerate
+      activation quantization.
+- [x] **Real verifier quantization (2026-07-06)**: the route was weight-only, not
+      QAT — block-wise INT4 weights (MatMulNBits) + INT8 embeddings, activations
+      untouched in fp32 (DeBERTa-v3's activation outliers were the poison: even
+      FFN-only collapsed under dynamic quantization).
+      **"mini" model: 1.1 GB → 319 MB (3.4x), 86.1% (−2.2), 39 ms/pair (2x)** —
+      `AIDAM_BACKEND=onnx-mini` for low-RAM machines; fp32/ONNX remains the CPU
+      default. The same technique family used by current LLMs.
+- [ ] BitNet experiment: fine-tune bitnet-b1.58-2B-4T + deploy with bitnet.cpp
+- [ ] Distill the decomposer to <500M
+- [ ] Fuse decomposition+verification into one pass (VeriFastScore style)
