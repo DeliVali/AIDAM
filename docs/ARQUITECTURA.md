@@ -234,6 +234,20 @@ más, más un verificador barato y fuerte que filtra — el costo total por resu
 *correcto* baja aunque haya reintentos, porque verificar cuesta céntimos frente a generar
 con un modelo de frontera.
 
+## Selección de modelos (transversal)
+
+Siempre el mejor modelo abierto y actual para cada rol, sin lealtad a ninguna
+marca: pesos abiertos, licencia permisiva (MIT/Apache), sin censura. **El
+sistema responde toda afirmación** — política, violenta o incómoda — con
+veredicto y evidencia: esas son justamente las que más desinformación cargan
+y las que más necesitan verificación. La información se entrega en su estado
+más puro; el único filtro del sistema es la evidencia. Un modelo asistente
+que rehúse temas se reemplaza (`AIDAM_MODELO_PREGUNTAS` acepta cualquier
+GGUF), y el camino del veredicto (NLI + agregación explícita) no sabe negarse. Garantía de diseño: el camino
+del veredicto (verificador NLI + agregación explícita) no puede negarse a
+responder; los LLM son asistentes reemplazables (`AIDAM_MODELO_PREGUNTAS`
+acepta cualquier GGUF).
+
 ## Eficiencia (transversal)
 
 **Entrenamiento:**

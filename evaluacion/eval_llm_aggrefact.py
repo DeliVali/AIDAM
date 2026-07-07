@@ -1,0 +1,89 @@
+"""Evaluación del verificador en LLM-AggreFact (el benchmark de MiniCheck).
+
+Mide el núcleo directamente: dado (documento, afirmación), ¿el documento
+sustenta la afirmación? Es el criterio de la Fase 1: alcanzar el nivel de
+MiniCheck-FT5 (~74-75% de exactitud balanceada media).
+
+Documentos largos: se trocean en ventanas y se toma el máximo de
+p(sustenta) sobre ellas (enfoque estándar de los verificadores por pares).
+La métrica es exactitud balanceada (media de sensibilidad y especificidad)
+por dataset y su promedio, como en el paper de MiniCheck.
+
+Uso:
+  python evaluacion/eval_llm_aggrefact.py [--umbral 0.5] [--max-ejemplos N]
+"""
+
+from __future__ import annotations
+
+import argparse
+from collections import defaultdict
+
+import numpy as np
+import torch
+from datasets import load_dataset
+
+from aidam.retrieve import _trocear
+from aidam.verify import VerificadorNLI
+
+
+def _p_sustenta(verificador, documentos: list[str], afirmaciones: list[str]) -> list[float]:
+    """Máximo de p(entailment) sobre las ventanas de cada documento."""
+    indice_sustenta = next(
+        i for i, nombre in verificador.modelo.config.id2label.items()
+        if nombre.lower() == "entailment"
+    )
+    probs: list[float] = []
+    for doc, afirmacion in zip(documentos, afirmaciones):
+        ventanas = _trocear(doc, max_chars=1500) or [doc]
+        entradas = verificador.tokenizer(
+            ventanas,
+            [afirmacion] * len(ventanas),
+            truncation=True,
+            max_length=512,
+            padding=True,
+            return_tensors="pt",
+        ).to(verificador.device)
+        with torch.inference_mode():
+            logits = verificador.modelo(**entradas).logits / verificador._temperatura
+        p = torch.softmax(logits, dim=-1)[:, indice_sustenta]
+        probs.append(float(p.max()))
+    return probs
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--umbral", type=float, default=0.5)
+    parser.add_argument("--max-ejemplos", type=int, default=0, help="0 = todos")
+    args = parser.parse_args()
+
+    datos = load_dataset("lytang/LLM-AggreFact", split="test")
+    if args.max_ejemplos:
+        datos = datos.shuffle(seed=42).select(range(args.max_ejemplos))
+    print(f"[aggrefact] {len(datos)} pares")
+
+    verificador = VerificadorNLI()
+    lote = 256
+    por_dataset: dict[str, list[tuple[int, int]]] = defaultdict(list)
+    for inicio in range(0, len(datos), lote):
+        parte = datos.select(range(inicio, min(inicio + lote, len(datos))))
+        probs = _p_sustenta(verificador, list(parte["doc"]), list(parte["claim"]))
+        for nombre, etiqueta, p in zip(parte["dataset"], parte["label"], probs):
+            por_dataset[nombre].append((int(etiqueta), int(p >= args.umbral)))
+        if inicio % (lote * 10) == 0:
+            print(f"[aggrefact] {inicio}/{len(datos)}")
+
+    baccs = []
+    for nombre in sorted(por_dataset):
+        pares = np.array(por_dataset[nombre])
+        oro, pred = pares[:, 0], pares[:, 1]
+        tpr = (pred[oro == 1] == 1).mean() if (oro == 1).any() else 0.0
+        tnr = (pred[oro == 0] == 0).mean() if (oro == 0).any() else 0.0
+        bacc = (tpr + tnr) / 2
+        baccs.append(bacc)
+        print(f"[aggrefact] {nombre:24s} BAcc {bacc:.1%}  (n={len(pares)})")
+    print(f"[aggrefact] PROMEDIO BAcc: {np.mean(baccs):.1%}  "
+          "(MiniCheck-FT5 ≈ 74-75%; roberta-large NLI ≈ 64%)")
+
+
+if __name__ == "__main__":
+    main()

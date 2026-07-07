@@ -169,6 +169,27 @@ def test_afirmacion_tecnica_corta_no_es_eco():
     assert resultado.confianza > 0.3  # sin la penalización de eco
 
 
+def test_la_trampa_de_la_atribucion():
+    """Un pasaje que 'sustenta' pero describe el bulo ('purportedly', 'hoax')
+    es un desmentido mal leído: su apoyo casi no pesa."""
+    trampa = VeredictoPar(
+        hecho=HECHO,
+        evidencia=Evidencia(
+            texto="Viral video purportedly shows the tower being in Paris, "
+            "a claim fact-checkers call misleading",
+            url="https://noticias.com/x",
+            titulo="t",
+            dominio="noticias.com",
+            fuente="web",
+        ),
+        etiqueta=EtiquetaPar.SUSTENTA,
+        prob=0.95,
+    )
+    contra = [_par(EtiquetaPar.REFUTA, 0.8, "otra.org")]
+    resultado = agregar_hecho(HECHO, [trampa] + contra)
+    assert resultado.veredicto is Veredicto.REFUTADO
+
+
 def test_un_dominio_una_voz():
     """Un fact-check narra el mito (pasaje 'a favor') antes de desmentirlo
     (pasaje 'en contra' más fuerte): el dominio vota una sola vez, con su

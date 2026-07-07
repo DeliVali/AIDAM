@@ -59,6 +59,19 @@ PESO_BASE = 1.0
 PESO_ECO = 0.3  # multiplicador para el eco (regla 3)
 _UMBRAL_ECO = 0.8  # fracción de palabras de la afirmación presentes en el pasaje
 
+# Regla 4 — la trampa de la atribución (medida en AVeriTeC v8: 18 refutadas
+# leídas como sustentadas): un pasaje que "sustenta" pero trae marcadores de
+# desmentido o atribución dudosa ("purportedly", "hoax", "fact check"…) es
+# casi siempre un artículo que DESCRIBE el bulo, no que lo afirma. El NLI
+# textual cae en la trampa; el descuento la desarma.
+_MARCADORES_DESMENTIDO = re.compile(
+    r"\b(fact.?check|false(ly)?|falso|falsa(mente)?|hoax|bulo|debunk\w*|misleading"
+    r"|no (real )?evidence|sin evidencia|desmentid\w*|desinformaci[oó]n|purported\w*"
+    r"|supuesta(mente)?|alegada(mente)?|rumor\w*|viral claim|enga[ñn]os\w*)\b",
+    re.IGNORECASE,
+)
+PESO_DESMENTIDO = 0.25
+
 
 def peso_fuente(evidencia: Evidencia) -> float:
     """Prior de fiabilidad del dominio. Explícito para poder auditarlo."""
@@ -97,12 +110,11 @@ def _es_eco(hecho: HechoAtomico, evidencia: Evidencia) -> bool:
 def _peso(par: VeredictoPar) -> float:
     """Peso total de un juicio: prior de fiabilidad × penalización por eco."""
     peso = peso_fuente(par.evidencia)
-    if (
-        par.etiqueta is EtiquetaPar.SUSTENTA
-        and par.evidencia.fuente in ("web", "desmentidos")
-        and _es_eco(par.hecho, par.evidencia)
-    ):
-        peso *= PESO_ECO
+    if par.etiqueta is EtiquetaPar.SUSTENTA:
+        if par.evidencia.fuente in ("web", "desmentidos") and _es_eco(par.hecho, par.evidencia):
+            peso *= PESO_ECO
+        if _MARCADORES_DESMENTIDO.search(par.evidencia.texto):
+            peso *= PESO_DESMENTIDO
     return peso
 
 
