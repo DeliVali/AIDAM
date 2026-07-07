@@ -2,59 +2,59 @@
 
 # AIDAM
 
-Verificador de hechos abierto. En vez de confiar en lo que un modelo recuerda,
-AIDAM busca evidencia en vivo en múltiples fuentes y un modelo pequeño
-especializado la compara con la afirmación. Cada veredicto cita sus fuentes.
+An open fact-checking agent. Instead of trusting what a model remembers, AIDAM
+retrieves live evidence from many sources and lets a small specialized model
+compare it against the claim. Every verdict cites its sources.
 
-## Cómo funciona
+## How it works
 
-1. **Descompone** la afirmación en hechos verificables.
-2. **Recupera** evidencia en paralelo: Wikipedia (en varios idiomas vía enlaces
-   interlingüísticos), web abierta, Wikinews, Stack Overflow, Semantic Scholar,
-   OpenAlex, arXiv y Europe PMC, más una búsqueda dirigida a fact-checkers.
-   Un router elige las fuentes según el tema de la afirmación.
-3. **Juzga** cada par (hecho, pasaje) con un verificador NLI multilingüe de 280M
-   parámetros entrenado para esta tarea.
-4. **Agrega** con reglas explícitas y auditables: un dominio es una sola voz,
-   los fact-checkers y la academia pesan más, repetir la afirmación no cuenta
-   como evidencia, y los desmentidos mal leídos se descuentan.
-5. Emite el veredicto — **sustentado / refutado / evidencia contradictoria /
-   evidencia insuficiente** — con las citas que lo justifican.
+1. **Decomposes** the claim into verifiable facts.
+2. **Retrieves** evidence in parallel: Wikipedia (in several languages via
+   interlanguage links), the open web, Wikinews, Stack Overflow, Semantic
+   Scholar, OpenAlex, arXiv and Europe PMC, plus a search aimed specifically
+   at fact-checkers. A router picks sources based on the claim's topic.
+3. **Judges** each (fact, passage) pair with a multilingual 280M-parameter NLI
+   verifier trained for this task.
+4. **Aggregates** with explicit, auditable rules: one domain is one voice,
+   fact-checkers and academia weigh more, repeating the claim does not count
+   as evidence, and misread debunking articles are discounted.
+5. Returns the verdict — **supported / refuted / conflicting evidence /
+   not enough evidence** — with the citations that justify it.
 
-Opcional: MiMo-7B-RL (cuantizado, corriendo local en proceso aislado) genera
-preguntas de búsqueda para dirigir la recuperación y detecta afirmaciones que
-engañan por omisión.
+Optional: MiMo-7B-RL (quantized, running locally in an isolated process)
+generates search questions to guide retrieval and detects claims that mislead
+by omission.
 
-## Uso
+## Usage
 
 ```bash
 git clone https://github.com/DeliVali/AIDAM.git && cd AIDAM
 uv venv --python 3.12
 uv pip install -e ".[verificador]"
-.venv/bin/aidam verificar "La Torre Eiffel está en París"
+.venv/bin/aidam verificar "The Eiffel Tower is in Paris" --lang en
 ```
 
-Corre en GPU, en CPU sin PyTorch (`aidam[verificador-cpu]`, ONNX Runtime) o en
-máquinas con poca RAM (modelo cuantizado de 319 MB, `AIDAM_BACKEND=onnx-mini`).
-El modelo está publicado en
+Runs on GPU, on CPU without PyTorch (`aidam[verificador-cpu]`, ONNX Runtime),
+or on low-RAM machines (319 MB quantized model, `AIDAM_BACKEND=onnx-mini`).
+The model is published on
 [HuggingFace](https://huggingface.co/DeliVali/aidam-verificador).
 
-## Tecnologías
+## Technology
 
-- **Verificador**: mDeBERTa-v3 (280M) afinado con VitaminC, MNLI y datos
-  sintéticos propios. PyTorch para entrenar; ONNX Runtime para CPU;
-  cuantización weight-only (int4 por bloques + embeddings int8) para el mini.
-- **LLM local**: MiMo-7B-RL (Xiaomi) en GGUF Q4 vía llama.cpp.
-- **Evaluación continua**: AVeriTeC (afirmaciones reales con veredicto anotado);
-  cada cambio del sistema se mide antes de integrarse.
+- **Verifier**: mDeBERTa-v3 (280M) fine-tuned on VitaminC, MNLI and our own
+  synthetic data. PyTorch for training; ONNX Runtime for CPU; weight-only
+  quantization (block-wise int4 + int8 embeddings) for the mini variant.
+- **Local LLM**: MiMo-7B-RL (Xiaomi) as GGUF Q4 via llama.cpp.
+- **Continuous evaluation**: AVeriTeC (real-world claims with annotated
+  verdicts); every change to the system is measured before it lands.
 
-## Estado
+## Status
 
-44% de exactitud en AVeriTeC-500 a 17.9 s por afirmación. Contra el mismo LLM
-de razonamiento sin recuperación: +16 puntos de exactitud y 3x más rápido.
-Números, arquitectura y roadmap en [docs/](docs/).
+44% accuracy on AVeriTeC-500 at 17.9 s per claim. Against the same reasoning
+LLM without retrieval: +16 accuracy points and 3x faster. Numbers,
+architecture and roadmap live in [docs/](docs/).
 
-## Contribuir
+## Contributing
 
-Licencia Apache 2.0. Guía para colaborar en [CONTRIBUTING.md](CONTRIBUTING.md);
-código de conducta en [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
+Apache 2.0 license. Contribution guide in [CONTRIBUTING.md](CONTRIBUTING.md);
+code of conduct in [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
