@@ -219,6 +219,31 @@ verifier in Spanish.
       session.** A same-session live-AVeriTeC "A/B" between two verifiers is
       not a valid comparison — the second run is always structurally
       disadvantaged regardless of which model is better.
+- [x] **New keyless sources (2026-07-08): Wikidata, openFDA,
+      ClinicalTrials.gov.** Wikidata renders structured facts (dates,
+      positions held, populations) precision-aware (a year-only fact
+      doesn't get a fabricated day) — independent infrastructure from
+      Wikipedia's own text search, so it survives ddgs exhaustion. openFDA
+      (drug labels) and ClinicalTrials.gov (registered trials) weigh
+      `docs-oficiales` (8.0), the same tier as a professional fact-checker —
+      official registries, not secondary summaries. All three verified live
+      end-to-end through `recuperar()`, not just raw API calls.
+- [x] **Tested and rejected: dropping ddgs entirely (`AIDAM_SIN_DDG=1`) to
+      dodge the exhaustion above (2026-07-08).** Built as a kill switch that
+      falls back to every source with its own separate rate limit (Wikipedia
+      family, academic APIs, StackExchange, GDELT). Result on the same
+      AVeriTeC-100: **14.0% — worse than every exhausted-ddgs run this
+      session**, with voces collapsing to 0.44 (78/100 claims zero evidence,
+      the worst evidence coverage measured all session). Honest conclusion:
+      for AVeriTeC's real-world viral/political claim style, the ddgs-
+      mediated sources (`web`, `desmentidos`) carry nearly all the useful
+      signal — Wikipedia/Wikidata/academic sources have almost no coverage
+      of ephemeral 2020 political rumors, so removing ddgs even while
+      throttled is strictly worse than keeping it. The kill switch itself is
+      kept (`aidam/retrieve.py::_ddg_deshabilitado`, tests included) since
+      it's a legitimate tool for other claim styles or a fully-dead network,
+      but it is NOT the fix for this specific exhaustion problem — the fix
+      is still "wait for reputation to reset" or "pay for a search API."
 - [ ] Temporal handling: volatile vs. stable facts
 - [ ] Active search for contrary evidence (anti-confirmation bias)
 
