@@ -145,6 +145,51 @@ verifier in Spanish.
       default (`models/mimo/`, the measured 45%); DeepSeek remains selectable
       via `AIDAM_MODELO_PREGUNTAS`. Re-run when the IP cools down, ideally with
       cached or paced retrieval so the A/B isolates the model.
+- [x] **In-domain fine-tuning attempt (verifier v4/v5, 2026-07-07/08) — two real
+      bugs found, verifier not promoted.** AVeriTeC's train split (3,068 claims,
+      never touching dev) was converted to NLI pairs (`generate_averitec_pairs.py`)
+      and mixed into training, on the thesis that VitaminC/MNLI (Wikipedia-style)
+      never taught the model real-world viral-claim *style*.
+      - **v4** (raw label distribution: 62% Refuted/30% Supported/10% NEI,
+        repeated 3x) scored 41% on AVeriTeC-100, *below* v3's 45%. Root cause,
+        verified on the actual predictions: a trivially true, well-evidenced
+        claim (3 voices, confidence 1.00) was predicted Refuted — the
+        imbalanced injection taught a REFUTES shortcut for real-world-claim
+        style. Fixed: `generate_averitec_pairs.py --balancear` caps every
+        label at the minority-class count (280/class).
+      - **v5** (balanced pairs) scored 87.34% VitaminC test / 65.0% AggreFact —
+        both *marginally below* v3 (87.76% / 66.2%). The AVeriTeC-live
+        comparison (two attempts, 38% and 39%) could not settle it either way:
+        both runs were confounded by a **retrieval throttling problem**
+        (below), not the verifier. On the network-independent benchmarks,
+        which are the fair comparison, v5 does not beat v3.
+      - **Decision: v3 (`models/verificador-v0`) stays the production default.**
+        8,400 in-domain pairs out of a ~222k mix was evidently too small a
+        fraction to shift a checkpoint already saturated on general NLI skill;
+        a real domain-adaptation attempt would need either a much larger
+        in-domain corpus or a staged fine-tune (specialize on VitaminC+MNLI
+        first, then a short in-domain pass) rather than one blended mix.
+      - **Second, independent bug found and fixed along the way**: the search
+        cooldown (below) initially matched failures by ddgs exception *type*
+        (`RatelimitException`/`TimeoutException`), reasoning that a generic
+        exception could just mean "no results for this query." Measured wrong:
+        live probe showed duckduckgo raises a generic `DDGSException("No
+        results found")` on *every* query and bing a raw `ConnectError` —
+        neither matches the typed exceptions, so both backends never cooled
+        down, wasting a timeout + pacing slot on two dead engines before every
+        single search. Fixed: any exception counts as an engine failure again;
+        rotation reordered `yahoo → bing → duckduckgo` (yahoo measured healthy).
+      - **Residual, unresolved**: even after that fix, both v5 AVeriTeC-100 runs
+        showed the same shape — evidence-per-claim (voces) dropping roughly by
+        half from the first to the second half of a single run (2.6→1.5, then
+        2.6→1.6), and an isolated 30-query diagnostic reproduced the same decay
+        curve independent of pacing (tested 1.0s and 3.0s — no difference).
+        This looks like session-cumulative IP reputation decay with these free
+        engines across hours of sustained querying, not a client-side
+        rate/backend-selection bug — no further code change fixed it within
+        the session. Next step: either an authenticated/paid search API for
+        eval runs, or spacing full AVeriTeC-100 runs hours apart to let
+        reputation reset, before trusting a live AVeriTeC number again.
 - [ ] Temporal handling: volatile vs. stable facts
 - [ ] Active search for contrary evidence (anti-confirmation bias)
 
