@@ -190,6 +190,29 @@ def test_la_trampa_de_la_atribucion():
     assert resultado.veredicto is Veredicto.REFUTADO
 
 
+def test_alegada_en_ingles_tambien_es_trampa_de_atribucion():
+    """Regression measured on the AVeriTeC knowledge-store eval: 'alleged'
+    (English) was missing even though its Spanish twin 'alegada' was already
+    covered — 'reports alleged Pogba retired' + his own denial both read as
+    SUSTENTA by the raw NLI score, but describe a denied rumor, not the fact."""
+    trampa = VeredictoPar(
+        hecho=HECHO,
+        evidencia=Evidencia(
+            texto="Reports alleged the tower was moved to Paris, but officials "
+            "denied the claim and said it never happened",
+            url="https://noticias.com/x",
+            titulo="t",
+            dominio="noticias.com",
+            fuente="web",
+        ),
+        etiqueta=EtiquetaPar.SUSTENTA,
+        prob=0.9,
+    )
+    contra = [_par(EtiquetaPar.REFUTA, 0.8, "otra.org")]
+    resultado = agregar_hecho(HECHO, [trampa] + contra)
+    assert resultado.veredicto is Veredicto.REFUTADO
+
+
 def test_un_dominio_una_voz():
     """A fact-check narrates the myth (a 'supporting' passage) before
     debunking it (a stronger 'refuting' passage): the domain votes once,

@@ -316,6 +316,28 @@ verifier in Spanish.
       the already-downloaded zip on demand). Live retrieval (`recuperar()`,
       the default) stays the only option for real deployed verification of
       claims outside the dataset — the knowledge store is eval-only.
+- [x] **Denial statements are an implicit-negation gap in the verifier, not
+      an aggregation problem (2026-07-08) — traced, not fixed.** With a fast,
+      noise-free offline eval finally available, inspected the largest error
+      bucket (14 Refuted claims predicted Supported). Traced claim #30 (Paul
+      Pogba hoax) to the pair level: six domains carrying the actual denial
+      ("Pogba said he will be 'taking legal action' after reports claimed he
+      had retired") are ALL classified **NO_CONCLUYE by the verifier**, not
+      REFUTA — "X denies Y and threatens to sue over reports of Y" doesn't
+      map to textbook NLI contradiction, it requires recognizing an implicit
+      meta-level negation. Only one domain phrases the claim directly enough
+      to read as SUSTENTA, and it wins by default. Added "alleged"/"denied"
+      to `_MARCADORES_DESMENTIDO` (English was missing even though its
+      Spanish twin "alegada" was already covered) on the reasonable
+      hypothesis this was an attribution-trap gap — measured **zero change**
+      on the full offline eval (47.0%, identical confusion matrix), because
+      the discount only ever applies to evidence already labeled SUSTENTA,
+      and the denial passages never reach that label in the first place. Kept
+      the marker anyway (harmless, no regression, correct for cases where it
+      DOES apply) but this is not the real fix. **Real fix would be training
+      data**: minimal-edit pairs teaching "subject denies X" / "X was ruled
+      false" style sentences as REFUTES, not NEUTRAL — a `generate_synthetic_llm.py`-shaped
+      task, not an aggregation-weight tweak. Next-cycle item.
 - [ ] Temporal handling: volatile vs. stable facts
 - [ ] Active search for contrary evidence (anti-confirmation bias)
 

@@ -78,7 +78,8 @@ _UMBRAL_ECO = 0.8  # fraction of claim words present in the passage
 _MARCADORES_DESMENTIDO = re.compile(
     r"\b(false(ly)?|falso|falsa(mente)?|hoax|bulo|debunk\w*|misleading"
     r"|no (real )?evidence|sin evidencia|desmentid\w*|desinformaci[oó]n|purported\w*"
-    r"|supuesta(mente)?|alegada(mente)?|viral claim|enga[ñn]os\w*)\b",
+    r"|supuesta(mente)?|alegada(mente)?|alleged(ly)?|den(y|ies|ied)|viral claim"
+    r"|enga[ñn]os\w*)\b",
     re.IGNORECASE,
 )
 PESO_DESMENTIDO = 0.25
