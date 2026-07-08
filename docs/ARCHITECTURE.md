@@ -84,12 +84,18 @@ and split into relevance-ranked passages.
 | Multilingual Wikipedia (langlinks) | all | the same article in other languages |
 | Open web (DuckDuckGo) | all | full pages + snippets |
 | **Debunks** (targeted search) | all | fact-checker articles, full text |
+| **Official docs** (site-filtered) | programming | docs.python.org, MDN, AWS/Azure docs, man pages, Docker/K8s… — the certified sources for code, commands and infrastructure, weighted like professional fact-checkers |
+| **Math references** (site-filtered) | math | MathWorld, OEIS, DLMF, ProofWiki |
 | Wikinews | news, general | collaborative journalism |
 | Stack Exchange | programming | technical Q&A |
 | Semantic Scholar | science, medicine, programming | academic abstracts |
-| OpenAlex | science, medicine, programming | academic abstracts |
-| arXiv | science, programming | scientific preprints |
+| OpenAlex | universal | academic abstracts |
+| arXiv | science, programming, math | scientific preprints |
 | Europe PMC | medicine, science | biomedical literature |
+
+For technical claims the deeper answer is Phase 3 (frontier mode): a claim about
+code or math is often *computable* — running the command in a sandbox or evaluating
+the math IS the evidence, stronger than any document.
 
 Future candidates: PubMed, GDELT (world press headlines), Wikidata (structured facts),
 official language/framework documentation, and optional keyed APIs.

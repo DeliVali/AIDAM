@@ -141,3 +141,22 @@ def test_categorias_enrutan_fuentes():
     assert "stackexchange" not in activas("medicina")
     assert "europepmc" in activas("medicina")
     assert {"wikipedia", "web", "desmentidos"} <= activas("general")
+    assert "docs-programacion" in activas("programacion")
+    assert "docs-matematicas" in activas("matematicas")
+    assert "docs-programacion" not in activas("general")
+
+
+def test_docs_oficiales_pesan_como_verificador():
+    """La documentación oficial es el fact-checker de lo técnico."""
+    from aidam.aggregate import PESO_DOCS_OFICIALES, PESO_VERIFICADOR, peso_fuente
+    from aidam.models import Evidencia
+
+    doc = Evidencia(
+        texto="aws s3 cp copies files to a bucket",
+        url="https://docs.aws.amazon.com/cli/s3.html",
+        titulo="AWS CLI",
+        dominio="docs.aws.amazon.com",
+        fuente="docs-oficiales",
+        idioma="en",
+    )
+    assert peso_fuente(doc) == PESO_DOCS_OFICIALES == PESO_VERIFICADOR

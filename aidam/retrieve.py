@@ -297,6 +297,35 @@ def buscar_web(
     return evidencias
 
 
+# Documentación oficial por dominio técnico: el equivalente del fact-checker
+# profesional para código, comandos e infraestructura. Para una afirmación
+# sobre AWS, la fuente certificada es docs.aws.amazon.com, no un blog.
+DOCS_CERTIFICADAS: dict[str, list[str]] = {
+    "programacion": [
+        "docs.python.org", "developer.mozilla.org", "docs.aws.amazon.com",
+        "learn.microsoft.com", "kubernetes.io", "man7.org", "docs.docker.com",
+        "en.cppreference.com", "doc.rust-lang.org", "nodejs.org", "pkg.go.dev",
+    ],
+    "matematicas": [
+        "mathworld.wolfram.com", "encyclopediaofmath.org", "proofwiki.org",
+        "oeis.org", "dlmf.nist.gov",
+    ],
+}
+
+
+def buscar_docs_certificadas(
+    consulta: str, categoria: str, lang: str = "", max_resultados: int = 6
+) -> list[Evidencia]:
+    """Busca solo en documentación oficial del dominio (filtro site: de DDG),
+    leyendo las páginas completas."""
+    dominios = DOCS_CERTIFICADAS.get(categoria, [])
+    if not dominios:
+        return []
+    filtro = " OR ".join(f"site:{d}" for d in dominios[:6])
+    hits = _buscar_ddg(f"{consulta} ({filtro})", max_resultados)
+    return _evidencias_de_paginas(hits, consulta, "docs-oficiales", lang, max_paginas=3)
+
+
 def buscar_desmentidos(consulta: str, lang: str = "es") -> list[Evidencia]:
     """Búsqueda dirigida a verificaciones: trae a los fact-checkers a la mesa.
 
@@ -497,6 +526,16 @@ FUENTES: dict[str, tuple[str, set[str] | None, object]] = {
         None,
         lambda c, lang, mi: buscar_desmentidos(c, lang=lang),
     ),
+    "docs-programacion": (
+        "Documentación oficial de lenguajes, clouds y herramientas",
+        {"programacion"},
+        lambda c, lang, mi: buscar_docs_certificadas(c, "programacion", lang=lang),
+    ),
+    "docs-matematicas": (
+        "Referencias matemáticas certificadas (MathWorld, OEIS, DLMF…)",
+        {"matematicas"},
+        lambda c, lang, mi: buscar_docs_certificadas(c, "matematicas", lang=lang),
+    ),
     "stackexchange": (
         "Preguntas y respuestas de Stack Overflow",
         {"programacion"},
@@ -516,7 +555,7 @@ FUENTES: dict[str, tuple[str, set[str] | None, object]] = {
     ),
     "arxiv": (
         "Preprints científicos de arXiv",
-        {"ciencia", "programacion"},
+        {"ciencia", "programacion", "matematicas"},
         lambda c, lang, mi: buscar_arxiv(c, lang=lang),
     ),
     "europepmc": (

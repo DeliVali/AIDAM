@@ -49,6 +49,15 @@ def test_separa_varias_preguntas_en_una_linea():
     ]
 
 
+def test_acepta_consultas_de_busqueda_sin_interrogacion():
+    """DeepSeek-R1 emite consultas tipo `search "..."` en vez de preguntas."""
+    salida = 'search "Sean Connery letter Steve Jobs"\nsearch "Connery Apple commercial"'
+    assert _extraer_preguntas(salida, 3) == [
+        "Sean Connery letter Steve Jobs",
+        "Connery Apple commercial",
+    ]
+
+
 def test_respeta_el_limite():
     salida = "\n".join(f"{i}. ¿Pregunta número {i} de prueba?" for i in range(1, 6))
     assert len(_extraer_preguntas(salida, 2)) == 2

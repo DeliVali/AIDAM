@@ -51,6 +51,10 @@ VERIFICADORES = {
 # de un dominio desconocido: con 8.0, un fact-checker le gana a 3 sitios
 # virales, pero 6+ sitios independientes aún fuerzan "contradictorio".
 PESO_VERIFICADOR = 8.0
+# La documentación oficial es el "fact-checker" de lo técnico: para una
+# afirmación sobre AWS o Python, docs.aws.amazon.com/docs.python.org es la
+# fuente certificada — pesa como un verificador profesional.
+PESO_DOCS_OFICIALES = 8.0  # fuente == "docs-oficiales"
 PESO_ENCICLOPEDIA = 2.5  # *.wikipedia.org
 PESO_ACADEMICO = 2.5  # papers (fuente == "academica")
 PESO_OFICIAL = 2.0  # dominios .gov / .edu
@@ -64,10 +68,13 @@ _UMBRAL_ECO = 0.8  # fracción de palabras de la afirmación presentes en el pas
 # desmentido o atribución dudosa ("purportedly", "hoax", "fact check"…) es
 # casi siempre un artículo que DESCRIBE el bulo, no que lo afirma. El NLI
 # textual cae en la trampa; el descuento la desarma.
+# Solo marcadores inequívocos de desmentido: "fact check" y "rumor" se
+# quitaron porque un fact-check también CONFIRMA (medido en v9: Supported
+# F1 cayó a 0.255 por descontar apoyos legítimos).
 _MARCADORES_DESMENTIDO = re.compile(
-    r"\b(fact.?check|false(ly)?|falso|falsa(mente)?|hoax|bulo|debunk\w*|misleading"
+    r"\b(false(ly)?|falso|falsa(mente)?|hoax|bulo|debunk\w*|misleading"
     r"|no (real )?evidence|sin evidencia|desmentid\w*|desinformaci[oó]n|purported\w*"
-    r"|supuesta(mente)?|alegada(mente)?|rumor\w*|viral claim|enga[ñn]os\w*)\b",
+    r"|supuesta(mente)?|alegada(mente)?|viral claim|enga[ñn]os\w*)\b",
     re.IGNORECASE,
 )
 PESO_DESMENTIDO = 0.25
@@ -78,6 +85,8 @@ def peso_fuente(evidencia: Evidencia) -> float:
     dominio = evidencia.dominio
     if dominio in VERIFICADORES:
         return PESO_VERIFICADOR
+    if evidencia.fuente == "docs-oficiales":
+        return PESO_DOCS_OFICIALES
     if dominio.endswith(".wikipedia.org"):
         return PESO_ENCICLOPEDIA
     if evidencia.fuente == "academica":

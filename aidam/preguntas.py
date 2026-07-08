@@ -37,14 +37,29 @@ def _extraer_preguntas(texto: str, n: int) -> list[str]:
     de razonamiento <think> y numeración)."""
     texto = _BLOQUE_PENSAMIENTO.sub("", texto)
     preguntas = []
+    lineas_limpias = []
     for linea in texto.splitlines():
-        linea = _NUMERACION.sub("", linea).strip()
+        # quitar numeración y adornos markdown (DeepSeek pone negritas)
+        linea = _NUMERACION.sub("", linea).strip().strip("*_`\"").strip()
+        if linea:
+            lineas_limpias.append(linea)
         # una línea puede traer varias preguntas seguidas
         for parte in re.split(r"(?<=\?)\s+", linea):
-            parte = parte.strip()
+            parte = parte.strip().strip("*_`\"").strip()
             if parte.endswith("?") and len(parte) > 10 and parte not in preguntas:
                 preguntas.append(parte)
-    return preguntas[:n]
+    if preguntas:
+        return preguntas[:n]
+    # Algunos modelos (DeepSeek-R1) emiten consultas de búsqueda en vez de
+    # preguntas: `search "..."`. Para nuestro uso (van a un buscador) sirven
+    # igual o mejor — se aceptan como segundo estilo.
+    consultas = []
+    for linea in lineas_limpias:
+        linea = re.sub(r"^search\s*:?\s*", "", linea, flags=re.IGNORECASE)
+        linea = linea.strip().strip("*_`\"").strip()
+        if len(linea) > 10 and linea not in consultas:
+            consultas.append(linea)
+    return consultas[:n]
 
 
 def _precargar_cuda() -> None:

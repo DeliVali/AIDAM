@@ -28,6 +28,17 @@ def test_funciona_en_ingles():
     assert clasificar_por_palabras("This drug treats the disease") == "medicina"
 
 
+def test_infraestructura_es_programacion():
+    """Comandos y cloud van a las fuentes técnicas certificadas."""
+    assert clasificar_por_palabras("aws s3 cp copia archivos a un bucket") == "programacion"
+    assert clasificar_por_palabras("kubectl get pods lista los pods de Kubernetes") == "programacion"
+
+
+def test_matematicas():
+    assert clasificar_por_palabras("La integral de x es x²/2 más una constante") == "matematicas"
+    assert clasificar_por_palabras("There are infinitely many prime numbers by Euclid's theorem") == "matematicas"
+
+
 def test_medicina_cubre_cardiologia():
     """Regresión medida en /verify: aspirina/infarto caía en 'general' y
     perdía las fuentes biomédicas."""
@@ -40,4 +51,6 @@ def test_sin_verificador_no_explota():
 
 
 def test_todas_las_categorias_declaradas():
-    assert set(CATEGORIAS) == {"programacion", "medicina", "ciencia", "actualidad", "general"}
+    assert set(CATEGORIAS) == {
+        "programacion", "matematicas", "medicina", "ciencia", "actualidad", "general"
+    }
