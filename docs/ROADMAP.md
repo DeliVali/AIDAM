@@ -472,6 +472,27 @@ verifier in Spanish.
       Supported F1 0.294, both up from the prior 58.0% run). The real lesson:
       chasing one specific hard case led nowhere, but the debugging surfaced
       genuine defects in shared machinery that helped everywhere else.
+- [x] **Traced a Supported→Refuted error (Amy Coney Barrett confirmation
+      date, 2026-07-08) — genuine source ambiguity, not a bug.** Unlike the
+      Pogba investigation, this one didn't lead anywhere fixable, and that's
+      itself the informative result. The claim ("confirmed...October 26,
+      2020") is true and gold-labeled Supported; the top-ranked evidence
+      (fedsoc.org, REFUTA at 0.99) says "confirmed on October 27" — and
+      that's not a bad source: **supremecourt.gov itself** states the
+      Judicial Oath was administered October 27, distinct from the Senate
+      confirmation vote on the 26th. Multiple authoritative sources use
+      "confirmed"/"joined the Court"/"sworn in" interchangeably for two
+      technically different events a day apart — 8 of the 10 highest-
+      confidence NLI judgments landed REFUTA, correctly reading a literal
+      date mismatch against sources describing the adjacent-but-distinct
+      event. No code fix addresses this without risking other genuinely
+      date-sensitive judgments; it would need narrow domain knowledge (the
+      confirmation-vote/oath-administration distinction specifically) that
+      isn't worth hand-coding for one historical fact pattern. Recorded as a
+      concrete illustration of the task's real difficulty ceiling: some
+      errors are bugs, some are the genuine hardness of real-world source
+      disagreement, and distinguishing the two matters more than forcing a
+      fix onto the second kind.
 - [ ] Temporal handling: volatile vs. stable facts
 - [ ] Active search for contrary evidence (anti-confirmation bias)
 
