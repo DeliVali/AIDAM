@@ -256,8 +256,12 @@ def _texto_de_pagina(url: str) -> str:
 
 # Search engine rotation: DuckDuckGo blocked our connection after a day of
 # evaluations (measured: 73/100 claims with no evidence). No single engine
-# can be a point of failure for the retriever.
-_BACKENDS_BUSQUEDA = ("duckduckgo", "bing", "yahoo")
+# can be a point of failure for the retriever. Yahoo first: measured 2026-07-08
+# that duckduckgo and bing are the ones structurally down on this network
+# (DDGSException("No results found") and ConnectError respectively, both on
+# EVERY query) — trying them first wastes a timeout and a pacing slot before
+# reaching the backend that actually works.
+_BACKENDS_BUSQUEDA = ("yahoo", "bing", "duckduckgo")
 
 # Cache + pacing (measured 2026-07-07: after days of evals, EVERY engine
 # rate-limited this IP mid-run — 75/100 claims with zero evidence). The cache
@@ -334,13 +338,13 @@ def _backend_disponible(backend: str) -> bool:
 
 
 def _registrar_resultado(backend: str, fallo_motor: bool) -> None:
-    """Cooldown bookkeeping: N consecutive engine-level failures rest it.
+    """Cooldown bookkeeping: N consecutive failures rest the backend a while.
 
-    Only rate limits and timeouts count — a query that legitimately has no
-    results is not the engine's fault. Conflating the two was the bug: three
-    genuinely rare AVeriTeC-claim queries in a row could cool down bing, then
-    yahoo, cascading into a starved back half of an eval (measured: voces
-    dropped 2.76→1.52 first-half vs second-half on a 100-claim run).
+    `fallo_motor` is the caller's judgement of whether this was the engine's
+    fault. First cut tried to make that judgement by ddgs exception type
+    (rate limit vs. legitimate empty result) — measured wrong: a structurally
+    blocked backend doesn't reliably raise a typed exception here, so that
+    version left broken engines never cooling down (see `_buscar_ddg`).
     """
     if not fallo_motor:
         _fallos_seguidos[backend] = 0
@@ -354,7 +358,6 @@ def _registrar_resultado(backend: str, fallo_motor: bool) -> None:
 def _buscar_ddg(consulta: str, max_resultados: int) -> list[dict]:
     try:
         from ddgs import DDGS
-        from ddgs.exceptions import RatelimitException, TimeoutException
     except ImportError:
         return []
     clave = f"{consulta}|{max_resultados}"
@@ -364,15 +367,20 @@ def _buscar_ddg(consulta: str, max_resultados: int) -> list[dict]:
         if not _backend_disponible(backend):
             continue
         _esperar_turno()
-        fallo_motor = False
+        # Any exception counts as an engine failure — measured 2026-07-08 that
+        # a structurally blocked backend does NOT reliably raise ddgs's typed
+        # RatelimitException/TimeoutException: duckduckgo raises a generic
+        # DDGSException("No results found") on every query, bing a raw
+        # ConnectError, both indistinguishable in type from a legitimately
+        # empty query. Distinguishing by exception type left broken backends
+        # never cooling down, wasting a timeout + pacing slot on every call.
         try:
             hits = list(
-                DDGS(timeout=6).text(consulta, max_results=max_resultados, backend=backend)
+                DDGS(timeout=4).text(consulta, max_results=max_resultados, backend=backend)
             )
-        except (RatelimitException, TimeoutException):
-            hits, fallo_motor = [], True
+            fallo_motor = False
         except Exception:
-            hits = []  # e.g. "no results": not an engine failure
+            hits, fallo_motor = [], True
         _registrar_resultado(backend, fallo_motor)
         if hits:
             _cache_guardar(clave, hits)

@@ -203,9 +203,8 @@ def test_enfriamiento_de_motores(monkeypatch):
 
 
 def test_sin_resultados_no_enfria_el_motor(monkeypatch):
-    """A query with legitimately zero results must NOT count as an engine
-    failure — conflating the two starved the second half of an eval
-    (measured: voces 2.76→1.52 first vs second half of a 100-claim run)."""
+    """`_registrar_resultado`'s own contract: `fallo_motor=False` never cools
+    the backend, regardless of how the caller decided that flag."""
     from aidam import retrieve
 
     monkeypatch.setattr(retrieve, "_fallos_seguidos", {})
