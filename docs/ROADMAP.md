@@ -137,14 +137,27 @@ verifier in Spanish.
       DuckDuckGo blocked the machine (73/100 claims with zero evidence, 17%
       accuracy — a retrieval failure, not a reasoning one). `_buscar_ddg` now
       rotates duckduckgo → bing → yahoo; no single engine is a point of failure.
-- [ ] **Question-generator A/B (MiMo-7B-RL vs DeepSeek-R1-0528-Qwen3-8B) —
-      pending, first attempt invalid (2026-07-07)**: the DeepSeek run scored 16%
-      with 75/100 claims at zero evidence voices — during the run every engine
-      (including Bing/Yahoo fallbacks) rate-limited the machine's IP, so the
-      number measures the starved network, not the brain. MiMo stays as the
-      default (`models/mimo/`, the measured 45%); DeepSeek remains selectable
-      via `AIDAM_MODELO_PREGUNTAS`. Re-run when the IP cools down, ideally with
-      cached or paced retrieval so the A/B isolates the model.
+- [x] **Question-generator A/B (MiMo-7B-RL vs DeepSeek-R1-0528-Qwen3-8B) —
+      resolved (2026-07-08): DeepSeek promoted to default.** First attempt
+      (2026-07-07) was invalid — DeepSeek scored 16% with 75/100 claims at
+      zero evidence voices because the live-search substrate was exhausted
+      mid-run, confounding the comparison entirely. The offline knowledge-
+      store eval fixes this at the root (no network variance to confound
+      anything): re-ran the same A/B on the current best configuration
+      (question-driven search + NEI resolver, both bugfixed) — **DeepSeek
+      60.0% accuracy / F1 macro 0.373 vs. MiMo 59.0% / 0.385**. DeepSeek wins
+      accuracy and Supported/Refuted F1; MiMo wins Conflicting Evidence F1
+      (0.250 vs 0.154) — a real tradeoff, not a clean sweep. Promoted anyway
+      since accuracy has been the project's headline metric throughout.
+      `aidam/questions.py::_RUTA_DEFECTO` now points at
+      `models/deepseek-r1-qwen3-8b/`; MiMo remains selectable via
+      `AIDAM_MODELO_PREGUNTAS`. Also independently relevant: MiMo showed a
+      specific, measured weakness earlier this session (circles rather than
+      converging on ambiguous compound claims, see the dissent-resolver entry
+      below) that motivated testing whether a different reasoning
+      architecture would share it — inconclusive either way from one 100-claim
+      run, but DeepSeek didn't show the same runaway-length failure mode in
+      this comparison.
 - [x] **In-domain fine-tuning attempt (verifier v4/v5, 2026-07-07/08) — two real
       bugs found, verifier not promoted.** AVeriTeC's train split (3,068 claims,
       never touching dev) was converted to NLI pairs (`generate_averitec_pairs.py`)

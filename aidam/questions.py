@@ -17,7 +17,15 @@ import os
 import re
 from pathlib import Path
 
-_RUTA_DEFECTO = Path(__file__).resolve().parent.parent / "models" / "mimo" / "MiMo-7B-RL-Q4_K_M.gguf"
+# DeepSeek-R1-0528-Qwen3-8B over MiMo-7B-RL (2026-07-08): the first head-to-
+# head was confounded by a live-search substrate that changed mid-comparison
+# (see docs/ROADMAP.md); on the offline knowledge-store eval — reproducible,
+# no network variance — DeepSeek genuinely edges MiMo out (60.0% vs 59.0%
+# accuracy on AVeriTeC-100). MiMo remains selectable via AIDAM_MODELO_PREGUNTAS.
+_RUTA_DEFECTO = (
+    Path(__file__).resolve().parent.parent
+    / "models" / "deepseek-r1-qwen3-8b" / "DeepSeek-R1-0528-Qwen3-8B-Q4_K_M.gguf"
+)
 _BLOQUE_PENSAMIENTO = re.compile(r"<think>.*?(</think>|$)", re.DOTALL)
 _NUMERACION = re.compile(r"^\s*(?:[-*•]|\d+[.)])\s*")
 
@@ -124,8 +132,8 @@ class GeneradorPreguntas:
         ruta = ruta or ruta_modelo()
         if ruta is None:
             raise FileNotFoundError(
-                "No hay modelo generador de preguntas; descarga MiMo-7B-RL GGUF "
-                "a models/mimo/ o define AIDAM_MODELO_PREGUNTAS"
+                "No hay modelo generador de preguntas; descarga DeepSeek-R1-Qwen3-8B "
+                "GGUF a models/deepseek-r1-qwen3-8b/ o define AIDAM_MODELO_PREGUNTAS"
             )
         self._ruta = ruta
         self._n_gpu_layers = n_gpu_layers
