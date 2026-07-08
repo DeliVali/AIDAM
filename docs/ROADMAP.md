@@ -294,8 +294,28 @@ verifier in Spanish.
       every exhaustion finding above — no amount of pacing, backend
       rotation, or waiting helps when the eval itself is the thing
       exhausting the resource; removing the live-search dependency for
-      evaluation does. Dev-split archive (11.5 GB) downloading; first clean
-      offline run pending as of this entry.
+      evaluation does.
+      **First offline run (2026-07-08): 47.0% accuracy, F1 macro 0.326 — the
+      best AVeriTeC-100 number of the entire session, beating even the
+      original healthy-network baseline (45%), at 2.9 s/claim with zero
+      network variance.** Every class scored non-zero F1 for the first time
+      all session, including Conflicting Evidence/Cherrypicking (0.143 —
+      every single live run tonight scored exactly 0.000 there): that class
+      needs multiple credible, independent sources to genuinely conflict,
+      which starved live search essentially never supplied, but the rich
+      pre-scraped store does (per-claim documents from up to 1000 URLs).
+      Refuted F1 0.649 and Supported F1 0.318 are both this session's best.
+      Fixed a parser bug on the way: the "JSON-lines" files aren't really
+      line-delimited (scraped text embeds literal unescaped newlines inside
+      string values, corrupting naive `.splitlines()`); `_cargar_documentos`
+      now walks JSON object boundaries directly via
+      `json.JSONDecoder.raw_decode` in a loop, immune to embedded newlines.
+      **This is now the recommended way to run AVeriTeC-100/500**:
+      `eval_averitec.py --limite N --knowledge-store data/local/knowledge_store/dev`
+      (dev split only prepared so far; `--extraer` pulls more claims from
+      the already-downloaded zip on demand). Live retrieval (`recuperar()`,
+      the default) stays the only option for real deployed verification of
+      claims outside the dataset — the knowledge store is eval-only.
 - [ ] Temporal handling: volatile vs. stable facts
 - [ ] Active search for contrary evidence (anti-confirmation bias)
 

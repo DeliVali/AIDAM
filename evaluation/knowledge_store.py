@@ -58,14 +58,32 @@ def _dominio(url: str) -> str:
 
 
 def _cargar_documentos(ruta_claim: Path) -> list[tuple[str, str]]:
-    """(pasaje, url) pairs from a claim's knowledge-store file."""
+    """(pasaje, url) pairs from a claim's knowledge-store file.
+
+    Not real JSON-lines despite appearances: the scraped text embeds literal,
+    unescaped newlines inside string values, so splitting on `\\n` cuts
+    records mid-string (measured: "Unterminated string" on claim 0's 49 MB
+    file, which naive line-splitting saw as 825 "lines" for far fewer actual
+    records). A streaming decoder that walks JSON object boundaries instead
+    of newline boundaries handles this correctly.
+    """
     pares: list[tuple[str, str]] = []
     if not ruta_claim.exists():
         return pares
-    for linea in ruta_claim.read_text(encoding="utf-8").splitlines():
-        if not linea.strip():
-            continue
-        registro = json.loads(linea)
+    texto = ruta_claim.read_text(encoding="utf-8")
+    decodificador = json.JSONDecoder()
+    posicion = 0
+    longitud = len(texto)
+    while posicion < longitud:
+        while posicion < longitud and texto[posicion].isspace():
+            posicion += 1
+        if posicion >= longitud:
+            break
+        try:
+            registro, fin = decodificador.raw_decode(texto, posicion)
+        except json.JSONDecodeError:
+            break  # truncated tail record: keep what parsed cleanly
+        posicion = fin
         url = registro.get("url", "")
         for oracion in registro.get("url2text", []):
             oracion = oracion.strip()
