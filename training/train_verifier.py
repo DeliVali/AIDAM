@@ -98,7 +98,18 @@ def main() -> None:
         default=Path("data/local/synthetic_llm.jsonl"),
         help="subtle errors generated with a local LLM (training/generate_synthetic_llm.py)",
     )
+    parser.add_argument(
+        "--averitec",
+        type=Path,
+        default=Path("data/local/averitec_train_pairs.jsonl"),
+        help="in-domain pairs from the AVeriTeC train split "
+        "(training/generate_averitec_pairs.py); never touches dev",
+    )
     parser.add_argument("--checkpoint", default=CHECKPOINT_BASE)
+    parser.add_argument(
+        "--salida", type=Path, default=SALIDA,
+        help="output dir (default models/verificador-v0)",
+    )
     args = parser.parse_args()
 
     print(f"[entrenar] checkpoint: {args.checkpoint}")
@@ -153,6 +164,7 @@ def main() -> None:
         for ruta, nombre in (
             (args.neutrales_dificiles, "neutrales-difíciles"),
             (args.sinteticos, "sintéticos-MiMo"),
+            (args.averitec, "averitec-train"),
         ):
             if ruta.exists():
                 extra = load_dataset("json", data_files=str(ruta), split="train").map(
@@ -167,7 +179,7 @@ def main() -> None:
         print(f"[entrenar] mezcla: {len(train)} ejemplos ({etiqueta_mezcla})")
 
     argumentos = TrainingArguments(
-        output_dir=str(SALIDA.parent / "checkpoints"),
+        output_dir=str(args.salida.parent / "checkpoints"),
         num_train_epochs=1,
         max_steps=30 if args.smoke else -1,
         # Effective batch 32; DeBERTa-v3 doesn't fit a direct batch of 32 in 12 GB.
@@ -216,13 +228,13 @@ def main() -> None:
         if args.smoke:
             print("[entrenar] smoke: no se guarda el modelo")
             return
-        SALIDA.mkdir(parents=True, exist_ok=True)
-        trainer.save_model(str(SALIDA))
-        tokenizer.save_pretrained(str(SALIDA))
-        (SALIDA / "resultados.json").write_text(
+        args.salida.mkdir(parents=True, exist_ok=True)
+        trainer.save_model(str(args.salida))
+        tokenizer.save_pretrained(str(args.salida))
+        (args.salida / "resultados.json").write_text(
             json.dumps(resultados, indent=2, ensure_ascii=False)
         )
-        print(f"[entrenar] modelo guardado en {SALIDA}")
+        print(f"[entrenar] modelo guardado en {args.salida}")
 
 
 if __name__ == "__main__":

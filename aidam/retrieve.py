@@ -11,9 +11,14 @@ Current families (all with free APIs, no keys):
   links — no translation model; each edition is a distinct editorial
   community (one more independent voice).
 - Wikinews: collaborative journalism, same MediaWiki API.
-- Open web (DuckDuckGo): thousands of domains via snippets.
-- Academic: Semantic Scholar, OpenAlex, arXiv and Europe PMC — paper
-  abstracts for scientific claims (mostly English corpus).
+- Wikiquote: the certified source for attribution claims ("X said Y" is a
+  top viral-misinformation genre), same MediaWiki API.
+- Open web (DuckDuckGo/Bing/Yahoo rotation): thousands of domains, with a
+  local cache and pacing so no engine rate-limits the machine.
+- News: GDELT (global, multilingual press coverage).
+- Academic: Semantic Scholar, OpenAlex, arXiv, Europe PMC and Crossref —
+  paper abstracts for scientific claims (mostly English corpus).
+- Technical Q&A: Stack Overflow and Math StackExchange.
 
 Source independence is approximated by domain: a hundred pages from the same
 domain count as one voice in the aggregator.
@@ -23,10 +28,13 @@ This module is pure engineering: zero model parameters.
 
 from __future__ import annotations
 
+import os
 import re
 import threading
+import time
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 from urllib.parse import urlparse
 
 import requests
@@ -202,6 +210,22 @@ def buscar_wikinews(consulta: str, lang: str = "es", max_pasajes: int = 3) -> li
     return evidencias[:max_pasajes]
 
 
+def buscar_wikiquote(consulta: str, lang: str = "es", max_pasajes: int = 3) -> list[Evidencia]:
+    """Curated quotes with sourcing (same MediaWiki API).
+
+    Misattributed quotes ("X said Y") are one of the most common viral-claim
+    genres; Wikiquote pages document both the sourced quotes and the
+    'misattributed' sections.
+    """
+    host = f"{lang}.wikiquote.org"
+    evidencias: list[Evidencia] = []
+    for titulo in _buscar_titulos(consulta, host, max_articulos=2):
+        evidencias.extend(
+            _pasajes_de_articulo(host, titulo, 2, "wikiquote", lang, consulta=consulta)
+        )
+    return evidencias[:max_pasajes]
+
+
 # ───────────────────────── open web ─────────────────────────
 
 
@@ -235,21 +259,117 @@ def _texto_de_pagina(url: str) -> str:
 # can be a point of failure for the retriever.
 _BACKENDS_BUSQUEDA = ("duckduckgo", "bing", "yahoo")
 
+# Cache + pacing (measured 2026-07-07: after days of evals, EVERY engine
+# rate-limited this IP mid-run — 75/100 claims with zero evidence). The cache
+# makes repeated queries free (and lets A/B evals reuse identical evidence:
+# the substrate stops changing under the experiment); the pacing keeps live
+# queries below the rate that gets an IP banned.
+_RUTA_CACHE = Path("data/local/search_cache.sqlite")
+_TTL_CACHE = float(os.environ.get("AIDAM_CACHE_TTL", 7 * 24 * 3600))
+_PAUSA_BUSQUEDA = float(os.environ.get("AIDAM_PAUSA_BUSQUEDA", 1.0))
+_FALLOS_PARA_ENFRIAR = 3
+_SEGUNDOS_ENFRIAMIENTO = 300.0
+
+_CANDADO_BUSQUEDA = threading.Lock()
+_ultima_busqueda = 0.0
+_fallos_seguidos: dict[str, int] = {}
+_enfriado_hasta: dict[str, float] = {}
+
+
+def _cache_conexion():
+    import sqlite3
+
+    _RUTA_CACHE.parent.mkdir(parents=True, exist_ok=True)
+    conexion = sqlite3.connect(_RUTA_CACHE, timeout=10)
+    conexion.execute(
+        "CREATE TABLE IF NOT EXISTS busquedas (clave TEXT PRIMARY KEY, ts REAL, hits TEXT)"
+    )
+    return conexion
+
+
+def _cache_leer(clave: str) -> list[dict] | None:
+    import json as _json
+
+    if os.environ.get("AIDAM_CACHE_BUSQUEDA") == "0":
+        return None
+    try:
+        with _cache_conexion() as conexion:
+            fila = conexion.execute(
+                "SELECT ts, hits FROM busquedas WHERE clave = ?", (clave,)
+            ).fetchone()
+        if fila and time.time() - fila[0] < _TTL_CACHE:
+            return _json.loads(fila[1])
+    except Exception:
+        pass
+    return None
+
+
+def _cache_guardar(clave: str, hits: list[dict]) -> None:
+    import json as _json
+
+    if os.environ.get("AIDAM_CACHE_BUSQUEDA") == "0":
+        return
+    try:
+        with _cache_conexion() as conexion:
+            conexion.execute(
+                "INSERT OR REPLACE INTO busquedas VALUES (?, ?, ?)",
+                (clave, time.time(), _json.dumps(hits, ensure_ascii=False)),
+            )
+    except Exception:
+        pass
+
+
+def _esperar_turno() -> None:
+    """Global pacing: at most one engine query per _PAUSA_BUSQUEDA seconds."""
+    global _ultima_busqueda
+    with _CANDADO_BUSQUEDA:
+        espera = _ultima_busqueda + _PAUSA_BUSQUEDA - time.time()
+        if espera > 0:
+            time.sleep(espera)
+        _ultima_busqueda = time.time()
+
+
+def _backend_disponible(backend: str) -> bool:
+    return time.time() >= _enfriado_hasta.get(backend, 0.0)
+
+
+def _registrar_resultado(backend: str, exito: bool) -> None:
+    """Cooldown bookkeeping: N consecutive failures rest the engine a while.
+
+    One empty result can be a legitimately rare query; three in a row is the
+    profile of an engine that started refusing us.
+    """
+    if exito:
+        _fallos_seguidos[backend] = 0
+        return
+    _fallos_seguidos[backend] = _fallos_seguidos.get(backend, 0) + 1
+    if _fallos_seguidos[backend] >= _FALLOS_PARA_ENFRIAR:
+        _enfriado_hasta[backend] = time.time() + _SEGUNDOS_ENFRIAMIENTO
+        _fallos_seguidos[backend] = 0
+
 
 def _buscar_ddg(consulta: str, max_resultados: int) -> list[dict]:
     try:
         from ddgs import DDGS
     except ImportError:
         return []
+    clave = f"{consulta}|{max_resultados}"
+    if (cacheado := _cache_leer(clave)) is not None:
+        return cacheado
     for backend in _BACKENDS_BUSQUEDA:
+        if not _backend_disponible(backend):
+            continue
+        _esperar_turno()
         try:
             hits = list(
                 DDGS(timeout=6).text(consulta, max_results=max_resultados, backend=backend)
             )
-            if hits:
-                return hits
         except Exception:
-            continue
+            hits = []
+        _registrar_resultado(backend, bool(hits))
+        if hits:
+            _cache_guardar(clave, hits)
+            return hits
     return []
 
 
@@ -355,18 +475,22 @@ def buscar_desmentidos(consulta: str, lang: str = "es") -> list[Evidencia]:
 # ───────────────────────── technical / programming ─────────────────────────
 
 
-def buscar_stackexchange(consulta: str, lang: str = "", max_resultados: int = 4) -> list[Evidencia]:
-    """Questions and answers from Stack Overflow (free API, no key).
+def buscar_stackexchange(
+    consulta: str, lang: str = "", max_resultados: int = 4, site: str = "stackoverflow"
+) -> list[Evidencia]:
+    """Questions and answers from the Stack Exchange network (free API, no key).
 
-    For programming claims: nobody goes to Wikipedia for a bug.
+    For programming claims: nobody goes to Wikipedia for a bug. `site` picks
+    the community: "stackoverflow" for code, "math" for mathematics.
     """
+    dominio = "stackoverflow.com" if site == "stackoverflow" else f"{site}.stackexchange.com"
     datos = _get_json(
         "https://api.stackexchange.com/2.3/search/excerpts",
         {
             "order": "desc",
             "sort": "relevance",
             "q": consulta,
-            "site": "stackoverflow",
+            "site": site,
             "pagesize": max_resultados,
         },
     )
@@ -379,14 +503,50 @@ def buscar_stackexchange(consulta: str, lang: str = "", max_resultados: int = 4)
         evidencias.append(
             Evidencia(
                 texto=extracto,
-                url=f"https://stackoverflow.com/q/{qid}",
+                url=f"https://{dominio}/q/{qid}",
                 titulo=item.get("title", ""),
-                dominio="stackoverflow.com",
+                dominio=dominio,
                 fuente="stackexchange",
                 idioma="en",
             )
         )
     return evidencias
+
+
+_CANDADO_GDELT = threading.Lock()
+_ultimo_gdelt = 0.0
+_PAUSA_GDELT = 5.1  # GDELT's stated limit: one query every 5 seconds
+
+
+def buscar_gdelt(consulta: str, lang: str = "", max_articulos: int = 6) -> list[Evidencia]:
+    """Global press coverage via GDELT DOC 2.0 (free API, no key, multilingual).
+
+    For current-affairs claims: GDELT indexes news in dozens of languages in
+    near real time. The article list only carries titles, so the top pages
+    are read in full (an article's verdict lives in its body).
+    """
+    global _ultimo_gdelt
+    with _CANDADO_GDELT:
+        espera = _ultimo_gdelt + _PAUSA_GDELT - time.time()
+        if espera > 0:
+            time.sleep(espera)
+        _ultimo_gdelt = time.time()
+    datos = _get_json(
+        "https://api.gdeltproject.org/api/v2/doc/doc",
+        {
+            "query": consulta,
+            "mode": "ArtList",
+            "format": "json",
+            "maxrecords": max_articulos,
+            "sort": "HybridRel",
+        },
+    )
+    hits = [
+        {"href": a.get("url", ""), "title": a.get("title", "")}
+        for a in (datos or {}).get("articles", [])
+        if a.get("url")
+    ]
+    return _evidencias_de_paginas(hits, consulta, "gdelt", lang, max_paginas=2)
 
 
 # ───────────────────────── academic sources ─────────────────────────
@@ -484,6 +644,40 @@ def buscar_arxiv(consulta: str, lang: str = "", max_papers: int = 3) -> list[Evi
     return evidencias
 
 
+def buscar_crossref(consulta: str, lang: str = "", max_papers: int = 4) -> list[Evidencia]:
+    """Scholarly metadata via Crossref (free API, no key).
+
+    Complements Semantic Scholar/OpenAlex: Crossref indexes publisher
+    metadata directly, so it sometimes has abstracts the others miss.
+    Records without an abstract are skipped (a bare title proves nothing).
+    """
+    datos = _get_json(
+        "https://api.crossref.org/works",
+        {
+            "query": consulta,
+            "rows": max_papers,
+            "select": "title,abstract,DOI",
+            "filter": "has-abstract:true",
+        },
+    )
+    evidencias: list[Evidencia] = []
+    for obra in ((datos or {}).get("message") or {}).get("items", []):
+        resumen = re.sub(r"<[^>]+>", " ", obra.get("abstract") or "")
+        resumen = re.sub(r"\s+", " ", resumen).strip()
+        titulos = obra.get("title") or [""]
+        doi = obra.get("DOI", "")
+        evidencias.extend(
+            _evidencias_de_resumen(
+                resumen,
+                f"https://doi.org/{doi}" if doi else "https://www.crossref.org",
+                titulos[0],
+                "crossref.org",
+                "academica",
+            )
+        )
+    return evidencias
+
+
 def buscar_europepmc(consulta: str, lang: str = "", max_papers: int = 4) -> list[Evidencia]:
     """Biomedical abstracts from Europe PMC (free API, no key)."""
     datos = _get_json(
@@ -529,6 +723,16 @@ FUENTES: dict[str, tuple[str, set[str] | None, object]] = {
         {"actualidad", "general"},
         lambda c, lang, mi: buscar_wikinews(c, lang=lang),
     ),
+    "wikiquote": (
+        "Citas con fuente de Wikiquote (atribuciones «X dijo Y»)",
+        {"actualidad", "general"},
+        lambda c, lang, mi: buscar_wikiquote(c, lang=lang),
+    ),
+    "gdelt": (
+        "Prensa global multilingüe vía GDELT (páginas completas)",
+        {"actualidad"},
+        lambda c, lang, mi: buscar_gdelt(c, lang=lang),
+    ),
     "web": (
         "Web abierta vía DuckDuckGo (páginas completas + snippets)",
         None,
@@ -554,6 +758,11 @@ FUENTES: dict[str, tuple[str, set[str] | None, object]] = {
         {"programacion"},
         lambda c, lang, mi: buscar_stackexchange(c),
     ),
+    "stackexchange-matematicas": (
+        "Preguntas y respuestas de Math StackExchange",
+        {"matematicas"},
+        lambda c, lang, mi: buscar_stackexchange(c, site="math"),
+    ),
     # Universal: a router misroute must ADD noise, never REMOVE signal
     # (measured: a medical claim routed to "general" lost its papers).
     "semantic-scholar": (
@@ -570,6 +779,11 @@ FUENTES: dict[str, tuple[str, set[str] | None, object]] = {
         "Preprints científicos de arXiv",
         {"ciencia", "programacion", "matematicas"},
         lambda c, lang, mi: buscar_arxiv(c, lang=lang),
+    ),
+    "crossref": (
+        "Metadatos y resúmenes de editoriales vía Crossref",
+        {"ciencia", "medicina", "matematicas"},
+        lambda c, lang, mi: buscar_crossref(c, lang=lang),
     ),
     "europepmc": (
         "Literatura biomédica de Europe PMC",

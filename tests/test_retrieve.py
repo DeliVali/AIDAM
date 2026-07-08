@@ -111,12 +111,16 @@ def test_registro_de_fuentes_completo():
         "wikipedia",
         "wikipedia-multilingue",
         "wikinews",
+        "wikiquote",
         "web",
         "desmentidos",
+        "gdelt",
         "stackexchange",
+        "stackexchange-matematicas",
         "semantic-scholar",
         "openalex",
         "arxiv",
+        "crossref",
         "europepmc",
     } <= set(FUENTES)
     from aidam.router import CATEGORIAS
@@ -144,6 +148,12 @@ def test_categorias_enrutan_fuentes():
     assert "docs-programacion" in activas("programacion")
     assert "docs-matematicas" in activas("matematicas")
     assert "docs-programacion" not in activas("general")
+    assert "stackexchange-matematicas" in activas("matematicas")
+    assert "stackexchange-matematicas" not in activas("programacion")
+    assert "gdelt" in activas("actualidad")
+    assert "gdelt" not in activas("medicina")
+    assert "wikiquote" in activas("general")
+    assert "crossref" in activas("ciencia")
 
 
 def test_docs_oficiales_pesan_como_verificador():
@@ -160,3 +170,46 @@ def test_docs_oficiales_pesan_como_verificador():
         idioma="en",
     )
     assert peso_fuente(doc) == PESO_DOCS_OFICIALES == PESO_VERIFICADOR
+
+
+def test_cache_de_busquedas_ida_y_vuelta(tmp_path, monkeypatch):
+    """The search cache returns exactly what was stored, and respects TTL."""
+    from aidam import retrieve
+
+    monkeypatch.setattr(retrieve, "_RUTA_CACHE", tmp_path / "cache.sqlite")
+    hits = [{"href": "https://x.org/a", "title": "A", "body": "b" * 50}]
+    retrieve._cache_guardar("consulta|8", hits)
+    assert retrieve._cache_leer("consulta|8") == hits
+    assert retrieve._cache_leer("otra|8") is None
+    monkeypatch.setattr(retrieve, "_TTL_CACHE", -1.0)  # everything expired
+    assert retrieve._cache_leer("consulta|8") is None
+
+
+def test_enfriamiento_de_motores(monkeypatch):
+    """Three consecutive failures rest an engine; one success resets the count."""
+    from aidam import retrieve
+
+    monkeypatch.setattr(retrieve, "_fallos_seguidos", {})
+    monkeypatch.setattr(retrieve, "_enfriado_hasta", {})
+    retrieve._registrar_resultado("bing", exito=False)
+    retrieve._registrar_resultado("bing", exito=False)
+    assert retrieve._backend_disponible("bing")  # two failures: still in play
+    retrieve._registrar_resultado("bing", exito=True)  # success resets
+    retrieve._registrar_resultado("bing", exito=False)
+    retrieve._registrar_resultado("bing", exito=False)
+    retrieve._registrar_resultado("bing", exito=False)
+    assert not retrieve._backend_disponible("bing")  # third in a row: cooling
+
+def test_wikiquote_pesa_como_enciclopedia():
+    from aidam.aggregate import PESO_ENCICLOPEDIA, peso_fuente
+    from aidam.models import Evidencia
+
+    cita = Evidencia(
+        texto="The misattributed section lists this quote as unsourced",
+        url="https://en.wikiquote.org/wiki/Albert_Einstein",
+        titulo="Albert Einstein",
+        dominio="en.wikiquote.org",
+        fuente="wikiquote",
+        idioma="en",
+    )
+    assert peso_fuente(cita) == PESO_ENCICLOPEDIA
