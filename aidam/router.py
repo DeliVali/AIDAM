@@ -1,14 +1,14 @@
-"""Router de categorías: decide en qué familias de fuentes buscar cada hecho.
+"""Category router: decides which source families to query for each fact.
 
-El agente no va a Wikipedia por un error de programación ni a Stack Overflow
-por una afirmación médica. Este módulo clasifica el tema del hecho y el
-recuperador consulta solo las fuentes relevantes (las universales siempre).
+The agent doesn't go to Wikipedia for a programming error or to Stack
+Overflow for a medical claim. This module classifies the topic of the fact
+and the retriever queries only the relevant sources (universal ones always).
 
-Dos niveles:
-1. Palabras clave — determinista, instantáneo, testeable sin modelo.
-2. Zero-shot con el propio verificador NLI — si las palabras clave no deciden,
-   el modelo compara el hecho contra descripciones de cada categoría. La misma
-   habilidad (¿la premisa sustenta la hipótesis?) que usa para verificar.
+Two levels:
+1. Keywords — deterministic, instant, testable without a model.
+2. Zero-shot with the NLI verifier itself — when keywords don't decide, the
+   model compares the fact against descriptions of each category. The same
+   skill (does the premise support the hypothesis?) it uses to verify.
 """
 
 from __future__ import annotations
@@ -51,7 +51,7 @@ _PATRONES: dict[str, re.Pattern] = {
     ),
 }
 
-# Descripciones para el zero-shot (hipótesis que el verificador compara).
+# Descriptions for the zero-shot step (hypotheses the verifier compares).
 _HIPOTESIS = {
     "programacion": "Este texto trata sobre programación, software o computación.",
     "matematicas": "Este texto trata sobre matemáticas.",
@@ -63,7 +63,7 @@ _HIPOTESIS = {
 
 
 def clasificar_por_palabras(texto: str) -> str:
-    """Nivel 1: la primera categoría cuyo patrón aparezca. 'general' si ninguna."""
+    """Level 1: the first category whose pattern matches. 'general' if none."""
     for categoria, patron in _PATRONES.items():
         if patron.search(texto):
             return categoria
@@ -71,11 +71,11 @@ def clasificar_por_palabras(texto: str) -> str:
 
 
 def clasificar(texto: str, verificador=None) -> str:
-    """Clasifica el tema del texto; con verificador refina los casos ambiguos."""
+    """Classifies the topic of the text; a verifier refines ambiguous cases."""
     categoria = clasificar_por_palabras(texto)
     if categoria != "general" or verificador is None:
         return categoria
     puntuaciones = verificador.puntuar_entailment(texto, list(_HIPOTESIS.values()))
     mejor = max(zip(_HIPOTESIS, puntuaciones), key=lambda par: par[1])
-    # Solo abandona 'general' si el modelo está razonablemente seguro.
+    # Only leaves 'general' if the model is reasonably confident.
     return mejor[0] if mejor[1] >= 0.5 and mejor[0] != "general" else "general"

@@ -1,4 +1,4 @@
-"""Tests del descompositor heurístico."""
+"""Heuristic decomposer tests."""
 
 from aidam.decompose import descomponer
 
@@ -29,7 +29,7 @@ def test_opiniones_se_descartan():
 
 def test_nunca_devuelve_vacio():
     hechos = descomponer("¿Todo esto es una pregunta?")
-    assert len(hechos) == 1  # devuelve la afirmación completa como último recurso
+    assert len(hechos) == 1  # returns the whole claim as a last resort
 
 
 def test_origen_se_conserva():

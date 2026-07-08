@@ -1,15 +1,16 @@
-"""Calibración del verificador: que el 90% signifique 90%.
+"""Verifier calibration: make 90% mean 90%.
 
-Ajusta una temperatura T (escalado post-hoc estándar) minimizando la NLL en
-el split de validación de VitaminC, y reporta el ECE (error de calibración
-esperado) antes y después. La temperatura se guarda junto al modelo y
-`aidam/verify.py` la aplica automáticamente.
+Fits a temperature T (standard post-hoc scaling) minimizing NLL on the
+VitaminC validation split, and reports the ECE (expected calibration error)
+before and after. The temperature is saved next to the model and
+`aidam/verify.py` applies it automatically.
 
-Con --xnli-es, además mide cuánto español conserva el modelo (XNLI validación
-en español) — VitaminC y MNLI son inglés y hay que vigilar el olvido.
+With --xnli-es, it also measures how much Spanish the model keeps (XNLI
+Spanish validation) — VitaminC and MNLI are English and forgetting must be
+watched.
 
-Uso:
-  python training/calibrar_verificador.py [--xnli-es]
+Usage:
+  python training/calibrate_verifier.py [--xnli-es]
 """
 
 from __future__ import annotations

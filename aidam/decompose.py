@@ -1,8 +1,8 @@
-"""Descompositor (Módulo 1): afirmación → hechos atómicos verificables.
+"""Decomposer (Module 1): claim → verifiable atomic facts.
 
-MVP heurístico: separa por frases y descarta preguntas y marcadores de opinión.
-La interfaz es una función pura para poder sustituirla por un descompositor
-neuronal (Fase 1) sin tocar el resto del pipeline.
+Heuristic MVP: splits by sentences and discards questions and opinion markers.
+The interface is a pure function so it can be replaced by a neural
+decomposer (Phase 1) without touching the rest of the pipeline.
 """
 
 from __future__ import annotations
@@ -31,10 +31,10 @@ def _es_verificable(frase: str) -> bool:
 
 
 def descomponer(afirmacion: str) -> list[HechoAtomico]:
-    """Divide una afirmación en hechos atómicos verificables.
+    """Splits a claim into verifiable atomic facts.
 
-    Si ninguna frase pasa el filtro, devuelve la afirmación completa como
-    único hecho: mejor verificar algo imperfecto que nada.
+    If no sentence passes the filter, returns the whole claim as the
+    single fact: better to verify something imperfect than nothing.
     """
     afirmacion = afirmacion.strip()
     frases = _SEPARADOR_FRASES.split(afirmacion)

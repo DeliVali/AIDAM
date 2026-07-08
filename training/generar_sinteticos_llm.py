@@ -1,19 +1,19 @@
-"""Errores factuales sutiles generados con LLM local (receta MiniCheck).
+"""Subtle factual errors generated with a local LLM (MiniCheck recipe).
 
-MiniCheck demostró que un verificador pequeño alcanza nivel GPT-4 entrenando
-con errores *sutiles* generados por un LLM: afirmaciones casi idénticas a una
-verdadera donde solo cambia el dato clave. Este script los fabrica con
-MiMo-7B-RL local (sin APIs, sin costo):
+MiniCheck showed that a small verifier reaches GPT-4 level by training on
+*subtle* LLM-generated errors: claims almost identical to a true one where
+only the key fact changes. This script builds them with a local LLM
+(no APIs, no cost):
 
-- REFUTES: reescribir mínimamente una afirmación sustentada para que la misma
-  evidencia ahora la refute (cambia el número, la fecha, el nombre, el sentido).
-- NOT ENOUGH INFO: añadir a la afirmación un detalle específico que la
-  evidencia no menciona (más específica de lo que la evidencia puede probar).
+- REFUTES: minimally rewrite a supported claim so the same evidence now
+  refutes it (change the number, date, name or direction).
+- NOT ENOUGH INFO: add to the claim a specific detail the evidence doesn't
+  mention (more specific than the evidence can prove).
 
-Control de calidad mecánico: la afirmación generada debe diferir de la
-original pero conservar la mayor parte de sus palabras (edición mínima).
+Mechanical quality control: the generated claim must differ from the
+original but keep most of its words (minimal edit).
 
-Salida: data/local/sinteticos_mimo.jsonl con {claim, evidence, label}.
+Output: data/local/sinteticos_mimo.jsonl with {claim, evidence, label}.
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ from datasets import load_dataset
 from aidam.preguntas import GeneradorPreguntas
 
 SALIDA = Path("data/local/sinteticos_mimo.jsonl")
-SEMILLA = 43  # distinta de la de entrenamiento: otras filas de VitaminC
+SEMILLA = 43  # different from the training seed: other VitaminC rows
 
 _PROMPT_REFUTA = (
     "Rewrite the claim below with a MINIMAL edit so that the evidence now "
@@ -52,15 +52,15 @@ _PREFIJOS = re.compile(r"^\s*(rewritten claim|claim|new claim|answer)\s*:\s*", r
 
 
 def _limpiar(generada: str) -> str:
-    """Quita artefactos de formato del LLM: prefijos tipo 'Rewritten claim:',
-    markdown y comillas (medido: se colaban en la primera tanda generada)."""
+    """Strips LLM formatting artifacts: 'Rewritten claim:'-style prefixes,
+    markdown and quotes (measured: they leaked into the first generated batch)."""
     generada = _PREFIJOS.sub("", generada.strip())
     generada = generada.replace("**", "").strip().strip('"').strip()
     return generada
 
 
 def _edicion_minima(original: str, generada: str) -> bool:
-    """¿La reescritura es una edición mínima válida?"""
+    """Is the rewrite a valid minimal edit?"""
     if not generada or generada.lower() == original.lower():
         return False
     po, pg = _palabras(original), _palabras(generada)
@@ -72,7 +72,7 @@ def _edicion_minima(original: str, generada: str) -> bool:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--max", type=int, default=4_000, help="pares totales a generar")
+    parser.add_argument("--max", type=int, default=4_000, help="total pairs to generate")
     parser.add_argument("--salida", type=Path, default=SALIDA)
     args = parser.parse_args()
 

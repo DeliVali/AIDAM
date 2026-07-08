@@ -1,4 +1,4 @@
-"""Tests del parser de preguntas y del juez de omisión (sin modelo)."""
+"""Tests for the question parser and the omission judge (no model)."""
 
 from aidam.preguntas import _extraer_preguntas, _parsear_omision
 
@@ -50,7 +50,7 @@ def test_separa_varias_preguntas_en_una_linea():
 
 
 def test_acepta_consultas_de_busqueda_sin_interrogacion():
-    """DeepSeek-R1 emite consultas tipo `search "..."` en vez de preguntas."""
+    """DeepSeek-R1 emits `search "..."`-style queries instead of questions."""
     salida = 'search "Sean Connery letter Steve Jobs"\nsearch "Connery Apple commercial"'
     assert _extraer_preguntas(salida, 3) == [
         "Sean Connery letter Steve Jobs",

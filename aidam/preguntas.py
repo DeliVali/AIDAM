@@ -1,14 +1,14 @@
-"""Generador de preguntas de búsqueda (técnica ganadora de AVeriTeC 2.0).
+"""Search-question generator (winning technique from AVeriTeC 2.0).
 
-En vez de buscar la afirmación literal (que devuelve páginas que la repiten),
-un modelo de razonamiento genera las preguntas cuya respuesta la confirmaría
-o refutaría, y esas preguntas se convierten en consultas de búsqueda. Los
-sistemas ganadores del shared task AVeriTeC 2025 (CTU AIC, HerO 2) usan esta
-técnica con LLMs abiertos.
+Instead of searching the literal claim (which returns pages that repeat it),
+a reasoning model generates the questions whose answers would confirm or
+refute it, and those questions become search queries. The winning systems of
+the AVeriTeC 2025 shared task (CTU AIC, HerO 2) use this technique with
+open LLMs.
 
-Backend: MiMo-7B-RL de Xiaomi cuantizado (GGUF Q4, ~4.7 GB) vía llama.cpp —
-razonamiento nivel o1-mini que corre en una GPU de consumo o CPU. Es opcional:
-sin el modelo instalado, el pipeline funciona igual que antes.
+Backend: a quantized open reasoning LLM (GGUF Q4, ~5 GB) via llama.cpp —
+o1-mini-level reasoning that runs on a consumer GPU or CPU. It's optional:
+without the model installed, the pipeline works as before.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ _NUMERACION = re.compile(r"^\s*(?:[-*•]|\d+[.)])\s*")
 
 
 def _parsear_omision(texto: str) -> str | None:
-    """Interpreta la respuesta de una palabra del juez de omisión."""
+    """Interprets the one-word answer of the omission judge."""
     texto = _BLOQUE_PENSAMIENTO.sub("", texto).upper()
     if "MISLEADING" in texto:
         return "enganosa"
@@ -33,26 +33,26 @@ def _parsear_omision(texto: str) -> str | None:
 
 
 def _extraer_preguntas(texto: str, n: int) -> list[str]:
-    """Extrae las preguntas de la salida del modelo (que puede traer bloques
-    de razonamiento <think> y numeración)."""
+    """Extracts the questions from the model output (which may carry <think>
+    reasoning blocks and numbering)."""
     texto = _BLOQUE_PENSAMIENTO.sub("", texto)
     preguntas = []
     lineas_limpias = []
     for linea in texto.splitlines():
-        # quitar numeración y adornos markdown (DeepSeek pone negritas)
+        # strip numbering and markdown decoration (DeepSeek adds bold)
         linea = _NUMERACION.sub("", linea).strip().strip("*_`\"").strip()
         if linea:
             lineas_limpias.append(linea)
-        # una línea puede traer varias preguntas seguidas
+        # one line may carry several questions in a row
         for parte in re.split(r"(?<=\?)\s+", linea):
             parte = parte.strip().strip("*_`\"").strip()
             if parte.endswith("?") and len(parte) > 10 and parte not in preguntas:
                 preguntas.append(parte)
     if preguntas:
         return preguntas[:n]
-    # Algunos modelos (DeepSeek-R1) emiten consultas de búsqueda en vez de
-    # preguntas: `search "..."`. Para nuestro uso (van a un buscador) sirven
-    # igual o mejor — se aceptan como segundo estilo.
+    # Some models (DeepSeek-R1) emit search queries instead of questions:
+    # `search "..."`. For our use (they go to a search engine) they work just
+    # as well or better — accepted as a second style.
     consultas = []
     for linea in lineas_limpias:
         linea = re.sub(r"^search\s*:?\s*", "", linea, flags=re.IGNORECASE)
@@ -63,8 +63,8 @@ def _extraer_preguntas(texto: str, n: int) -> list[str]:
 
 
 def _precargar_cuda() -> None:
-    """Precarga las librerías CUDA del venv (paquetes nvidia-*-cu12) para que
-    el wheel CUDA de llama.cpp las encuentre sin configurar LD_LIBRARY_PATH."""
+    """Preloads the venv's CUDA libraries (nvidia-*-cu12 packages) so the
+    llama.cpp CUDA wheel finds them without configuring LD_LIBRARY_PATH."""
     import ctypes
     import glob
     import sys
@@ -81,7 +81,7 @@ def _precargar_cuda() -> None:
 
 
 def ruta_modelo() -> Path | None:
-    """Ruta del modelo generador si está disponible."""
+    """Path of the generator model if available."""
     if entorno := os.environ.get("AIDAM_MODELO_PREGUNTAS"):
         ruta = Path(entorno)
         return ruta if ruta.exists() else None
@@ -89,14 +89,14 @@ def ruta_modelo() -> Path | None:
 
 
 class GeneradorPreguntas:
-    """Cliente del LLM local (MiMo) corriendo en un worker aislado.
+    """Client of the local LLM running in an isolated worker.
 
-    llama.cpp vive en su propio proceso (`aidam.mimo_worker`): si corrompe
-    memoria — medido cohabitando con PyTorch — muere el worker, no la
-    verificación, y este cliente lo reinicia en la siguiente llamada.
+    llama.cpp lives in its own process (`aidam.mimo_worker`): if it corrupts
+    memory — measured while cohabiting with PyTorch — the worker dies, not
+    the verification, and this client restarts it on the next call.
     """
 
-    _TIMEOUT_CARGA = 300  # cargar 4.7 GB puede tardar; en GPU son segundos
+    _TIMEOUT_CARGA = 300  # loading ~5 GB can take a while; on GPU it's seconds
     _TIMEOUT_RESPUESTA = 180
 
     def __init__(self, ruta: Path | None = None, n_gpu_layers: int = -1):
@@ -158,7 +158,7 @@ class GeneradorPreguntas:
 
     def completar(self, prompt: str, max_tokens: int, temperature: float,
                   stop: list[str] | None = None) -> str:
-        """Completa un prompt crudo en el worker, reiniciándolo si cayó."""
+        """Completes a raw prompt in the worker, restarting it if it died."""
         import json as _json
 
         pedido = _json.dumps(
@@ -174,7 +174,7 @@ class GeneradorPreguntas:
                 self._proceso.stdin.write(pedido + "\n")
                 self._proceso.stdin.flush()
                 respuesta = self._leer(self._TIMEOUT_RESPUESTA)
-                if respuesta is None:  # caído o colgado: reiniciar y reintentar
+                if respuesta is None:  # dead or hung: restart and retry
                     self.cerrar()
                     continue
                 return respuesta.get("texto", "")
@@ -195,10 +195,10 @@ class GeneradorPreguntas:
         return _extraer_preguntas(texto, n)
 
     def _responder(self, prompt: str, max_tokens: int, temperature: float) -> str:
-        # Prefill de pensamiento vacío: MiMo-7B-RL es un modelo de razonamiento
-        # y gasta cientos de tokens en <think> antes de responder; para salidas
-        # cortas eso es latencia sin valor. El bloque vacío lo fuerza a
-        # responder directo (mismo truco que el /no_think de Qwen).
+        # Empty-thinking prefill: MiMo-7B-RL is a reasoning model and spends
+        # hundreds of tokens in <think> before answering; for short outputs
+        # that's latency without value. The empty block forces it to answer
+        # directly (same trick as Qwen's /no_think).
         plantilla = (
             f"<|im_start|>user\n{prompt}<|im_end|>\n"
             "<|im_start|>assistant\n<think>\n\n</think>\n"
@@ -211,20 +211,20 @@ class GeneradorPreguntas:
         sustentos: list[str],
         contexto: list[str],
     ) -> str | None:
-        """¿La afirmación, aunque sustentada, engaña por omisión (cherry-picking)?
+        """Is the claim, though supported, deceptive by omission (cherry-picking)?
 
-        Solo se invoca con contexto contrario recuperado: el juicio se basa en
-        la evidencia de la mesa, nunca en la memoria paramétrica del modelo
-        (principio del proyecto: el conocimiento vive en las fuentes).
-        Devuelve "enganosa", "completa" o None (no concluyente).
+        Only invoked when contrary context was retrieved: the judgement is
+        based on the evidence on the table, never on the model's parametric
+        memory (project principle: knowledge lives in the sources).
+        Returns "enganosa", "completa" or None (inconclusive).
         """
         if not sustentos or not contexto:
             return None
         lineas_s = "\n".join(f"- {s[:300]}" for s in sustentos[:3])
         lineas_c = "\n".join(f"- {c[:300]}" for c in contexto[:3])
-        # Prompt calibrado contra el sobre-disparo (medido en AVeriTeC-500:
-        # 109 "contradictorias" predichas vs 38 reales): la omisión debe socavar
-        # el punto CENTRAL; el desacuerdo menor no convierte verdad en engaño.
+        # Prompt calibrated against over-firing (measured on AVeriTeC-500:
+        # 109 predicted "conflicting" vs 38 real): the omission must undermine
+        # the CENTRAL point; minor disagreement doesn't turn truth into deceit.
         prompt = (
             "You are a strict fact-checking judge. The claim below is supported "
             "by evidence. Most supported claims are simply TRUE; cherry-picking "

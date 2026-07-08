@@ -1,20 +1,20 @@
-"""Genera pares neutrales-difíciles: mismo tema, distinta prueba.
+"""Generates hard-neutral pairs: same topic, different proof.
 
-El fallo medido del verificador (v0 y v1): pasajes topicalmente relacionados
-pero no probatorios se juzgan como contradicción. La receta publicada (hard
-negatives sintéticos, Auto-GDA) pide pares "alineados en tema, irrelevantes en
-semántica". VitaminC ya trae la estructura para fabricarlos mecánicamente:
-varias afirmaciones distintas por página de Wikipedia. Emparejamos la
-afirmación i con la evidencia de la afirmación j (misma página, hecho
-distinto) → etiqueta neutral.
+The verifier's measured failure (v0 and v1): topically related but
+non-probative passages get judged as contradiction. The published recipe
+(synthetic hard negatives, Auto-GDA) asks for pairs "aligned in topic,
+irrelevant in semantics". VitaminC already carries the structure to build
+them mechanically: several distinct claims per Wikipedia page. We pair
+claim i with the evidence of claim j (same page, different fact) →
+neutral label.
 
-Filtros anti-ruido:
-- la evidencia debe compartir ≥2 palabras de contenido con la afirmación
-  (si no, el gate probatorio la filtraría en inferencia: queremos la zona dura),
-- las dos afirmaciones deben ser hechos distintos (solape < 50%),
-- una evidencia por (afirmación, página) para no repetir.
+Anti-noise filters:
+- the evidence must share ≥2 content words with the claim (otherwise the
+  probative gate would filter it at inference: we want the hard zone),
+- the two claims must be distinct facts (overlap < 50%),
+- one evidence per (claim, page) to avoid repetition.
 
-Salida: data/local/neutrales_dificiles.jsonl con {claim, evidence, label}.
+Output: data/local/neutrales_dificiles.jsonl with {claim, evidence, label}.
 """
 
 from __future__ import annotations
@@ -64,10 +64,10 @@ def main() -> None:
                 for fila_j in filas[i + 1 :]:
                     evidencia_j = fila_j["evidence"]
                     palabras_j = _palabras(fila_j["claim"])
-                    # hechos distintos: poco solape entre afirmaciones
+                    # distinct facts: little overlap between claims
                     if palabras_j and len(palabras_i & palabras_j) / len(palabras_i) >= 0.5:
                         continue
-                    # zona dura: la evidencia sí comparte tema con la afirmación
+                    # hard zone: the evidence does share the claim's topic
                     if len(palabras_i & _palabras(evidencia_j)) < 2:
                         continue
                     salida.write(
@@ -84,7 +84,7 @@ def main() -> None:
                     )
                     vistos.add(claim_i)
                     generados += 1
-                    break  # una por afirmación
+                    break  # one per claim
                 if generados >= args.max_pares:
                     break
     print(f"[neutrales] {generados} pares neutrales-difíciles → {args.salida}")

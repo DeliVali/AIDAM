@@ -1,4 +1,4 @@
-"""Estructuras de datos centrales de AIDAM."""
+"""Core data structures of AIDAM."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from enum import Enum
 
 
 class EtiquetaPar(str, Enum):
-    """Juicio del verificador sobre un par (hecho, evidencia)."""
+    """Verifier judgement for a (fact, evidence) pair."""
 
     SUSTENTA = "sustenta"
     REFUTA = "refuta"
@@ -15,7 +15,7 @@ class EtiquetaPar(str, Enum):
 
 
 class Veredicto(str, Enum):
-    """Veredicto agregado sobre un hecho o afirmación (clases de AVeriTeC)."""
+    """Aggregated verdict for a fact or claim (AVeriTeC classes)."""
 
     SUSTENTADO = "sustentado"
     REFUTADO = "refutado"
@@ -25,7 +25,7 @@ class Veredicto(str, Enum):
 
 @dataclass
 class HechoAtomico:
-    """Un hecho autocontenido y verificable, extraído de la afirmación original."""
+    """A self-contained, verifiable fact extracted from the original claim."""
 
     texto: str
     origen: str
@@ -33,19 +33,19 @@ class HechoAtomico:
 
 @dataclass
 class Evidencia:
-    """Un pasaje de texto recuperado de una fuente, con su procedencia."""
+    """A text passage retrieved from a source, with its provenance."""
 
     texto: str
     url: str
     titulo: str
     dominio: str
     fuente: str  # "wikipedia" | "web"
-    idioma: str = ""  # código ISO del idioma del pasaje ("es", "en", "zh", …)
+    idioma: str = ""  # ISO code of the passage language ("es", "en", "zh", …)
 
 
 @dataclass
 class VeredictoPar:
-    """Juicio del verificador para un par (hecho, evidencia) con su probabilidad."""
+    """Verifier judgement for a (fact, evidence) pair with its probability."""
 
     hecho: HechoAtomico
     evidencia: Evidencia
@@ -55,7 +55,7 @@ class VeredictoPar:
 
 @dataclass
 class VeredictoHecho:
-    """Veredicto agregado de un hecho, con las evidencias que lo justifican."""
+    """Aggregated verdict for a fact, with the evidence that justifies it."""
 
     hecho: HechoAtomico
     veredicto: Veredicto
@@ -66,7 +66,7 @@ class VeredictoHecho:
 
 @dataclass
 class Informe:
-    """Resultado completo de verificar una afirmación."""
+    """Complete result of verifying a claim."""
 
     afirmacion: str
     veredicto: Veredicto

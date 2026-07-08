@@ -1,8 +1,8 @@
-"""AIDAM — Agente de lógica comparativa.
+"""AIDAM — Comparative logic agent.
 
-Verificación de información multi-fuente: descompone afirmaciones en hechos
-atómicos, recupera evidencia de fuentes independientes, la juzga con un modelo
-pequeño especializado y agrega los veredictos con lógica explícita y auditable.
+Multi-source information verification: decomposes claims into atomic facts,
+retrieves evidence from independent sources, judges it with a small
+specialized model and aggregates the verdicts with explicit, auditable logic.
 """
 
 __version__ = "0.1.0"

@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "If you use AIDAM, please cite it as below."
+title: "AIDAM: multi-source information verification with small specialized models"
+type: software
+authors:
+  - family-names: "Romero Del Val"
+    given-names: "Jeffrey"
+repository-code: "https://github.com/DeliVali/AIDAM"
+license: Apache-2.0
+year: 2026

@@ -1,4 +1,4 @@
-"""Orquestador del pipeline: descomponer → recuperar → verificar → agregar."""
+"""Pipeline orchestrator: decompose → retrieve → verify → aggregate."""
 
 from __future__ import annotations
 
@@ -13,11 +13,11 @@ from .retrieve import recuperar
 
 @lru_cache(maxsize=1)
 def _generador_preguntas():
-    """Carga el generador (4.7 GB) UNA sola vez por proceso.
+    """Loads the generator (~5 GB) ONCE per process.
 
-    Cargarlo por llamada filtra VRAM hasta agotar la GPU — medido: una
-    evaluación de 100 afirmaciones murió en la #7 por esto. Si la carga
-    falla, devuelve None y el pipeline sigue sin esa etapa.
+    Loading it per call leaks VRAM until the GPU is exhausted — measured: a
+    100-claim evaluation died at #7 because of this. If loading fails, it
+    returns None and the pipeline continues without that stage.
     """
     from .preguntas import GeneradorPreguntas, ruta_modelo
 
@@ -37,11 +37,11 @@ def verificar(
     verificador=None,
     progreso: Callable[[str], None] | None = None,
 ) -> Informe:
-    """Verifica una afirmación de punta a punta y devuelve el informe.
+    """Verifies a claim end to end and returns the report.
 
-    `verificador` acepta cualquier objeto con el contrato
-    `juzgar(hecho, evidencias) -> list[VeredictoPar]`; si no se pasa,
-    se carga el backend NLI por defecto (requiere `pip install aidam[verificador]`).
+    `verificador` accepts any object with the contract
+    `juzgar(hecho, evidencias) -> list[VeredictoPar]`; if not given, the
+    default NLI backend is loaded (requires `pip install aidam[verificador]`).
     """
     avisar = progreso or (lambda _mensaje: None)
 
@@ -86,13 +86,13 @@ def verificar(
         pares = verificador.juzgar(hecho, evidencias) if evidencias else []
         vh = agregar_hecho(hecho, pares)
 
-        # Cherry-picking: una afirmación sustentada puede engañar por omisión.
-        # El juez (MiMo) decide SOLO con la evidencia de la mesa, y únicamente
-        # cuando hay contexto contrario recuperado que evaluar.
+        # Cherry-picking: a supported claim can still deceive by omission.
+        # The judge (LLM) decides ONLY from the evidence on the table, and
+        # only when contrary context was retrieved to evaluate.
         if generador is not None and vh.veredicto is Veredicto.SUSTENTADO:
-            # Freno medido (AVeriTeC-500: 109 contradictorias predichas vs 38
-            # reales): solo consultar al juez si el contexto contrario es
-            # sustancial — señal fuerte (≥0.75), no cualquier pasaje tibio.
+            # Measured brake (AVeriTeC-500: 109 predicted conflicting vs 38
+            # real): only consult the judge if the contrary context is
+            # substantial — strong signal (≥0.75), not any lukewarm passage.
             contexto = [
                 p.evidencia.texto
                 for p in sorted(pares, key=lambda p: p.prob, reverse=True)

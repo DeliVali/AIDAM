@@ -1,13 +1,13 @@
-"""Baseline: un LLM de razonamiento actual (2026) sin recuperación.
+"""Baseline: a current (2026) reasoning LLM without retrieval.
 
-La tesis de AIDAM: comparar evidencia viva supera al conocimiento paramétrico.
-Este script la pone a prueba — MiMo-7B-RL juzga las mismas afirmaciones de
-AVeriTeC solo con su memoria y su razonamiento (se le permite pensar), sin
-ninguna evidencia recuperada. Es el mismo modelo que AIDAM usa como
-herramienta, actuando aquí como contrincante.
+AIDAM's thesis: comparing live evidence beats parametric knowledge. This
+script puts it to the test — MiMo-7B-RL judges the same AVeriTeC claims
+with only its memory and reasoning (thinking is allowed), without any
+retrieved evidence. It's the same model AIDAM uses as a tool, acting here
+as the opponent.
 
-Uso:
-  python evaluacion/eval_baseline_llm.py --limite 100 [--gpu]
+Usage:
+  python evaluation/eval_baseline_llm.py --limite 100 [--gpu]
 """
 
 from __future__ import annotations
@@ -41,7 +41,7 @@ _PROMPT = (
 
 def _parsear(texto: str) -> str | None:
     texto = _BLOQUE_PENSAMIENTO.sub("", texto).upper()
-    # la última etiqueta mencionada es la respuesta final
+    # the last label mentioned is the final answer
     encontrada = None
     for etiqueta, clase in _ETIQUETAS.items():
         posicion = texto.rfind(etiqueta)
@@ -53,7 +53,7 @@ def _parsear(texto: str) -> str | None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--limite", type=int, default=100)
-    parser.add_argument("--gpu", action="store_true", help="usar GPU (por defecto CPU)")
+    parser.add_argument("--gpu", action="store_true", help="use GPU (CPU by default)")
     parser.add_argument("--salida", type=Path, default=RUTA_RESULTADOS)
     args = parser.parse_args()
 
@@ -69,8 +69,8 @@ def main() -> None:
             if indice in previos:
                 continue
             inicio = time.time()
-            # Sin prefill vacío: el baseline TIENE derecho a razonar — esa es
-            # la comparación justa contra un modelo de razonamiento de 2026.
+            # No empty prefill: the baseline HAS the right to reason — that's
+            # the fair comparison against a 2026 reasoning model.
             plantilla = (
                 f"<|im_start|>user\n{_PROMPT.format(claim=ejemplo['claim'])}<|im_end|>\n"
                 "<|im_start|>assistant\n"

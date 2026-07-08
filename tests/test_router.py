@@ -1,4 +1,4 @@
-"""Tests del router de categorías (nivel de palabras clave, sin modelo)."""
+"""Category router tests (keyword level, no model)."""
 
 from aidam.router import CATEGORIAS, clasificar, clasificar_por_palabras
 
@@ -29,7 +29,7 @@ def test_funciona_en_ingles():
 
 
 def test_infraestructura_es_programacion():
-    """Comandos y cloud van a las fuentes técnicas certificadas."""
+    """Commands and cloud go to the certified technical sources."""
     assert clasificar_por_palabras("aws s3 cp copia archivos a un bucket") == "programacion"
     assert clasificar_por_palabras("kubectl get pods lista los pods de Kubernetes") == "programacion"
 
@@ -40,8 +40,8 @@ def test_matematicas():
 
 
 def test_medicina_cubre_cardiologia():
-    """Regresión medida en /verify: aspirina/infarto caía en 'general' y
-    perdía las fuentes biomédicas."""
+    """Regression measured in /verify: aspirin/heart attack fell into
+    'general' and lost the biomedical sources."""
     assert clasificar_por_palabras("Aspirin reduces the risk of heart attack") == "medicina"
     assert clasificar_por_palabras("La aspirina reduce el riesgo de infarto") == "medicina"
 

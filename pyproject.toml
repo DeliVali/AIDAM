@@ -1,12 +1,12 @@
 [project]
 name = "aidam"
 version = "0.1.0"
-description = "Agente de lógica comparativa: verificación de información multi-fuente con modelos pequeños"
+description = "Comparative logic agent: multi-source information verification with small models"
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.10"
 authors = [{ name = "Jeffrey Romero Del Val" }]
-keywords = ["fact-checking", "verificacion", "nli", "slm", "agentes"]
+keywords = ["fact-checking", "verification", "nli", "slm", "agents"]
 dependencies = [
     "requests>=2.31",
     "ddgs>=9.0",
@@ -17,8 +17,8 @@ dependencies = [
 [project.optional-dependencies]
 verificador = [
     "torch>=2.2",
-    # <5: transformers v5 (probado con 5.13) tiene una regresión que colapsa el
-    # entrenamiento de DeBERTa-v3 a una sola clase; v4.57 entrena bien.
+    # <5: transformers v5 (tested with 5.13) has a regression that collapses
+    # DeBERTa-v3 training to a single class; v4.57 trains fine.
     "transformers>=4.44,<5",
     "sentencepiece>=0.2",
     "protobuf>=4.0",
@@ -27,8 +27,8 @@ entrenamiento = [
     "datasets>=3.0",
     "accelerate>=1.0",
 ]
-# Verificación en CPU sin PyTorch (~50 MB de runtime en vez de ~3 GB):
-# requiere el modelo exportado con training/cuantizar_verificador.py
+# CPU verification without PyTorch (~50 MB runtime instead of ~3 GB):
+# requires the model exported with training/quantize_verifier.py
 verificador-cpu = [
     "onnxruntime>=1.18",
     "transformers>=4.44,<5",
@@ -39,7 +39,7 @@ verificador-cpu = [
 dev = ["pytest>=8.0"]
 
 [project.urls]
-Repositorio = "https://github.com/DeliVali/AIDAM"
+Repository = "https://github.com/DeliVali/AIDAM"
 
 [project.scripts]
 aidam = "aidam.cli:main"

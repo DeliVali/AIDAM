@@ -1,16 +1,16 @@
-"""Evaluación del verificador en LLM-AggreFact (el benchmark de MiniCheck).
+"""Verifier evaluation on LLM-AggreFact (the MiniCheck benchmark).
 
-Mide el núcleo directamente: dado (documento, afirmación), ¿el documento
-sustenta la afirmación? Es el criterio de la Fase 1: alcanzar el nivel de
-MiniCheck-FT5 (~74-75% de exactitud balanceada media).
+Measures the core directly: given (document, claim), does the document
+support the claim? This is the Phase 1 criterion: reach MiniCheck-FT5's
+level (~74-75% average balanced accuracy).
 
-Documentos largos: se trocean en ventanas y se toma el máximo de
-p(sustenta) sobre ellas (enfoque estándar de los verificadores por pares).
-La métrica es exactitud balanceada (media de sensibilidad y especificidad)
-por dataset y su promedio, como en el paper de MiniCheck.
+Long documents: they are split into windows and the maximum p(supports)
+over them is taken (the standard approach of pairwise verifiers). The
+metric is balanced accuracy (mean of sensitivity and specificity) per
+dataset and its average, as in the MiniCheck paper.
 
-Uso:
-  python evaluacion/eval_llm_aggrefact.py [--umbral 0.5] [--max-ejemplos N]
+Usage:
+  python evaluation/eval_llm_aggrefact.py [--umbral 0.5] [--max-ejemplos N]
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ from aidam.verify import VerificadorNLI
 
 
 def _p_sustenta(verificador, documentos: list[str], afirmaciones: list[str]) -> list[float]:
-    """Máximo de p(entailment) sobre las ventanas de cada documento."""
+    """Maximum p(entailment) over each document's windows."""
     indice_sustenta = next(
         i for i, nombre in verificador.modelo.config.id2label.items()
         if nombre.lower() == "entailment"
@@ -53,7 +53,7 @@ def _p_sustenta(verificador, documentos: list[str], afirmaciones: list[str]) -> 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--umbral", type=float, default=0.5)
-    parser.add_argument("--max-ejemplos", type=int, default=0, help="0 = todos")
+    parser.add_argument("--max-ejemplos", type=int, default=0, help="0 = all")
     args = parser.parse_args()
 
     datos = load_dataset("lytang/LLM-AggreFact", split="test")

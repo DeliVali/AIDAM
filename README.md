@@ -56,5 +56,7 @@ architecture and roadmap live in [docs/](docs/).
 
 ## Contributing
 
-Apache 2.0 license. Contribution guide in [CONTRIBUTING.md](CONTRIBUTING.md);
-code of conduct in [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
+Apache 2.0 license — © 2026 [Jeffrey Romero Del Val](https://github.com/DeliVali).
+Free to use, modify and redistribute; keep the [NOTICE](NOTICE) attribution.
+Contribution guide in [CONTRIBUTING.md](CONTRIBUTING.md); code of conduct in
+[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).

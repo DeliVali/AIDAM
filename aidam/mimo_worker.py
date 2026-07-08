@@ -1,18 +1,18 @@
-"""Worker aislado para el LLM local (MiMo vía llama.cpp).
+"""Isolated worker for the local LLM (llama.cpp).
 
-llama.cpp y PyTorch cohabitando en un proceso producen corrupciones de heap
-esporádicas (medido: `corrupted size vs. prev_size` + core dump en una
-evaluación larga). Este worker corre el modelo en su propio proceso y habla
-JSON por líneas: si llama.cpp corrompe memoria, muere el worker — no la
-verificación — y el cliente lo reinicia.
+llama.cpp and PyTorch cohabiting in one process produce sporadic heap
+corruption (measured: `corrupted size vs. prev_size` + core dump during a
+long evaluation). This worker runs the model in its own process and speaks
+JSON lines: if llama.cpp corrupts memory, the worker dies — not the
+verification — and the client restarts it.
 
-Protocolo (una línea JSON por mensaje):
-  worker → {"listo": true}                          al terminar de cargar
-  cliente → {"prompt": ..., "max_tokens": ..., "temperature": ..., "stop": [...]}
+Protocol (one JSON line per message):
+  worker → {"listo": true}                          when loading finishes
+  client → {"prompt": ..., "max_tokens": ..., "temperature": ..., "stop": [...]}
   worker → {"texto": ...} | {"error": ...}
 
-Se lanza con: python -m aidam.mimo_worker
-Config por entorno: AIDAM_MODELO_PREGUNTAS, AIDAM_MIMO_GPU_LAYERS.
+Launched with: python -m aidam.mimo_worker
+Environment config: AIDAM_MODELO_PREGUNTAS, AIDAM_MIMO_GPU_LAYERS.
 """
 
 from __future__ import annotations
@@ -52,7 +52,7 @@ def main() -> None:
                 stop=pedido.get("stop") or None,
             )
             respuesta = {"texto": salida["choices"][0]["text"] or ""}
-        except Exception as error:  # el cliente decide reintentar
+        except Exception as error:  # the client decides whether to retry
             respuesta = {"error": str(error)}
         print(json.dumps(respuesta, ensure_ascii=False), flush=True)
 

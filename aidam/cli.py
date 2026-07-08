@@ -1,4 +1,4 @@
-"""CLI de AIDAM: `aidam verificar "afirmación"`."""
+"""AIDAM CLI: `aidam verificar "claim"`."""
 
 from __future__ import annotations
 

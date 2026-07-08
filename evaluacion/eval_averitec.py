@@ -1,21 +1,21 @@
-"""Evaluación de AIDAM en el dev set de AVeriTeC (500 afirmaciones reales).
+"""AIDAM evaluation on the AVeriTeC dev set (500 real-world claims).
 
-AVeriTeC anota afirmaciones del mundo real (2020–2021, en inglés) con cuatro
-veredictos que mapean uno a uno con los nuestros. Este script corre el pipeline
-completo — recuperación viva multi-fuente incluida — y reporta exactitud,
-F1 macro y matriz de confusión.
+AVeriTeC annotates real-world claims (2020–2021, in English) with four
+verdicts that map one to one onto ours. This script runs the full pipeline
+— live multi-source retrieval included — and reports accuracy, macro F1 and
+the confusion matrix.
 
-Nota honesta: la recuperación viva puede encontrar los artículos de fact-checking
-de los que salieron las afirmaciones (el shared task usa un almacén cerrado para
-evitarlo). Medimos el sistema end-to-end en condiciones reales, no competimos
-en la pista oficial; para comparar con la tabla del shared task haría falta
-usar su knowledge store.
+Honest note: live retrieval may find the fact-checking articles the claims
+came from (the shared task uses a closed knowledge store to prevent that).
+We measure the system end-to-end under real conditions; we don't compete on
+the official track — comparing against the shared-task table would require
+using its knowledge store.
 
-Uso:
-  python evaluacion/eval_averitec.py --limite 100
-  python evaluacion/eval_averitec.py            # las 500 (≈1.5 h)
+Usage:
+  python evaluation/eval_averitec.py --limite 100
+  python evaluation/eval_averitec.py            # all 500 (≈1.5 h)
 
-El progreso se guarda incrementalmente: relanzar retoma donde quedó.
+Progress is saved incrementally: relaunching resumes where it left off.
 """
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ URL_DEV = "https://raw.githubusercontent.com/MichSchli/AVeriTeC/main/data/dev.js
 RUTA_DEV = Path("data/local/averitec_dev.json")
 RUTA_RESULTADOS = Path("data/local/averitec_resultados.jsonl")
 
-# Nuestros veredictos → clases de AVeriTeC (mapeo uno a uno por diseño)
+# Our verdicts → AVeriTeC classes (one-to-one mapping by design)
 A_AVERITEC = {
     Veredicto.SUSTENTADO.value: "Supported",
     Veredicto.REFUTADO.value: "Refuted",
@@ -53,8 +53,8 @@ def _cargar_dev() -> list[dict]:
 
 
 def _cargar_previos(ruta: Path) -> dict[int, dict]:
-    """Registros previos para reanudar. Los ERROR no cuentan como hechos:
-    al relanzar se reintentan (un OOM transitorio no es un veredicto)."""
+    """Previous records for resuming. ERROR entries don't count as done:
+    they are retried on relaunch (a transient OOM is not a verdict)."""
     if not ruta.exists():
         return {}
     previos = {}
@@ -101,9 +101,9 @@ def main() -> None:
     parser.add_argument("--limite", type=int, default=500)
     parser.add_argument("--max-idiomas", type=int, default=3)
     parser.add_argument(
-        "--preguntas", action="store_true", help="generación de preguntas con MiMo"
+        "--preguntas", action="store_true", help="question generation with the local LLM"
     )
-    parser.add_argument("--pausa", type=float, default=2.0, help="segundos entre afirmaciones")
+    parser.add_argument("--pausa", type=float, default=2.0, help="seconds between claims")
     parser.add_argument("--salida", type=Path, default=RUTA_RESULTADOS)
     args = parser.parse_args()
 
@@ -130,7 +130,7 @@ def main() -> None:
                 prediccion = A_AVERITEC[informe.veredicto.value]
                 confianza = informe.confianza
                 voces = sum(len(h.a_favor) + len(h.en_contra) for h in informe.hechos)
-            except Exception as error:  # una afirmación caída no tumba la corrida
+            except Exception as error:  # one failed claim doesn't kill the run
                 prediccion, confianza, voces = "ERROR", 0.0, 0
                 print(f"[eval] #{indice} error: {error}")
             registro = {

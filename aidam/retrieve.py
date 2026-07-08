@@ -1,24 +1,24 @@
-"""Recuperador multi-fuente y multilingüe (Módulo 2).
+"""Multi-source, multilingual retriever (Module 2).
 
-Busca evidencia para un hecho atómico en la mayor cantidad de fuentes posible
-y la etiqueta con su procedencia. Las fuentes viven en el registro `FUENTES`:
-añadir una nueva es escribir una función `(consulta, lang) -> list[Evidencia]`
-y registrarla — todas se consultan en paralelo.
+Searches evidence for an atomic fact across as many sources as possible and
+labels it with its provenance. Sources live in the `FUENTES` registry:
+adding a new one means writing a `(consulta, lang) -> list[Evidencia]`
+function and registering it — all are queried in parallel.
 
-Familias actuales (todas con APIs libres, sin llaves):
-- Wikipedia en el idioma de la afirmación, con ranking léxico de pasajes.
-- Wikipedia multilingüe: el mismo artículo en otros idiomas vía enlaces
-  interlingüísticos — sin modelo de traducción; cada edición es una comunidad
-  editorial distinta (una voz independiente más).
-- Wikinews: periodismo colaborativo, mismo API de MediaWiki.
-- Web abierta (DuckDuckGo): miles de dominios vía snippets.
-- Académicas: Semantic Scholar, OpenAlex, arXiv y Europe PMC — resúmenes de
-  papers para afirmaciones científicas (corpus mayormente en inglés).
+Current families (all with free APIs, no keys):
+- Wikipedia in the claim's language, with lexical passage ranking.
+- Multilingual Wikipedia: the same article in other languages via interlanguage
+  links — no translation model; each edition is a distinct editorial
+  community (one more independent voice).
+- Wikinews: collaborative journalism, same MediaWiki API.
+- Open web (DuckDuckGo): thousands of domains via snippets.
+- Academic: Semantic Scholar, OpenAlex, arXiv and Europe PMC — paper
+  abstracts for scientific claims (mostly English corpus).
 
-La independencia de fuentes se aproxima por dominio: cien páginas del mismo
-dominio cuentan como una voz en el agregador.
+Source independence is approximated by domain: a hundred pages from the same
+domain count as one voice in the aggregator.
 
-Este módulo es ingeniería pura: cero parámetros de modelo.
+This module is pure engineering: zero model parameters.
 """
 
 from __future__ import annotations
@@ -37,12 +37,12 @@ _UA = {"User-Agent": "AIDAM/0.1 (verificador abierto; https://github.com/DeliVal
 _TIMEOUT = 15
 _MAX_CHARS_PASAJE = 600
 
-# Wikipedias grandes y diversas geográficamente, en orden de preferencia
-# cuando hay que elegir un subconjunto de los idiomas disponibles.
+# Large, geographically diverse Wikipedias, in order of preference when a
+# subset of the available languages must be chosen.
 IDIOMAS_PREFERIDOS = ["en", "es", "fr", "de", "ru", "zh", "pt", "it", "ja", "ar"]
 
 
-# ───────────────────────── utilidades compartidas ─────────────────────────
+# ───────────────────────── shared utilities ─────────────────────────
 
 
 def _dominio(url: str) -> str:
@@ -51,7 +51,7 @@ def _dominio(url: str) -> str:
 
 
 def _trocear(texto: str, max_chars: int = _MAX_CHARS_PASAJE) -> list[str]:
-    """Divide un texto largo en pasajes de ~max_chars respetando frases."""
+    """Splits a long text into ~max_chars passages, respecting sentences."""
     frases = re.split(r"(?<=[.!?])\s+", texto)
     pasajes: list[str] = []
     actual = ""
@@ -67,7 +67,7 @@ def _trocear(texto: str, max_chars: int = _MAX_CHARS_PASAJE) -> list[str]:
 
 
 def _relevancia(consulta: str, pasaje: str) -> int:
-    """Solape léxico simple consulta↔pasaje. Suficiente para preseleccionar."""
+    """Simple query↔passage lexical overlap. Enough for preselection."""
     palabras = {p for p in re.findall(r"\w{4,}", consulta.lower())}
     return sum(1 for p in palabras if p in pasaje.lower())
 
@@ -106,9 +106,9 @@ def _pasajes_de_articulo(
     idioma: str,
     consulta: str | None = None,
 ) -> list[Evidencia]:
-    """Extrae pasajes de un artículo MediaWiki. Con `consulta` los ordena por
-    relevancia léxica; sin ella (idiomas que no comparten vocabulario con la
-    consulta) usa el orden del artículo, donde la introducción resume lo esencial."""
+    """Extracts passages from a MediaWiki article. With `consulta` it ranks
+    them by lexical relevance; without it (languages that share no vocabulary
+    with the query) it uses article order, where the intro sums up the essentials."""
     datos = _mediawiki_get(
         host,
         {"action": "query", "prop": "extracts", "explaintext": 1, "exchars": 6000, "titles": titulo},
@@ -128,7 +128,7 @@ def _pasajes_de_articulo(
 
 
 def _idiomas_disponibles(lang: str, titulo: str) -> dict[str, str]:
-    """idioma → título del mismo artículo en las demás Wikipedias (langlinks)."""
+    """language → title of the same article on the other Wikipedias (langlinks)."""
     datos = _mediawiki_get(
         f"{lang}.wikipedia.org",
         {"action": "query", "prop": "langlinks", "titles": titulo, "lllimit": 500},
@@ -143,8 +143,8 @@ def _idiomas_disponibles(lang: str, titulo: str) -> dict[str, str]:
 def _priorizar_idiomas(
     disponibles: dict[str, str], excluir: str, max_idiomas: int
 ) -> list[tuple[str, str]]:
-    """Elige qué idiomas consultar: primero los preferidos, luego el resto
-    en orden alfabético (determinista), sin repetir el idioma de origen."""
+    """Chooses which languages to query: preferred ones first, then the rest
+    in alphabetical order (deterministic), never repeating the source language."""
     preferidos = [l for l in IDIOMAS_PREFERIDOS if l != excluir and l in disponibles]
     resto = sorted(l for l in disponibles if l != excluir and l not in IDIOMAS_PREFERIDOS)
     return [(l, disponibles[l]) for l in (preferidos + resto)[:max_idiomas]]
@@ -153,7 +153,7 @@ def _priorizar_idiomas(
 def buscar_wikipedia(
     consulta: str, lang: str = "es", max_articulos: int = 2, max_pasajes: int = 4
 ) -> list[Evidencia]:
-    """Busca artículos en la Wikipedia del idioma de la afirmación."""
+    """Searches articles on the Wikipedia of the claim's language."""
     host = f"{lang}.wikipedia.org"
     evidencias: list[Evidencia] = []
     for titulo in _buscar_titulos(consulta, host, max_articulos):
@@ -170,10 +170,10 @@ def buscar_wikipedia_multilingue(
     max_idiomas: int = 5,
     max_pasajes_por_idioma: int = 2,
 ) -> list[Evidencia]:
-    """Trae el mejor artículo en otros idiomas vía enlaces interlingüísticos.
+    """Fetches the best article in other languages via interlanguage links.
 
-    `max_idiomas=0` desactiva; un valor alto (p. ej. 300) consulta todas las
-    ediciones donde exista el artículo, a costa de latencia.
+    `max_idiomas=0` disables it; a high value (e.g. 300) queries every
+    edition where the article exists, at the cost of latency.
     """
     if max_idiomas <= 0:
         return []
@@ -192,7 +192,7 @@ def buscar_wikipedia_multilingue(
 
 
 def buscar_wikinews(consulta: str, lang: str = "es", max_pasajes: int = 3) -> list[Evidencia]:
-    """Periodismo colaborativo de Wikinews (mismo API de MediaWiki)."""
+    """Collaborative journalism from Wikinews (same MediaWiki API)."""
     host = f"{lang}.wikinews.org"
     evidencias: list[Evidencia] = []
     for titulo in _buscar_titulos(consulta, host, max_articulos=2):
@@ -202,22 +202,22 @@ def buscar_wikinews(consulta: str, lang: str = "es", max_pasajes: int = 3) -> li
     return evidencias[:max_pasajes]
 
 
-# ───────────────────────── web abierta ─────────────────────────
+# ───────────────────────── open web ─────────────────────────
 
 
-# libxml2 (dentro de trafilatura/lxml) NO es seguro entre hilos: extraer en
-# paralelo corrompe el heap (medido: SIGABRT en xmlFreeDoc, core dump en la
-# eval de 500). La red va en paralelo; la extracción, serializada — cuesta
-# ~30 ms por página, nada frente al fetch.
+# libxml2 (inside trafilatura/lxml) is NOT thread-safe: extracting in
+# parallel corrupts the heap (measured: SIGABRT in xmlFreeDoc, core dump in
+# the 500-claim eval). Network stays parallel; extraction is serialized —
+# ~30 ms per page, nothing next to the fetch.
 _CANDADO_EXTRACCION = threading.Lock()
 
 
 def _texto_de_pagina(url: str) -> str:
-    """Descarga una página y extrae su texto principal (sin menús ni anuncios).
+    """Downloads a page and extracts its main text (no menus or ads).
 
-    Los snippets truncados de un buscador repiten titulares; el veredicto de un
-    artículo vive en su cuerpo. Medido en AVeriTeC: juzgar snippets era el
-    cuello de botella del sistema.
+    Truncated search-engine snippets repeat headlines; an article's verdict
+    lives in its body. Measured on AVeriTeC: judging snippets was the
+    system's bottleneck.
     """
     try:
         import trafilatura
@@ -230,9 +230,9 @@ def _texto_de_pagina(url: str) -> str:
         return ""
 
 
-# Rotación de motores de búsqueda: DuckDuckGo nos bloqueó la conexión tras un
-# día de evaluaciones (medido: 73/100 afirmaciones sin evidencia). Ningún motor
-# único puede ser punto de fallo del recuperador.
+# Search engine rotation: DuckDuckGo blocked our connection after a day of
+# evaluations (measured: 73/100 claims with no evidence). No single engine
+# can be a point of failure for the retriever.
 _BACKENDS_BUSQUEDA = ("duckduckgo", "bing", "yahoo")
 
 
@@ -261,7 +261,7 @@ def _evidencias_de_paginas(
     max_paginas: int,
     max_pasajes_por_pagina: int = 3,
 ) -> list[Evidencia]:
-    """Texto completo de los mejores resultados, en paralelo, con ranking léxico."""
+    """Full text of the best results, in parallel, with lexical ranking."""
     candidatos = [h for h in hits if h.get("href")][:max_paginas]
     with ThreadPoolExecutor(max_workers=max(1, len(candidatos))) as ejecutor:
         textos = list(ejecutor.map(lambda h: _texto_de_pagina(h["href"]), candidatos))
@@ -288,8 +288,8 @@ def _evidencias_de_paginas(
 def buscar_web(
     consulta: str, max_resultados: int = 8, lang: str = "", paginas_completas: int = 3
 ) -> list[Evidencia]:
-    """Busca en la web (DuckDuckGo): texto completo de los mejores resultados,
-    snippets del resto."""
+    """Web search (DuckDuckGo): full text of the top results, snippets for
+    the rest."""
     hits = _buscar_ddg(consulta, max_resultados)
     evidencias = _evidencias_de_paginas(hits, consulta, "web", lang, paginas_completas)
     for hit in hits[paginas_completas:]:
@@ -310,9 +310,9 @@ def buscar_web(
     return evidencias
 
 
-# Documentación oficial por dominio técnico: el equivalente del fact-checker
-# profesional para código, comandos e infraestructura. Para una afirmación
-# sobre AWS, la fuente certificada es docs.aws.amazon.com, no un blog.
+# Official documentation per technical domain: the professional fact-checker's
+# equivalent for code, commands and infrastructure. For a claim about AWS,
+# the certified source is docs.aws.amazon.com, not a blog.
 DOCS_CERTIFICADAS: dict[str, list[str]] = {
     "programacion": [
         "docs.python.org", "developer.mozilla.org", "docs.aws.amazon.com",
@@ -329,8 +329,8 @@ DOCS_CERTIFICADAS: dict[str, list[str]] = {
 def buscar_docs_certificadas(
     consulta: str, categoria: str, lang: str = "", max_resultados: int = 6
 ) -> list[Evidencia]:
-    """Busca solo en documentación oficial del dominio (filtro site: de DDG),
-    leyendo las páginas completas."""
+    """Searches only the domain's official documentation (DDG site: filter),
+    reading full pages."""
     dominios = DOCS_CERTIFICADAS.get(categoria, [])
     if not dominios:
         return []
@@ -340,25 +340,25 @@ def buscar_docs_certificadas(
 
 
 def buscar_desmentidos(consulta: str, lang: str = "es") -> list[Evidencia]:
-    """Búsqueda dirigida a verificaciones: trae a los fact-checkers a la mesa.
+    """Search aimed at fact-checks: brings the fact-checkers to the table.
 
-    Medido en AVeriTeC: en la mayoría de las mentiras que pasaban como
-    sustentadas, el fact-checker ni aparecía en la evidencia. Esta consulta
-    reformulada lo busca explícitamente, y lee el artículo completo (el
-    veredicto no cabe en un snippet).
+    Measured on AVeriTeC: in most of the lies that passed as supported, the
+    fact-checker didn't even appear in the evidence. This reformulated query
+    looks for it explicitly, and reads the full article (the verdict doesn't
+    fit in a snippet).
     """
     sufijo = "fact check" if lang == "en" else "verificación bulo fact check"
     hits = _buscar_ddg(f"{consulta} {sufijo}", max_resultados=5)
     return _evidencias_de_paginas(hits, consulta, "desmentidos", lang, max_paginas=3)
 
 
-# ───────────────────────── técnicas / programación ─────────────────────────
+# ───────────────────────── technical / programming ─────────────────────────
 
 
 def buscar_stackexchange(consulta: str, lang: str = "", max_resultados: int = 4) -> list[Evidencia]:
-    """Preguntas y respuestas de Stack Overflow (API libre, sin llave).
+    """Questions and answers from Stack Overflow (free API, no key).
 
-    Para afirmaciones de programación: nadie va a Wikipedia por un bug.
+    For programming claims: nobody goes to Wikipedia for a bug.
     """
     datos = _get_json(
         "https://api.stackexchange.com/2.3/search/excerpts",
@@ -389,7 +389,7 @@ def buscar_stackexchange(consulta: str, lang: str = "", max_resultados: int = 4)
     return evidencias
 
 
-# ───────────────────────── fuentes académicas ─────────────────────────
+# ───────────────────────── academic sources ─────────────────────────
 
 
 def _evidencias_de_resumen(
@@ -404,7 +404,7 @@ def _evidencias_de_resumen(
 
 
 def buscar_semantic_scholar(consulta: str, lang: str = "", max_papers: int = 4) -> list[Evidencia]:
-    """Resúmenes de papers vía Semantic Scholar (API libre, sin llave)."""
+    """Paper abstracts via Semantic Scholar (free API, no key)."""
     datos = _get_json(
         "https://api.semanticscholar.org/graph/v1/paper/search",
         {"query": consulta, "limit": max_papers, "fields": "title,abstract,url"},
@@ -424,8 +424,8 @@ def buscar_semantic_scholar(consulta: str, lang: str = "", max_papers: int = 4) 
 
 
 def _reconstruir_resumen_openalex(indice_invertido: dict[str, list[int]]) -> str:
-    """OpenAlex publica los resúmenes como índice invertido palabra→posiciones;
-    lo reconstruimos ordenando las posiciones."""
+    """OpenAlex publishes abstracts as an inverted word→positions index;
+    we rebuild it by sorting the positions."""
     posiciones: list[tuple[int, str]] = []
     for palabra, sitios in indice_invertido.items():
         posiciones.extend((sitio, palabra) for sitio in sitios)
@@ -433,7 +433,7 @@ def _reconstruir_resumen_openalex(indice_invertido: dict[str, list[int]]) -> str
 
 
 def buscar_openalex(consulta: str, lang: str = "", max_papers: int = 4) -> list[Evidencia]:
-    """Resúmenes de papers vía OpenAlex (API libre, sin llave)."""
+    """Paper abstracts via OpenAlex (free API, no key)."""
     datos = _get_json(
         "https://api.openalex.org/works",
         {"search": consulta, "per-page": max_papers, "select": "title,doi,abstract_inverted_index"},
@@ -456,7 +456,7 @@ def buscar_openalex(consulta: str, lang: str = "", max_papers: int = 4) -> list[
 
 
 def buscar_arxiv(consulta: str, lang: str = "", max_papers: int = 3) -> list[Evidencia]:
-    """Resúmenes de preprints de arXiv (API libre, sin llave)."""
+    """Preprint abstracts from arXiv (free API, no key)."""
     try:
         r = requests.get(
             "https://export.arxiv.org/api/query",
@@ -485,7 +485,7 @@ def buscar_arxiv(consulta: str, lang: str = "", max_papers: int = 3) -> list[Evi
 
 
 def buscar_europepmc(consulta: str, lang: str = "", max_papers: int = 4) -> list[Evidencia]:
-    """Resúmenes biomédicos de Europe PMC (API libre, sin llave)."""
+    """Biomedical abstracts from Europe PMC (free API, no key)."""
     datos = _get_json(
         "https://www.ebi.ac.uk/europepmc/webservices/rest/search",
         {"query": consulta, "format": "json", "pageSize": max_papers, "resultType": "core"},
@@ -506,13 +506,13 @@ def buscar_europepmc(consulta: str, lang: str = "", max_papers: int = 4) -> list
     return evidencias
 
 
-# ───────────────────────── registro y orquestación ─────────────────────────
+# ───────────────────────── registry and orchestration ─────────────────────────
 
-# nombre → (descripción, categorías que atiende o None = universal,
-#           función (consulta, lang, max_idiomas) -> list[Evidencia]).
-# Para añadir una fuente: escribe una función con esa firma y regístrala aquí.
-# Las categorías vienen del router (aidam/router.py): el agente no va a
-# Wikipedia por un bug ni a Stack Overflow por una afirmación médica.
+# name → (description, categories it serves or None = universal,
+#         function (consulta, lang, max_idiomas) -> list[Evidencia]).
+# To add a source: write a function with that signature and register it here.
+# Categories come from the router (aidam/router.py): the agent doesn't go to
+# Wikipedia for a bug or to Stack Overflow for a medical claim.
 FUENTES: dict[str, tuple[str, set[str] | None, object]] = {
     "wikipedia": (
         "Wikipedia en el idioma de la afirmación (pasajes por relevancia)",
@@ -554,8 +554,8 @@ FUENTES: dict[str, tuple[str, set[str] | None, object]] = {
         {"programacion"},
         lambda c, lang, mi: buscar_stackexchange(c),
     ),
-    # Universales: un misroute del router debe AÑADIR ruido, nunca QUITAR señal
-    # (medido: una afirmación médica enrutada a "general" perdía sus papers).
+    # Universal: a router misroute must ADD noise, never REMOVE signal
+    # (measured: a medical claim routed to "general" lost its papers).
     "semantic-scholar": (
         "Resúmenes académicos de Semantic Scholar",
         None,
@@ -580,13 +580,13 @@ FUENTES: dict[str, tuple[str, set[str] | None, object]] = {
 
 
 def _es_probatoria(hecho_texto: str, evidencia: Evidencia, lang: str) -> bool:
-    """¿El pasaje habla de lo que afirma el hecho, o solo del tema en general?
+    """Does the passage address what the fact asserts, or just the general topic?
 
-    Un pasaje en el idioma de la afirmación que comparte <2 de sus palabras de
-    contenido no puede probar ni refutar nada específico (medido: las
-    introducciones genéricas de Wikipedia se juzgaban como contradicción).
-    La evidencia en otros idiomas queda exenta — el solape léxico no significa
-    nada entre idiomas; su ranking cruzado llegará con embeddings multilingües.
+    A passage in the claim's language sharing <2 of its content words can't
+    prove or refute anything specific (measured: generic Wikipedia intros
+    were judged as contradiction). Evidence in other languages is exempt —
+    lexical overlap means nothing across languages; its cross-lingual
+    ranking will come with multilingual embeddings.
     """
     if evidencia.idioma and evidencia.idioma != lang:
         return True
@@ -603,11 +603,11 @@ def recuperar(
     max_idiomas: int = 5,
     categoria: str | None = None,
 ) -> list[Evidencia]:
-    """Consulta en paralelo las fuentes relevantes a la categoría y deduplica.
+    """Queries the sources relevant to the category in parallel and dedupes.
 
-    Sin categoría se consultan todas. Cada fuente falla en silencio (devuelve
-    lista vacía): la caída de un API externo nunca tumba la verificación,
-    solo reduce la evidencia disponible.
+    Without a category, all are queried. Each source fails silently (returns
+    an empty list): an external API outage never takes verification down,
+    it only reduces the available evidence.
     """
     activas = [
         (descripcion, funcion)

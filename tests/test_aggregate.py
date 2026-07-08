@@ -1,4 +1,4 @@
-"""Tests del agregador: la lógica comparativa debe ser predecible y auditable."""
+"""Aggregator tests: the comparative logic must be predictable and auditable."""
 
 from aidam.aggregate import agregar_hecho, agregar_informe
 from aidam.models import (
@@ -39,7 +39,7 @@ def test_apoyo_unanime_sustenta():
 
 
 def test_senal_debil_se_descarta():
-    pares = [_par(EtiquetaPar.SUSTENTA, 0.55, "d1.org")]  # bajo el umbral de 0.60
+    pares = [_par(EtiquetaPar.SUSTENTA, 0.55, "d1.org")]  # below the 0.60 threshold
     assert agregar_hecho(HECHO, pares).veredicto is Veredicto.INSUFICIENTE
 
 
@@ -53,7 +53,7 @@ def test_refutacion_dominante_refuta():
 
 
 def test_conflicto_real_exige_fiabilidad_en_ambos_lados():
-    """Empate con evidencia creíble en ambos lados = contradicción genuina."""
+    """Tie with credible evidence on both sides = genuine contradiction."""
     pares = [
         _par(EtiquetaPar.SUSTENTA, 0.85, "es.wikipedia.org"),
         _par(EtiquetaPar.REFUTA, 0.80, "politifact.com"),
@@ -64,8 +64,8 @@ def test_conflicto_real_exige_fiabilidad_en_ambos_lados():
 
 
 def test_ruido_web_no_establece_conflicto():
-    """El patrón AVeriTeC medido: viral sustenta en masa, un desmentido creíble
-    refuta, la señal empata — pero no es conflicto: es refutación."""
+    """The measured AVeriTeC pattern: viral supports in bulk, one credible
+    debunk refutes, the signal ties — but that's not conflict: it's refutation."""
     pares = [
         _par(EtiquetaPar.SUSTENTA, 0.97, "viral1.com"),
         _par(EtiquetaPar.SUSTENTA, 0.96, "viral2.com"),
@@ -78,8 +78,8 @@ def test_ruido_web_no_establece_conflicto():
 
 
 def test_empate_sin_fiabilidad_gana_la_mayoria():
-    """Web débil contra web débil: la lógica comparativa elige el lado con más
-    señal, con confianza naturalmente baja."""
+    """Weak web against weak web: the comparative logic picks the side with
+    more signal, with naturally low confidence."""
     pares = [
         _par(EtiquetaPar.SUSTENTA, 0.85, "d1.org"),
         _par(EtiquetaPar.SUSTENTA, 0.7, "d3.org"),
@@ -91,7 +91,7 @@ def test_empate_sin_fiabilidad_gana_la_mayoria():
 
 
 def test_cien_copias_cuentan_como_una_voz():
-    """Independencia: el mismo dominio no gana por repetición."""
+    """Independence: the same domain doesn't win by repetition."""
     copias = [_par(EtiquetaPar.SUSTENTA, 0.9, "copiaspam.com") for _ in range(100)]
     originales = [
         _par(EtiquetaPar.REFUTA, 0.9, "fuente1.org"),
@@ -102,8 +102,8 @@ def test_cien_copias_cuentan_como_una_voz():
 
 
 def test_un_verificador_le_gana_a_la_mentira_viral():
-    """Priores de fiabilidad: el caso AVeriTeC — muchos sitios repiten la
-    mentira, un fact-checker la desmiente. Debe ganar el fact-checker."""
+    """Reliability priors: the AVeriTeC case — many sites repeat the lie,
+    one fact-checker debunks it. The fact-checker must win."""
     virales = [
         _par(EtiquetaPar.SUSTENTA, 0.95, f"viral{i}.com") for i in range(3)
     ]
@@ -119,7 +119,7 @@ HECHO_VIRAL = HechoAtomico(
 
 
 def test_el_eco_no_es_evidencia():
-    """Un snippet web que solo repite una afirmación viral pesa poco como soporte."""
+    """A web snippet that only repeats a viral claim weighs little as support."""
     evidencia_eco = Evidencia(
         texto="Viral: en una carta a Steve Jobs, Sean Connery rechazó aparecer "
         "en un comercial de Apple, según reportes",
@@ -150,8 +150,8 @@ def test_el_eco_no_es_evidencia():
 
 
 def test_afirmacion_tecnica_corta_no_es_eco():
-    """Regresión medida en /verify: en afirmaciones cortas («Python lists are
-    mutable») todo pasaje legítimo contiene sus palabras — es cobertura, no eco."""
+    """Regression measured in /verify: for short claims («Python lists are
+    mutable») every legitimate passage contains its words — coverage, not echo."""
     evidencia = Evidencia(
         texto="Python lists are mutable: you can add, remove or change elements "
         "in place with append, pop or slicing",
@@ -166,12 +166,12 @@ def test_afirmacion_tecnica_corta_no_es_eco():
     )
     resultado = agregar_hecho(hecho_corto, [par])
     assert resultado.veredicto is Veredicto.SUSTENTADO
-    assert resultado.confianza > 0.3  # sin la penalización de eco
+    assert resultado.confianza > 0.3  # without the echo penalty
 
 
 def test_la_trampa_de_la_atribucion():
-    """Un pasaje que 'sustenta' pero describe el bulo ('purportedly', 'hoax')
-    es un desmentido mal leído: su apoyo casi no pesa."""
+    """A passage that 'supports' but describes the hoax ('purportedly', 'hoax')
+    is a misread debunk: its support barely weighs."""
     trampa = VeredictoPar(
         hecho=HECHO,
         evidencia=Evidencia(
@@ -191,20 +191,20 @@ def test_la_trampa_de_la_atribucion():
 
 
 def test_un_dominio_una_voz():
-    """Un fact-check narra el mito (pasaje 'a favor') antes de desmentirlo
-    (pasaje 'en contra' más fuerte): el dominio vota una sola vez, con su
-    señal más fuerte."""
+    """A fact-check narrates the myth (a 'supporting' passage) before
+    debunking it (a stronger 'refuting' passage): the domain votes once,
+    with its strongest signal."""
     pares = [
         _par(EtiquetaPar.SUSTENTA, 0.78, "chequeado.com"),
         _par(EtiquetaPar.REFUTA, 0.95, "chequeado.com"),
     ]
     resultado = agregar_hecho(HECHO, pares)
     assert resultado.veredicto is Veredicto.REFUTADO
-    assert not resultado.a_favor  # la narración del mito no cuenta como voz
+    assert not resultado.a_favor  # narrating the myth doesn't count as a voice
 
 
 def test_wikipedia_sustenta_aunque_haya_eco_en_contrario():
-    """Los priores no rompen el caso legítimo: enciclopedia + web coinciden."""
+    """The priors don't break the legitimate case: encyclopedia + web agree."""
     pares = [
         _par(EtiquetaPar.SUSTENTA, 0.9, "es.wikipedia.org"),
         _par(EtiquetaPar.SUSTENTA, 0.9, "detallada.org"),
@@ -233,4 +233,4 @@ def test_informe_todo_sustentado():
     hechos = [_vh(Veredicto.SUSTENTADO, 0.9), _vh(Veredicto.SUSTENTADO, 0.6)]
     informe = agregar_informe("afirmación", hechos)
     assert informe.veredicto is Veredicto.SUSTENTADO
-    assert informe.confianza == 0.6  # tan cierto como su hecho más débil
+    assert informe.confianza == 0.6  # only as true as its weakest fact

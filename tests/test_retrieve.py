@@ -1,4 +1,4 @@
-"""Tests de la lógica pura del recuperador (sin red)."""
+"""Tests for the retriever's pure logic (no network)."""
 
 from aidam.retrieve import (
     FUENTES,
@@ -22,9 +22,9 @@ def test_excluye_el_idioma_de_origen():
 
 
 def test_resto_de_idiomas_en_orden_estable():
-    disponibles = {"eo": "x", "ca": "x", "nl": "x"}  # ninguno preferido
+    disponibles = {"eo": "x", "ca": "x", "nl": "x"}  # none of them preferred
     elegidos = _priorizar_idiomas(disponibles, excluir="es", max_idiomas=2)
-    assert [idioma for idioma, _ in elegidos] == ["ca", "eo"]  # alfabético, determinista
+    assert [idioma for idioma, _ in elegidos] == ["ca", "eo"]  # alphabetical, deterministic
 
 
 def test_max_idiomas_cero_no_elige_nada():
@@ -39,20 +39,20 @@ def test_devuelve_el_titulo_traducido():
 
 
 def test_preferidos_cubren_alfabetos_diversos():
-    # Guardia del diseño: la lista preferida debe incluir escrituras no latinas
+    # Design guard: the preferred list must include non-Latin scripts
     assert {"zh", "ru", "ar", "ja"} <= set(IDIOMAS_PREFERIDOS)
 
 
 def test_trocear_respeta_frases():
     texto = "Primera frase. " * 30
     pasajes = _trocear(texto, max_chars=100)
-    assert all(len(p) <= 115 for p in pasajes)  # margen por la última frase
+    assert all(len(p) <= 115 for p in pasajes)  # margin for the last sentence
     assert all(p.endswith(".") for p in pasajes)
 
 
 def test_gate_probatorio_descarta_intro_generica():
-    """Regresión medida en /verify: la intro genérica del artículo de Python
-    (que no menciona listas) se juzgaba como contradicción del hecho."""
+    """Regression measured in /verify: the generic intro of the Python
+    article (which doesn't mention lists) was judged as contradicting the fact."""
     from aidam.models import Evidencia
     from aidam.retrieve import _es_probatoria
 
@@ -79,8 +79,8 @@ def test_gate_probatorio_descarta_intro_generica():
 
 
 def test_gate_probatorio_exime_otros_idiomas():
-    """El solape léxico no significa nada entre idiomas: la evidencia
-    cruzada no se filtra (su ranking llegará con embeddings multilingües)."""
+    """Lexical overlap means nothing across languages: cross-language
+    evidence is not filtered (its ranking will come with multilingual embeddings)."""
     from aidam.models import Evidencia
     from aidam.retrieve import _es_probatoria
 
@@ -106,7 +106,7 @@ def test_reconstruir_resumen_con_palabra_repetida():
 
 
 def test_registro_de_fuentes_completo():
-    """Guardia del diseño: las familias prometidas están registradas y descritas."""
+    """Design guard: the promised source families are registered and described."""
     assert {
         "wikipedia",
         "wikipedia-multilingue",
@@ -122,14 +122,14 @@ def test_registro_de_fuentes_completo():
     from aidam.router import CATEGORIAS
 
     for nombre, (descripcion, categorias, funcion) in FUENTES.items():
-        assert descripcion, f"fuente sin descripción: {nombre}"
-        assert callable(funcion), f"fuente sin función: {nombre}"
+        assert descripcion, f"source without description: {nombre}"
+        assert callable(funcion), f"source without function: {nombre}"
         if categorias is not None:
-            assert categorias <= set(CATEGORIAS), f"categoría desconocida en {nombre}"
+            assert categorias <= set(CATEGORIAS), f"unknown category in {nombre}"
 
 
 def test_categorias_enrutan_fuentes():
-    """Programación llega a Stack Overflow; medicina no; universales siempre."""
+    """Programming reaches Stack Overflow; medicine doesn't; universals always."""
     def activas(categoria):
         return {
             nombre
@@ -147,7 +147,7 @@ def test_categorias_enrutan_fuentes():
 
 
 def test_docs_oficiales_pesan_como_verificador():
-    """La documentación oficial es el fact-checker de lo técnico."""
+    """Official documentation is the fact-checker of technical matters."""
     from aidam.aggregate import PESO_DOCS_OFICIALES, PESO_VERIFICADOR, peso_fuente
     from aidam.models import Evidencia
 

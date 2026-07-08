@@ -1,26 +1,25 @@
-"""Cuantización del verificador: verificación en cualquier CPU con poca RAM.
+"""Verifier quantization: verification on any low-RAM CPU.
 
-Receta medida (2026-07-06), en orden de lo que funcionó y lo que no:
+Measured recipe (2026-07-06), in order of what worked and what didn't:
 
-- ✗ INT8 dinámico (pesos+activaciones): DeBERTa-v3 colapsa 88.3% → 51.4%.
-  Sus activaciones tienen outliers extremos; cuantizarlas lo destruye.
-  Excluir la atención no ayuda (las FFN solas también colapsan).
-- ✓ **Weight-only**: pesos comprimidos, activaciones intactas en fp32 — la
-  misma familia de técnicas que usan los LLMs actuales (GGUF/AWQ).
-  INT4 por bloques en los MatMul (MatMulNBits) + INT8 en los embeddings
-  (Gather es un lookup: cuantizarlo no toca activaciones).
+- ✗ Dynamic INT8 (weights+activations): DeBERTa-v3 collapses 88.3% → 51.4%.
+  Its activations have extreme outliers; quantizing them destroys it.
+  Excluding attention doesn't help (FFNs alone also collapse).
+- ✓ **Weight-only**: compressed weights, activations intact in fp32 — the
+  same technique family today's LLMs use (GGUF/AWQ).
+  Block-wise INT4 on the MatMuls (MatMulNBits) + INT8 on the embeddings
+  (Gather is a lookup: quantizing it doesn't touch activations).
 
-Resultado del modelo "mini": 1.1 GB → 319 MB (3.4x), 88.3% → 86.1% de
-exactitud (−2.2), y 80 → 39 ms/par en CPU (2x más rápido que fp32/ONNX,
-~3x que PyTorch CPU).
+"mini" model result: 1.1 GB → 319 MB (3.4x), 88.3% → 86.1% accuracy (−2.2),
+and 80 → 39 ms/pair on CPU (2x faster than fp32/ONNX, ~3x than PyTorch CPU).
 
-Genera dos artefactos:
-  modelos/verificador-onnx       (fp32: exactitud completa, por defecto en CPU)
-  modelos/verificador-onnx-mini  (int4+int8: máquinas con poca RAM;
+Produces two artifacts:
+  modelos/verificador-onnx       (fp32: full accuracy, CPU default)
+  modelos/verificador-onnx-mini  (int4+int8: low-RAM machines;
                                   AIDAM_BACKEND=onnx-mini)
 
-Uso:
-  python training/cuantizar_verificador.py [--ejemplos 1000]
+Usage:
+  python training/quantize_verifier.py [--ejemplos 1000]
 """
 
 from __future__ import annotations
@@ -73,7 +72,7 @@ def main() -> None:
 
     origen = _resolver_modelo()
 
-    # 1) exportar fp32 (el backend CPU por defecto: exactitud completa)
+    # 1) export fp32 (the default CPU backend: full accuracy)
     from optimum.onnxruntime import ORTModelForSequenceClassification
     from transformers import AutoTokenizer
 
@@ -82,7 +81,7 @@ def main() -> None:
     modelo.save_pretrained(str(SALIDA_FP32))
     AutoTokenizer.from_pretrained(origen).save_pretrained(str(SALIDA_FP32))
 
-    # 2) mini: int4 por bloques en MatMul + int8 en embeddings
+    # 2) mini: block-wise int4 on MatMul + int8 on embeddings
     import onnx
     from onnxruntime.quantization import QuantType, quantize_dynamic
     from onnxruntime.quantization.matmul_nbits_quantizer import MatMulNBitsQuantizer
@@ -109,7 +108,7 @@ def main() -> None:
         if (SALIDA_FP32 / extra).exists():
             shutil.copy(SALIDA_FP32 / extra, SALIDA_MINI / extra)
 
-    # 3) comparación honesta
+    # 3) honest comparison
     for nombre, ruta in (("fp32", SALIDA_FP32), ("mini", SALIDA_MINI)):
         exactitud, ms, mb = _evaluar(ruta, args.ejemplos)
         print(f"[cuantizar] {nombre}: exactitud {exactitud:.1%} · {ms:.0f} ms/par · {mb:.0f} MB")

@@ -1,19 +1,21 @@
-"""Agregador de lógica comparativa (Módulo 4).
+"""Comparative logic aggregator (Module 4).
 
-Matemática explícita y auditable — sin red neuronal, a propósito. Combina los
-juicios por par en un veredicto por hecho, y los veredictos por hecho en el
-veredicto de la afirmación completa.
+Explicit, auditable math — no neural network, on purpose. Combines the
+per-pair judgements into a per-fact verdict, and the per-fact verdicts into
+the verdict for the whole claim.
 
-Reglas de independencia y fiabilidad (cada una nació de un fallo medido):
-1. Cada dominio aporta una sola voz por lado (su mejor evidencia). Cien
-   páginas que copian el mismo comunicado no pesan más que una fuente.
-2. Priores de fiabilidad por tipo de fuente: los verificadores profesionales,
-   enciclopedias, academia y organismos oficiales pesan más que un dominio
-   desconocido. Motivado por AVeriTeC: sin esto, la mentira viral repetida en
-   muchos sitios le gana al fact-checker que la desmiente.
-3. El eco no es evidencia: un snippet web que solo repite la afirmación casi
-   palabra por palabra no aporta información propia — sostener no es repetir.
-   (Solo aplica al lado que sustenta: refutar exige contenido propio.)
+Independence and reliability rules (each one born from a measured failure):
+1. Each domain contributes a single voice per side (its best evidence). A
+   hundred pages copying the same press release don't weigh more than one
+   source.
+2. Reliability priors per source type: professional fact-checkers,
+   encyclopedias, academia and official bodies weigh more than an unknown
+   domain. Motivated by AVeriTeC: without this, the viral lie repeated on
+   many sites beats the fact-checker that debunks it.
+3. Echo is not evidence: a web snippet that merely repeats the claim almost
+   word for word contributes no information of its own — supporting is not
+   repeating. (Applies only to the supporting side: refuting requires
+   original content.)
 """
 
 from __future__ import annotations
@@ -30,16 +32,16 @@ from .models import (
     VeredictoPar,
 )
 
-# Probabilidad mínima para que un juicio cuente como señal.
+# Minimum probability for a judgement to count as signal.
 UMBRAL_SENAL = 0.60
-# Cuánto debe superar la señal de un lado a la del otro para dominar;
-# por debajo de esto, el veredicto es "evidencia contradictoria".
+# How much one side's signal must exceed the other's to dominate;
+# below this, the verdict is "conflicting evidence".
 DOMINANCIA = 2.0
-# Fuentes independientes necesarias para confianza plena.
+# Independent sources required for full confidence.
 FUENTES_PLENAS = 3
 
-# ── Priores de fiabilidad (transparentes y discutibles en el repo) ──
-# Verificadores profesionales de hechos (miembros/afines a la red IFCN).
+# ── Reliability priors (transparent and debatable in the repo) ──
+# Professional fact-checkers (IFCN network members/affiliates).
 VERIFICADORES = {
     "politifact.com", "snopes.com", "factcheck.org", "fullfact.org",
     "chequeado.com", "maldita.es", "newtral.es", "factual.afp.com",
@@ -47,30 +49,30 @@ VERIFICADORES = {
     "boomlive.in", "altnews.in", "colombiacheck.com", "verificado.com.mx",
     "aosfatos.org", "lupa.uol.com.br", "correctiv.org", "pagellapolitica.it",
 }
-# Un desmentido profesional vale ~un orden de magnitud más que la afirmación
-# de un dominio desconocido: con 8.0, un fact-checker le gana a 3 sitios
-# virales, pero 6+ sitios independientes aún fuerzan "contradictorio".
+# A professional debunk is worth ~an order of magnitude more than the claim
+# of an unknown domain: at 8.0, one fact-checker beats 3 viral sites, but
+# 6+ independent sites still force "conflicting".
 PESO_VERIFICADOR = 8.0
-# La documentación oficial es el "fact-checker" de lo técnico: para una
-# afirmación sobre AWS o Python, docs.aws.amazon.com/docs.python.org es la
-# fuente certificada — pesa como un verificador profesional.
+# Official documentation is the "fact-checker" of technical matters: for a
+# claim about AWS or Python, docs.aws.amazon.com/docs.python.org is the
+# certified source — it weighs as much as a professional fact-checker.
 PESO_DOCS_OFICIALES = 8.0  # fuente == "docs-oficiales"
 PESO_ENCICLOPEDIA = 2.5  # *.wikipedia.org
 PESO_ACADEMICO = 2.5  # papers (fuente == "academica")
-PESO_OFICIAL = 2.0  # dominios .gov / .edu
+PESO_OFICIAL = 2.0  # .gov / .edu domains
 PESO_WIKINEWS = 1.5
 PESO_BASE = 1.0
-PESO_ECO = 0.3  # multiplicador para el eco (regla 3)
-_UMBRAL_ECO = 0.8  # fracción de palabras de la afirmación presentes en el pasaje
+PESO_ECO = 0.3  # multiplier for echo (rule 3)
+_UMBRAL_ECO = 0.8  # fraction of claim words present in the passage
 
-# Regla 4 — la trampa de la atribución (medida en AVeriTeC v8: 18 refutadas
-# leídas como sustentadas): un pasaje que "sustenta" pero trae marcadores de
-# desmentido o atribución dudosa ("purportedly", "hoax", "fact check"…) es
-# casi siempre un artículo que DESCRIBE el bulo, no que lo afirma. El NLI
-# textual cae en la trampa; el descuento la desarma.
-# Solo marcadores inequívocos de desmentido: "fact check" y "rumor" se
-# quitaron porque un fact-check también CONFIRMA (medido en v9: Supported
-# F1 cayó a 0.255 por descontar apoyos legítimos).
+# Rule 4 — the attribution trap (measured on AVeriTeC v8: 18 refuted claims
+# read as supported): a passage that "supports" but carries debunk or dubious
+# attribution markers ("purportedly", "hoax", "fact check"…) is almost always
+# an article that DESCRIBES the hoax, not one that asserts it. Textual NLI
+# falls into the trap; the discount disarms it.
+# Only unambiguous debunk markers: "fact check" and "rumor" were removed
+# because a fact-check also CONFIRMS (measured in v9: Supported F1 dropped
+# to 0.255 from discounting legitimate support).
 _MARCADORES_DESMENTIDO = re.compile(
     r"\b(false(ly)?|falso|falsa(mente)?|hoax|bulo|debunk\w*|misleading"
     r"|no (real )?evidence|sin evidencia|desmentid\w*|desinformaci[oó]n|purported\w*"
@@ -81,7 +83,7 @@ PESO_DESMENTIDO = 0.25
 
 
 def peso_fuente(evidencia: Evidencia) -> float:
-    """Prior de fiabilidad del dominio. Explícito para poder auditarlo."""
+    """Reliability prior of the domain. Explicit so it can be audited."""
     dominio = evidencia.dominio
     if dominio in VERIFICADORES:
         return PESO_VERIFICADOR
@@ -102,12 +104,12 @@ _MIN_PALABRAS_ECO = 6
 
 
 def _es_eco(hecho: HechoAtomico, evidencia: Evidencia) -> bool:
-    """¿El pasaje solo repite la afirmación sin aportar contenido propio?
+    """Does the passage merely repeat the claim without content of its own?
 
-    Solo aplica a afirmaciones largas y específicas (≥6 palabras de contenido,
-    el perfil de una afirmación viral). En afirmaciones técnicas cortas
-    («Python lists are mutable») cualquier pasaje legítimo sobre el tema
-    contiene todas las palabras — eso es cobertura, no eco.
+    Applies only to long, specific claims (≥6 content words, the profile of
+    a viral claim). For short technical claims («Python lists are mutable»)
+    any legitimate passage on the topic contains all the words — that is
+    coverage, not echo.
     """
     palabras = set(re.findall(r"\w{4,}", hecho.texto.lower()))
     if len(palabras) < _MIN_PALABRAS_ECO:
@@ -117,7 +119,7 @@ def _es_eco(hecho: HechoAtomico, evidencia: Evidencia) -> bool:
 
 
 def _peso(par: VeredictoPar) -> float:
-    """Peso total de un juicio: prior de fiabilidad × penalización por eco."""
+    """Total weight of a judgement: reliability prior × echo penalty."""
     peso = peso_fuente(par.evidencia)
     if par.etiqueta is EtiquetaPar.SUSTENTA:
         if par.evidencia.fuente in ("web", "desmentidos") and _es_eco(par.hecho, par.evidencia):
@@ -128,11 +130,11 @@ def _peso(par: VeredictoPar) -> float:
 
 
 def _mejor_por_dominio(pares: list[VeredictoPar]) -> dict[str, VeredictoPar]:
-    """Un dominio, una sola voz: su juicio de mayor señal ponderada.
+    """One domain, one voice: its judgement with the highest weighted signal.
 
-    Si un mismo sitio tiene pasajes en ambos lados (típico de un fact-check,
-    que narra el mito antes de desmentirlo), vota solo con su señal más
-    fuerte — su postura real — en vez de contarse dos veces.
+    If the same site has passages on both sides (typical of a fact-check,
+    which narrates the myth before debunking it), it votes only with its
+    strongest signal — its actual stance — instead of being counted twice.
     """
     mejores: dict[str, VeredictoPar] = {}
     for par in pares:
@@ -147,16 +149,16 @@ def _mejor_por_dominio(pares: list[VeredictoPar]) -> dict[str, VeredictoPar]:
 
 
 def _hay_voz_fiable(pares: list[VeredictoPar]) -> bool:
-    """¿El lado incluye al menos una fuente con prior de fiabilidad alto?
+    """Does the side include at least one source with a high reliability prior?
 
-    La probabilidad NLI no sirve aquí: los sitios virales sustentan al 95-99%.
-    La fiabilidad viene del tipo de fuente, no de la seguridad del juicio.
+    NLI probability is useless here: viral sites support at 95-99%.
+    Reliability comes from the source type, not from judgement confidence.
     """
     return any(peso_fuente(p.evidencia) >= PESO_OFICIAL for p in pares)
 
 
 def agregar_hecho(hecho: HechoAtomico, pares: list[VeredictoPar]) -> VeredictoHecho:
-    """Agrega los juicios por par en un veredicto para el hecho."""
+    """Aggregates the per-pair judgements into a verdict for the fact."""
     voces = _mejor_por_dominio(pares)
     a_favor = sorted(
         (p for p in voces.values() if p.etiqueta is EtiquetaPar.SUSTENTA),
@@ -178,10 +180,10 @@ def agregar_hecho(hecho: HechoAtomico, pares: list[VeredictoPar]) -> VeredictoHe
     elif senal_favor > 0 and senal_contra > 0 and (
         max(senal_favor, senal_contra) < DOMINANCIA * min(senal_favor, senal_contra)
     ):
-        # Zona de empate: la fiabilidad desempata. Conflicto real = evidencia
-        # creíble en AMBOS lados; ruido web empatando con un desmentido creíble
-        # no es conflicto (medido en AVeriTeC: 13 de 16 "contradictorias"
-        # predichas eran en realidad refutadas por ese patrón).
+        # Tie zone: reliability breaks the tie. Real conflict = credible
+        # evidence on BOTH sides; web noise tying with a credible debunk is
+        # not conflict (measured on AVeriTeC: 13 of 16 predicted
+        # "conflicting" were actually refuted through that pattern).
         fiable_favor = _hay_voz_fiable(a_favor)
         fiable_contra = _hay_voz_fiable(en_contra)
         if fiable_favor and fiable_contra:
@@ -215,11 +217,10 @@ def agregar_hecho(hecho: HechoAtomico, pares: list[VeredictoPar]) -> VeredictoHe
 
 
 def agregar_informe(afirmacion: str, hechos: list[VeredictoHecho]) -> Informe:
-    """Combina los veredictos por hecho en el veredicto de la afirmación.
+    """Combines the per-fact verdicts into the verdict for the claim.
 
-    Una afirmación es tan cierta como su hecho más débil: cualquier hecho
-    refutado refuta el conjunto; cualquier contradicción o hueco impide
-    declararla sustentada.
+    A claim is only as true as its weakest fact: any refuted fact refutes
+    the whole; any contradiction or gap prevents declaring it supported.
     """
     veredictos = {h.veredicto for h in hechos}
     if Veredicto.REFUTADO in veredictos:

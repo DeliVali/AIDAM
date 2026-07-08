@@ -1,10 +1,10 @@
-"""Núcleo verificador (Módulo 3): ¿esta evidencia sustenta este hecho?
+"""Verifier core (Module 3): does this evidence support this fact?
 
-MVP: inferencia textual (NLI) multilingüe con mDeBERTa-v3 (~280M parámetros),
-que funciona en español e inglés desde el día uno y corre en GPU de consumo
-o CPU. La interfaz `juzgar()` es el contrato: cualquier backend futuro
-(MiniCheck para inglés, el verificador propio de la Fase 1) lo implementa
-igual y el resto del pipeline no cambia.
+MVP: multilingual textual inference (NLI) with mDeBERTa-v3 (~280M params),
+which works in Spanish and English from day one and runs on consumer GPU
+or CPU. The `juzgar()` interface is the contract: any future backend
+(MiniCheck for English, the Phase 1 in-house verifier) implements it the
+same way and the rest of the pipeline doesn't change.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ _MAPA_NLI = {
 
 
 def _resolver_modelo() -> str:
-    """Prioridad: variable de entorno > modelo entrenado local > checkpoint público."""
+    """Priority: environment variable > locally trained model > public checkpoint."""
     if entorno := os.environ.get("AIDAM_MODELO_VERIFICADOR"):
         return entorno
     local = Path(__file__).resolve().parent.parent / "modelos" / "verificador-v0"
@@ -32,17 +32,17 @@ def _resolver_modelo() -> str:
 
 
 def crear_verificador(device: str | None = None):
-    """Elige el mejor backend disponible: PyTorch (GPU/CPU) u ONNX INT8 (CPU).
+    """Picks the best available backend: PyTorch (GPU/CPU) or ONNX INT8 (CPU).
 
-    Accesibilidad primero: si torch no está instalado pero hay un modelo
-    cuantizado y onnxruntime (~50 MB), la verificación funciona igual en
-    cualquier computadora. `AIDAM_BACKEND=onnx` lo fuerza.
+    Accessibility first: if torch is not installed but a quantized model and
+    onnxruntime (~50 MB) are available, verification works the same on any
+    computer. `AIDAM_BACKEND=onnx` forces it.
     """
-    # fp32: exactitud idéntica a torch y 1.4x más rápido en CPU (por defecto
-    # sin torch). mini (int4+int8 weight-only): 319 MB y 2x más rápido a costa
-    # de −2.2 de exactitud — para máquinas con poca RAM (AIDAM_BACKEND=onnx-mini).
-    # INT8 dinámico está descartado por medición: cuantizar las activaciones
-    # de DeBERTa-v3 (outliers extremos) colapsa 88%→51%.
+    # fp32: accuracy identical to torch and 1.4x faster on CPU (default when
+    # torch is missing). mini (int4+int8 weight-only): 319 MB and 2x faster at
+    # the cost of −2.2 accuracy — for low-RAM machines (AIDAM_BACKEND=onnx-mini).
+    # Dynamic INT8 is ruled out by measurement: quantizing DeBERTa-v3
+    # activations (extreme outliers) collapses 88%→51%.
     base = Path(__file__).resolve().parent.parent / "modelos"
     forzado = os.environ.get("AIDAM_BACKEND", "").lower()
     if forzado == "onnx-mini":
@@ -60,10 +60,10 @@ def crear_verificador(device: str | None = None):
 
 
 class VerificadorONNX:
-    """Verificador INT8/ONNX: mismo contrato que VerificadorNLI, cero GPU.
+    """INT8/ONNX verifier: same contract as VerificadorNLI, zero GPU.
 
-    Cuantizado con `training/cuantizar_verificador.py`; corre con onnxruntime
-    en cualquier CPU. La eficiencia es un principio, no un extra.
+    Quantized with `training/quantize_verifier.py`; runs with onnxruntime
+    on any CPU. Efficiency is a principle, not an extra.
     """
 
     def __init__(self, ruta: str):
@@ -73,7 +73,7 @@ class VerificadorONNX:
         self.tokenizer = AutoTokenizer.from_pretrained(ruta)
         onnx_files = sorted(Path(ruta).glob("*.onnx"))
         if not onnx_files:
-            raise FileNotFoundError(f"sin modelo ONNX en {ruta}")
+            raise FileNotFoundError(f"no ONNX model in {ruta}")
         self.sesion = onnxruntime.InferenceSession(
             str(onnx_files[-1]), providers=["CPUExecutionProvider"]
         )
@@ -126,7 +126,7 @@ class VerificadorONNX:
 
 
 class VerificadorNLI:
-    """Verificador basado en NLI multilingüe: premisa=evidencia, hipótesis=hecho."""
+    """Multilingual NLI-based verifier: premise=evidence, hypothesis=fact."""
 
     MODELO = "MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7"
 
@@ -147,8 +147,8 @@ class VerificadorNLI:
             i: _MAPA_NLI[nombre.lower()]
             for i, nombre in self.modelo.config.id2label.items()
         }
-        # Temperatura de calibración (training/calibrar_verificador.py):
-        # divide los logits para que la confianza signifique frecuencia real.
+        # Calibration temperature (training/calibrate_verifier.py):
+        # divides the logits so confidence means actual frequency.
         self._temperatura = 1.0
         calibracion = Path(ruta) / "calibracion.json" if Path(ruta).is_dir() else None
         if calibracion and calibracion.exists():
@@ -157,10 +157,10 @@ class VerificadorNLI:
             self._temperatura = float(json.loads(calibracion.read_text())["temperatura"])
 
     def puntuar_entailment(self, premisa: str, hipotesis: list[str]) -> list[float]:
-        """Probabilidad de que la premisa sustente cada hipótesis.
+        """Probability that the premise supports each hypothesis.
 
-        Uso genérico de la habilidad comparativa del modelo (p. ej. el router
-        la usa para clasificar temas en zero-shot).
+        Generic use of the model's comparative skill (e.g. the router uses
+        it to classify topics zero-shot).
         """
         entradas = self.tokenizer(
             [premisa] * len(hipotesis),
@@ -183,7 +183,7 @@ class VerificadorNLI:
         evidencias: list[Evidencia],
         batch_size: int = 8,
     ) -> list[VeredictoPar]:
-        """Juzga cada par (hecho, evidencia) y devuelve etiqueta + probabilidad."""
+        """Judges each (fact, evidence) pair and returns label + probability."""
         veredictos: list[VeredictoPar] = []
         for inicio in range(0, len(evidencias), batch_size):
             lote = evidencias[inicio : inicio + batch_size]

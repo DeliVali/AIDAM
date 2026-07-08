@@ -1,17 +1,17 @@
-"""Fase 1 (v0): especializar el verificador en lógica comparativa con VitaminC.
+"""Phase 1 (v0): specialize the verifier in comparative logic with VitaminC.
 
-VitaminC (tals/vitaminc) contiene ~370k pares (afirmación, evidencia) construidos
-por contraste: ediciones mínimas de Wikipedia que voltean el veredicto. Entrenar
-con estos pares obliga al modelo a fijarse en la diferencia que importa, no en el
-parecido superficial — exactamente la habilidad núcleo de AIDAM.
+VitaminC (tals/vitaminc) contains ~370k (claim, evidence) pairs built by
+contrast: minimal Wikipedia edits that flip the verdict. Training on these
+pairs forces the model to focus on the difference that matters, not on
+surface similarity — exactly AIDAM's core skill.
 
-Partimos del checkpoint NLI multilingüe (que ya sabe español) y lo especializamos,
-reutilizando su cabeza entailment/neutral/contradiction.
+We start from the multilingual NLI checkpoint (which already knows Spanish)
+and specialize it, reusing its entailment/neutral/contradiction head.
 
-Uso:
-  python training/entrenar_verificador.py                  # entrenamiento completo
-  python training/entrenar_verificador.py --solo-evaluar   # medir sin entrenar
-  python training/entrenar_verificador.py --smoke           # prueba de 30 pasos
+Usage:
+  python training/train_verifier.py                  # full training
+  python training/train_verifier.py --solo-evaluar   # measure without training
+  python training/train_verifier.py --smoke          # 30-step sanity run
 """
 
 from __future__ import annotations
@@ -35,7 +35,7 @@ SALIDA = Path(__file__).resolve().parent.parent / "modelos" / "verificador-v0"
 MAX_LEN = 256
 SEMILLA = 42
 
-# VitaminC → etiquetas de la cabeza NLI del checkpoint
+# VitaminC → labels of the checkpoint's NLI head
 _MAPA_VITAMINC = {
     "SUPPORTS": "entailment",
     "REFUTES": "contradiction",
@@ -44,7 +44,7 @@ _MAPA_VITAMINC = {
 
 
 def _resolver_ids(modelo) -> dict[str, int]:
-    """label→id de la cabeza del checkpoint, para reutilizarla sin reiniciar."""
+    """label→id of the checkpoint's head, to reuse it without reinitializing."""
     por_nombre = {nombre.lower(): i for i, nombre in modelo.config.id2label.items()}
     return {
         vitaminc: por_nombre[nli]
@@ -74,29 +74,29 @@ def _metricas(eval_pred):
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--solo-evaluar", action="store_true")
-    parser.add_argument("--smoke", action="store_true", help="30 pasos, para validar el script")
-    parser.add_argument("--ejemplos", type=int, default=120_000, help="ejemplos de entrenamiento")
+    parser.add_argument("--smoke", action="store_true", help="30 steps, to validate the script")
+    parser.add_argument("--ejemplos", type=int, default=120_000, help="training examples")
     parser.add_argument(
         "--ejemplos-nli",
         type=int,
         default=60_000,
-        help="ejemplos de MNLI mezclados para conservar la clase neutral. Medido en "
-        "producción: entrenar solo con VitaminC (contrastivo) hace que el modelo "
-        "sobre-refute con pasajes relacionados pero no probatorios",
+        help="MNLI examples mixed in to preserve the neutral class. Measured in "
+        "production: training on VitaminC alone (contrastive) makes the model "
+        "over-refute on related but non-probative passages",
     )
-    parser.add_argument("--eval-ejemplos", type=int, default=10_000, help="ejemplos de test")
+    parser.add_argument("--eval-ejemplos", type=int, default=10_000, help="test examples")
     parser.add_argument(
         "--neutrales-dificiles",
         type=Path,
         default=Path("data/local/neutrales_dificiles.jsonl"),
-        help="pares neutrales-difíciles (training/generar_neutrales.py); "
-        "atacan el fallo medido: intros genéricas juzgadas como contradicción",
+        help="hard-neutral pairs (training/generate_neutrals.py); they attack "
+        "the measured failure: generic intros judged as contradiction",
     )
     parser.add_argument(
         "--sinteticos",
         type=Path,
         default=Path("data/local/sinteticos_mimo.jsonl"),
-        help="errores sutiles generados con MiMo (training/generar_sinteticos_llm.py)",
+        help="subtle errors generated with a local LLM (training/generate_synthetic_llm.py)",
     )
     parser.add_argument("--checkpoint", default=CHECKPOINT_BASE)
     args = parser.parse_args()
@@ -110,7 +110,7 @@ def main() -> None:
     datos = load_dataset(DATASET)
 
     def preparar(lote):
-        # Mismo orden que aidam/verify.py: premisa=evidencia, hipótesis=afirmación.
+        # Same order as aidam/verify.py: premise=evidence, hypothesis=claim.
         entradas = tokenizer(
             lote["evidence"], lote["claim"], truncation=True, max_length=MAX_LEN
         )
@@ -136,7 +136,7 @@ def main() -> None:
         por_nombre = {n.lower(): i for i, n in modelo.config.id2label.items()}
         mnli = load_dataset("nyu-mll/multi_nli", split="train").shuffle(seed=SEMILLA)
         mnli = mnli.select(range(min(args.ejemplos_nli, len(mnli))))
-        # MNLI etiqueta 0/1/2 = entailment/neutral/contradiction
+        # MNLI labels 0/1/2 = entailment/neutral/contradiction
         ids_mnli = {0: por_nombre["entailment"], 1: por_nombre["neutral"], 2: por_nombre["contradiction"]}
 
         def preparar_mnli(lote):
@@ -170,18 +170,18 @@ def main() -> None:
         output_dir=str(SALIDA.parent / "checkpoints"),
         num_train_epochs=1,
         max_steps=30 if args.smoke else -1,
-        # batch efectivo 32; DeBERTa-v3 no cabe con batch directo de 32 en 12 GB.
-        # Sin gradient checkpointing: su backward mostró inestabilidad (colapso
-        # a una clase en la corrida v1); batch 8 + acumulación 4 cabe sin él.
+        # Effective batch 32; DeBERTa-v3 doesn't fit a direct batch of 32 in 12 GB.
+        # No gradient checkpointing: its backward showed instability (collapse
+        # to one class in the v1 run); batch 8 + accumulation 4 fits without it.
         per_device_train_batch_size=8,
         gradient_accumulation_steps=4,
         per_device_eval_batch_size=32,
         learning_rate=1e-5,
         warmup_ratio=0.06,
-        bf16=True,  # DeBERTa-v3 produce NaNs con fp16; bf16 es estable
+        bf16=True,  # DeBERTa-v3 produces NaNs with fp16; bf16 is stable
         logging_steps=100,
-        # Red de seguridad contra colapso tardío: evalúa periódicamente y
-        # recupera el mejor checkpoint del camino, no el último.
+        # Safety net against late collapse: evaluate periodically and
+        # recover the best checkpoint along the way, not the last one.
         eval_strategy="no" if args.smoke else "steps",
         eval_steps=500,
         save_strategy="no" if args.smoke else "steps",
