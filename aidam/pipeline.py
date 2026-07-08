@@ -126,6 +126,31 @@ def verificar(
                 vh.veredicto = Veredicto.CONTRADICTORIO
                 vh.confianza = round(min(vh.confianza, 0.6), 3)
 
+        # NEI resolver: the aggregator has no confident signal (no passage
+        # cleared UMBRAL_SENAL, or nothing but neutral judgements) — often
+        # exactly the implicit-negation case a pairwise NLI classifier can't
+        # resolve ("X denies Y" doesn't read as textbook contradiction) but a
+        # holistic reasoner can. Measured standalone, the LLM is FAR too
+        # NEI-happy to be the primary judge (24.0% vs. the aggregator's
+        # 58.0% on AVeriTeC-100 — it defaulted 63/100 claims to NEI against
+        # 7 gold). Used only here, on cases the aggregator already couldn't
+        # decide, that same caution becomes a feature: if it still comes back
+        # with a confident answer despite its own bias toward "not enough
+        # evidence", that disagreement is real signal, not noise.
+        if generador is not None and vh.veredicto is Veredicto.INSUFICIENTE and evidencias:
+            etiqueta_llm = generador.juzgar_veredicto(
+                hecho.texto, [e.texto for e in evidencias]
+            )
+            veredicto_llm = {
+                "Supported": Veredicto.SUSTENTADO,
+                "Refuted": Veredicto.REFUTADO,
+                "Conflicting Evidence/Cherrypicking": Veredicto.CONTRADICTORIO,
+            }.get(etiqueta_llm or "")
+            if veredicto_llm is not None:
+                avisar(f"  resolutor NEI: {etiqueta_llm} (evidencia insuficiente para el NLI)")
+                vh.veredicto = veredicto_llm
+                vh.confianza = 0.5  # categorical LLM answer, not a calibrated probability
+
         veredictos_hechos.append(vh)
 
     return agregar_informe(afirmacion, veredictos_hechos)

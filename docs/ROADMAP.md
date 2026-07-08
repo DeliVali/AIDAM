@@ -396,6 +396,37 @@ verifier in Spanish.
       slightly (0.242 vs 0.308) — worth watching, not yet enough of a signal
       to act on with a 100-claim sample. This is now the recommended way to
       run the offline eval when the local LLM is available.
+- [x] **Tested: LLM as the SOLE verdict judge, replacing the NLI+aggregator
+      entirely (2026-07-08). Much worse — 24.0% vs. 58.0%.** Motivated by a
+      real, traced NLI limitation (implicit-negation denials the pairwise
+      classifier can't resolve, a reasoning model can). Built `--llm-juez`:
+      retrieve the same evidence, hand it to the LLM with reasoning allowed,
+      parse SUPPORTED/REFUTED/NOT ENOUGH EVIDENCE/CONFLICTING from the end of
+      its answer. Root cause of the collapse: the LLM defaulted to "Not
+      Enough Evidence" on **63/100** claims (gold: 7) — 40 of the 63 were
+      actually Refuted. Reading evidence directly, without the aggregator's
+      explicit reliability-weighted voting, the model is far too cautious to
+      convert convergent circumstantial signal (many independent sources
+      converging on the same conclusion, none stating it in one flat
+      declarative sentence) into a confident verdict — exactly the job the
+      aggregator's math already does well. Not promoted; kept only as an
+      opt-in eval mode for comparison.
+- [x] **Built instead: LLM as a targeted NEI resolver, not a replacement
+      (2026-07-08). Flat on this 100-claim sample (58.0%→58.0%), architecture
+      kept.** The standalone judge's own NEI-bias, reframed: consult it ONLY
+      on facts the aggregator itself couldn't decide (`Veredicto.INSUFICIENTE`)
+      — if it still returns something confident despite that bias, that
+      disagreement is real signal, not noise. `verificar()` now does this
+      automatically whenever `preguntas=True` (the LLM's already loaded for
+      question generation; no extra cost when it doesn't fire). Measured
+      effect: nearly identical confusion matrix to question-driven search
+      alone (only one claim flipped, Supported NEI→correct) — the aggregator
+      + question-driven search combination already resolves almost every
+      claim with SOME confident signal, leaving very few genuine INSUFICIENTE
+      cases for the resolver to act on in a 100-claim sample. Kept (harmless,
+      architecturally sound, doesn't regress) rather than reverted like MMR;
+      may matter more on the full 500-claim dev set or a different claim mix
+      with more genuine evidence gaps.
 - [ ] Temporal handling: volatile vs. stable facts
 - [ ] Active search for contrary evidence (anti-confirmation bias)
 
