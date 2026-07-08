@@ -113,13 +113,27 @@ def main() -> None:
         "--preguntas, the LLM's sub-questions also search this same per-claim store "
         "instead of live web (no live search happens at all).",
     )
+    parser.add_argument(
+        "--llm-juez", action="store_true",
+        help="LLM-as-judge: skip the NLI verifier + aggregator, let the local LLM read the "
+        "retrieved evidence directly and classify the claim. Requires --knowledge-store. "
+        "Motivated by a traced NLI-specific gap (implicit-negation denials the small "
+        "classifier can't resolve pair-by-pair, but a reasoning model can read holistically).",
+    )
     args = parser.parse_args()
+    if args.llm_juez and not args.knowledge_store:
+        parser.error("--llm-juez requires --knowledge-store")
 
     datos = _cargar_dev()[: args.limite]
     previos = _cargar_previos(args.salida)
     print(f"[eval] {len(datos)} afirmaciones; {len(previos)} ya evaluadas (se retoman)")
 
-    verificador = VerificadorNLI()
+    verificador = None if args.llm_juez else VerificadorNLI()
+    generador = None
+    if args.llm_juez or args.preguntas:
+        from aidam.pipeline import _generador_preguntas
+
+        generador = _generador_preguntas()
     args.salida.parent.mkdir(parents=True, exist_ok=True)
 
     with args.salida.open("a") as salida:
@@ -140,18 +154,29 @@ def main() -> None:
                         buscador_preguntas = lambda p: recuperador(  # noqa: E731
                             HechoAtomico(texto=p, origen=p), lang="en"
                         )
-                informe = verificar(
-                    ejemplo["claim"],
-                    lang="en",
-                    max_idiomas=args.max_idiomas,
-                    preguntas=args.preguntas,
-                    verificador=verificador,
-                    recuperador=recuperador,
-                    buscador_preguntas=buscador_preguntas,
-                )
-                prediccion = A_AVERITEC[informe.veredicto.value]
-                confianza = informe.confianza
-                voces = sum(len(h.a_favor) + len(h.en_contra) for h in informe.hechos)
+
+                if args.llm_juez:
+                    from aidam.models import HechoAtomico
+
+                    evidencias = recuperador(HechoAtomico(texto=ejemplo["claim"], origen=""), lang="en")
+                    etiqueta = generador.juzgar_veredicto(
+                        ejemplo["claim"], [e.texto for e in evidencias]
+                    ) if generador else None
+                    prediccion = etiqueta or "Not Enough Evidence"
+                    confianza, voces = 0.0, len(evidencias)
+                else:
+                    informe = verificar(
+                        ejemplo["claim"],
+                        lang="en",
+                        max_idiomas=args.max_idiomas,
+                        preguntas=args.preguntas,
+                        verificador=verificador,
+                        recuperador=recuperador,
+                        buscador_preguntas=buscador_preguntas,
+                    )
+                    prediccion = A_AVERITEC[informe.veredicto.value]
+                    confianza = informe.confianza
+                    voces = sum(len(h.a_favor) + len(h.en_contra) for h in informe.hechos)
             except Exception as error:  # one failed claim doesn't kill the run
                 prediccion, confianza, voces = "ERROR", 0.0, 0
                 print(f"[eval] #{indice} error: {error}")

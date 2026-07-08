@@ -32,6 +32,27 @@ def _parsear_omision(texto: str) -> str | None:
     return None
 
 
+_ETIQUETAS_VEREDICTO = {
+    "SUPPORTED": "Supported",
+    "REFUTED": "Refuted",
+    "NOT ENOUGH EVIDENCE": "Not Enough Evidence",
+    "CONFLICTING": "Conflicting Evidence/Cherrypicking",
+}
+
+
+def _parsear_veredicto_llm(texto: str) -> str | None:
+    """The LAST label mentioned is the answer — reasoning before it is fine,
+    a change of mind at the end should win (same rule as the no-retrieval
+    baseline's parser, evaluation/eval_baseline_llm.py)."""
+    texto = _BLOQUE_PENSAMIENTO.sub("", texto).upper()
+    encontrada = None
+    for etiqueta, clase in _ETIQUETAS_VEREDICTO.items():
+        posicion = texto.rfind(etiqueta)
+        if posicion >= 0 and (encontrada is None or posicion > encontrada[0]):
+            encontrada = (posicion, clase)
+    return encontrada[1] if encontrada else None
+
+
 def _extraer_preguntas(texto: str, n: int) -> list[str]:
     """Extracts the questions from the model output (which may carry <think>
     reasoning blocks and numbering)."""
@@ -239,3 +260,39 @@ class GeneradorPreguntas:
             "Answer with exactly one word: COMPLETE or MISLEADING."
         )
         return _parsear_omision(self._responder(prompt, max_tokens=12, temperature=0.0))
+
+    def juzgar_veredicto(self, afirmacion: str, evidencias: list[str]) -> str | None:
+        """LLM-as-judge: reads the retrieved evidence directly and classifies
+        the claim, instead of the small NLI verifier's single (premise,
+        hypothesis) entailment call per passage.
+
+        Motivated by a traced, NLI-specific failure (AVeriTeC offline eval,
+        2026-07-08): passages carrying an implicit denial ("X said he will
+        take legal action after reports claimed Y") were classified NEUTRAL
+        by the NLI verifier — it isn't built to resolve meta-level negation.
+        A reasoning LLM, reading the passage directly rather than through a
+        3-way entailment lens, is structurally better suited to exactly this
+        failure mode. Reasoning is deliberately ALLOWED here (no empty-think
+        prefill, unlike `_responder`'s other callers) — this is a genuine
+        reasoning-over-evidence task, not a fast lookup.
+        """
+        if not evidencias:
+            return None
+        lineas = "\n".join(f"- {e[:400]}" for e in evidencias[:8])
+        prompt = (
+            "You are a fact-checker. Based ONLY on the evidence below (not "
+            "your own knowledge), classify this claim as exactly one of: "
+            "SUPPORTED, REFUTED, NOT ENOUGH EVIDENCE, or CONFLICTING "
+            "(credible evidence on both sides).\n"
+            f"Claim: {afirmacion}\n"
+            f"Evidence:\n{lineas}\n"
+            "Watch for evidence that reports a claim only to deny or debunk "
+            "it — that REFUTES the claim, it doesn't support it. "
+            "End your answer with just the label."
+        )
+        plantilla = f"<|im_start|>user\n{prompt}<|im_end|>\n<|im_start|>assistant\n"
+        # Measured: 500 tokens wasn't enough for the reasoning trace to reach
+        # a conclusion — the model correctly worked through the evidence but
+        # got cut off before emitting the label. 1200 gives it room to finish.
+        respuesta = self.completar(plantilla, max_tokens=1200, temperature=0.0, stop=["<|im_end|>"])
+        return _parsear_veredicto_llm(respuesta)

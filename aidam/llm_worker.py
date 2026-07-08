@@ -34,7 +34,7 @@ def main() -> None:
         return
     llm = Llama(
         model_path=ruta,
-        n_ctx=2048,
+        n_ctx=int(os.environ.get("AIDAM_MIMO_N_CTX", "4096")),
         n_gpu_layers=int(os.environ.get("AIDAM_MIMO_GPU_LAYERS", "-1")),
         verbose=False,
     )

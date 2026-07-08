@@ -426,6 +426,16 @@ objective: **code**.
       correctness
 - [ ] Anchored writing: all generated text passes through Module 3 before delivery
 - [ ] Images: orchestrate local FLUX.2 Klein / Z-Image Turbo + prompt-adherence score
+- [ ] **Design principle (2026-07-08, not yet buildable — no generation module
+      exists yet): ask, don't guess, when a request is genuinely unanswerable
+      without missing context — brief and conversational, never a form.**
+      Example: "give me code for iterating arrays" needs a language; a vague
+      fact-check claim ("the president signed the bill") may need a country
+      or date. The bar is *unanswerable without it*, not merely *improvable
+      with it* — if a reasonable default exists, generate against the
+      default rather than asking. This applies system-wide (fact-checking's
+      interactive CLI mode included, not just generation) and should be
+      designed in from day one of Phase 4 rather than retrofitted later.
 
 **Success criterion:** on a set of code tasks with tests, AIDAM (small generator +
 verifier) matches a frontier assistant's success rate at <10% of the cost per solved
