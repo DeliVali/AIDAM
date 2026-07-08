@@ -110,6 +110,11 @@ def main() -> None:
         "--salida", type=Path, default=SALIDA,
         help="output dir (default models/verificador-v0)",
     )
+    parser.add_argument(
+        "--epocas", type=float, default=1.0,
+        help="training epochs (v0-v5 all used 1; single-epoch NLI fine-tunes "
+        "are typically under-converged)",
+    )
     args = parser.parse_args()
 
     print(f"[entrenar] checkpoint: {args.checkpoint}")
@@ -180,7 +185,7 @@ def main() -> None:
 
     argumentos = TrainingArguments(
         output_dir=str(args.salida.parent / "checkpoints"),
-        num_train_epochs=1,
+        num_train_epochs=args.epocas,
         max_steps=30 if args.smoke else -1,
         # Effective batch 32; DeBERTa-v3 doesn't fit a direct batch of 32 in 12 GB.
         # No gradient checkpointing: its backward showed instability (collapse

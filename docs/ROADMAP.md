@@ -190,6 +190,35 @@ verifier in Spanish.
         the session. Next step: either an authenticated/paid search API for
         eval runs, or spacing full AVeriTeC-100 runs hours apart to let
         reputation reset, before trusting a live AVeriTeC number again.
+- [x] **Verifier v6 promoted (2026-07-08): +2 epochs closes real headroom, now
+      `models/verificador-v0`.** v0-v5 all trained a single epoch; that was
+      under-converged. v6 = v3's exact recipe (VitaminC + MNLI + hard neutrals
+      + synthetic, no AVeriTeC pairs) for 2 epochs instead of 1. Result on the
+      three network-independent benchmarks (the fair comparison, since AVeriTeC-
+      live was contaminated by the retrieval exhaustion below): **VitaminC test
+      88.52% (v3: 87.76%, +0.76), LLM-AggreFact 66.2% (v3: 66.2%, tied), XNLI-es
+      99.5% (v3: 99.7%, tied within noise — both readings contaminated, the
+      base checkpoint saw XNLI in pretraining)**. A real, if modest, all-around
+      improvement with no regression on any clean metric — promoted; old v0
+      archived at `models/verificador-v0-1epoch-archivado`.
+- [x] **Search-substrate exhaustion is cumulative across a SESSION, and gets
+      WORSE the more you test it (2026-07-08) — critical operational finding.**
+      Five consecutive live AVeriTeC-100 attempts within one extended session,
+      in order: 45% (v9, healthy network) → 41% (v4) → 38% (v5) → 39% (v5,
+      retry after a cooldown-logic fix) → **22% (v6, worst yet)**. Evidence per
+      claim (voces) fell in lockstep: ~2.1 → ~2.0 → ~1.9 → **0.95, with 66/100
+      claims at literally zero evidence** on the last run. This is NOT primarily
+      about verifier quality — v6 is the best verifier of the five by every
+      clean benchmark, yet scored the worst live number, because each
+      successive eval run further exhausts the same shared, cumulative
+      resource (the free search engines' tolerance for this IP) rather than
+      testing under comparable conditions. **Operational rule going forward:
+      do not run more than one full AVeriTeC-100 live eval per session; space
+      repeated live evals hours-to-days apart; treat a live AVeriTeC number as
+      informative only if it's the FIRST live-search-heavy activity of the
+      session.** A same-session live-AVeriTeC "A/B" between two verifiers is
+      not a valid comparison — the second run is always structurally
+      disadvantaged regardless of which model is better.
 - [ ] Temporal handling: volatile vs. stable facts
 - [ ] Active search for contrary evidence (anti-confirmation bias)
 
