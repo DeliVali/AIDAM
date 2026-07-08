@@ -186,19 +186,33 @@ def test_cache_de_busquedas_ida_y_vuelta(tmp_path, monkeypatch):
 
 
 def test_enfriamiento_de_motores(monkeypatch):
-    """Three consecutive failures rest an engine; one success resets the count."""
+    """Three consecutive ENGINE failures (rate limit/timeout) rest it;
+    a success resets the count."""
     from aidam import retrieve
 
     monkeypatch.setattr(retrieve, "_fallos_seguidos", {})
     monkeypatch.setattr(retrieve, "_enfriado_hasta", {})
-    retrieve._registrar_resultado("bing", exito=False)
-    retrieve._registrar_resultado("bing", exito=False)
+    retrieve._registrar_resultado("bing", fallo_motor=True)
+    retrieve._registrar_resultado("bing", fallo_motor=True)
     assert retrieve._backend_disponible("bing")  # two failures: still in play
-    retrieve._registrar_resultado("bing", exito=True)  # success resets
-    retrieve._registrar_resultado("bing", exito=False)
-    retrieve._registrar_resultado("bing", exito=False)
-    retrieve._registrar_resultado("bing", exito=False)
+    retrieve._registrar_resultado("bing", fallo_motor=False)  # success resets
+    retrieve._registrar_resultado("bing", fallo_motor=True)
+    retrieve._registrar_resultado("bing", fallo_motor=True)
+    retrieve._registrar_resultado("bing", fallo_motor=True)
     assert not retrieve._backend_disponible("bing")  # third in a row: cooling
+
+
+def test_sin_resultados_no_enfria_el_motor(monkeypatch):
+    """A query with legitimately zero results must NOT count as an engine
+    failure — conflating the two starved the second half of an eval
+    (measured: voces 2.76→1.52 first vs second half of a 100-claim run)."""
+    from aidam import retrieve
+
+    monkeypatch.setattr(retrieve, "_fallos_seguidos", {})
+    monkeypatch.setattr(retrieve, "_enfriado_hasta", {})
+    for _ in range(5):
+        retrieve._registrar_resultado("bing", fallo_motor=False)
+    assert retrieve._backend_disponible("bing")
 
 def test_wikiquote_pesa_como_enciclopedia():
     from aidam.aggregate import PESO_ENCICLOPEDIA, peso_fuente

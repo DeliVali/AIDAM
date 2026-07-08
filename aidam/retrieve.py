@@ -333,13 +333,16 @@ def _backend_disponible(backend: str) -> bool:
     return time.time() >= _enfriado_hasta.get(backend, 0.0)
 
 
-def _registrar_resultado(backend: str, exito: bool) -> None:
-    """Cooldown bookkeeping: N consecutive failures rest the engine a while.
+def _registrar_resultado(backend: str, fallo_motor: bool) -> None:
+    """Cooldown bookkeeping: N consecutive engine-level failures rest it.
 
-    One empty result can be a legitimately rare query; three in a row is the
-    profile of an engine that started refusing us.
+    Only rate limits and timeouts count — a query that legitimately has no
+    results is not the engine's fault. Conflating the two was the bug: three
+    genuinely rare AVeriTeC-claim queries in a row could cool down bing, then
+    yahoo, cascading into a starved back half of an eval (measured: voces
+    dropped 2.76→1.52 first-half vs second-half on a 100-claim run).
     """
-    if exito:
+    if not fallo_motor:
         _fallos_seguidos[backend] = 0
         return
     _fallos_seguidos[backend] = _fallos_seguidos.get(backend, 0) + 1
@@ -351,6 +354,7 @@ def _registrar_resultado(backend: str, exito: bool) -> None:
 def _buscar_ddg(consulta: str, max_resultados: int) -> list[dict]:
     try:
         from ddgs import DDGS
+        from ddgs.exceptions import RatelimitException, TimeoutException
     except ImportError:
         return []
     clave = f"{consulta}|{max_resultados}"
@@ -360,13 +364,16 @@ def _buscar_ddg(consulta: str, max_resultados: int) -> list[dict]:
         if not _backend_disponible(backend):
             continue
         _esperar_turno()
+        fallo_motor = False
         try:
             hits = list(
                 DDGS(timeout=6).text(consulta, max_results=max_resultados, backend=backend)
             )
+        except (RatelimitException, TimeoutException):
+            hits, fallo_motor = [], True
         except Exception:
-            hits = []
-        _registrar_resultado(backend, bool(hits))
+            hits = []  # e.g. "no results": not an engine failure
+        _registrar_resultado(backend, fallo_motor)
         if hits:
             _cache_guardar(clave, hits)
             return hits
