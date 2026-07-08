@@ -133,6 +133,18 @@ verifier in Spanish.
       the myth, not asserting it — their support is discounted.
       **AVeriTeC-100: 44% → 45%, Refuted F1 0.627** (series:
       30→31→37→39→41→44→45).
+- [x] **Search-engine rotation (2026-07-07)**: after a day of evaluations,
+      DuckDuckGo blocked the machine (73/100 claims with zero evidence, 17%
+      accuracy — a retrieval failure, not a reasoning one). `_buscar_ddg` now
+      rotates duckduckgo → bing → yahoo; no single engine is a point of failure.
+- [ ] **Question-generator A/B (MiMo-7B-RL vs DeepSeek-R1-0528-Qwen3-8B) —
+      pending, first attempt invalid (2026-07-07)**: the DeepSeek run scored 16%
+      with 75/100 claims at zero evidence voices — during the run every engine
+      (including Bing/Yahoo fallbacks) rate-limited the machine's IP, so the
+      number measures the starved network, not the brain. MiMo stays as the
+      default (`models/mimo/`, the measured 45%); DeepSeek remains selectable
+      via `AIDAM_MODELO_PREGUNTAS`. Re-run when the IP cools down, ideally with
+      cached or paced retrieval so the A/B isolates the model.
 - [ ] Temporal handling: volatile vs. stable facts
 - [ ] Active search for contrary evidence (anti-confirmation bias)
 
