@@ -355,7 +355,20 @@ def _registrar_resultado(backend: str, fallo_motor: bool) -> None:
         _fallos_seguidos[backend] = 0
 
 
+def _ddg_deshabilitado() -> bool:
+    """Kill switch for every ddgs-backed path (web, desmentidos,
+    docs-certificadas, and LLM-question search — all fan out through
+    `_buscar_ddg`). For when the shared search-engine budget is known to be
+    exhausted (measured 2026-07-08: session-cumulative throttling degraded
+    5 consecutive AVeriTeC-100 runs 45%→22%) and the fallback is to lean
+    entirely on sources with their own, unshared rate limits: Wikipedia
+    family, academic APIs, StackExchange, GDELT."""
+    return os.environ.get("AIDAM_SIN_DDG") == "1"
+
+
 def _buscar_ddg(consulta: str, max_resultados: int) -> list[dict]:
+    if _ddg_deshabilitado():
+        return []
     try:
         from ddgs import DDGS
     except ImportError:

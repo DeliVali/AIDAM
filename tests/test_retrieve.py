@@ -226,3 +226,12 @@ def test_wikiquote_pesa_como_enciclopedia():
         idioma="en",
     )
     assert peso_fuente(cita) == PESO_ENCICLOPEDIA
+
+
+def test_ddg_deshabilitado_devuelve_vacio(monkeypatch):
+    """AIDAM_SIN_DDG=1 short-circuits every ddgs-backed path without touching
+    the network — the fallback mode when the shared search budget is exhausted."""
+    from aidam import retrieve
+
+    monkeypatch.setenv("AIDAM_SIN_DDG", "1")
+    assert retrieve._buscar_ddg("cualquier consulta", 5) == []
