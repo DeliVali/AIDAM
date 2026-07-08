@@ -352,11 +352,29 @@ verifier in Spanish.
       Evidence recall over Supported precision). Kept **25** as the default:
       accuracy has been this project's headline metric throughout, and 25 is
       cheap enough that a real deployment could reasonably go higher still.
-      **56.0% is now the session's best number, and likely undersells the
-      real ceiling** — a proper MMR-style diversity rerank (penalize
-      near-duplicate passages instead of just raising the flat cap) or
-      per-sub-fact retrieval on compound claims would very plausibly beat
-      flat-cap tuning further; not attempted this session, next-cycle item.
+      **56.0% remains the session's best number.**
+- [x] **Tested and reverted: MMR-style diversity reranking (2026-07-08).**
+      The natural next idea after the sweep above — instead of a flat top-K
+      by relevance, greedily diversify the selection (Jaccard similarity over
+      content words, standard Maximal Marginal Relevance) so near-duplicate
+      paraphrases can't crowd out a rarer decisive detail. Implemented,
+      verified it DID work as intended (claim #2 went from a handful of
+      near-duplicate domains to 20 distinct ones, and surfaced a
+      visa-cancellation passage the flat cap missed) — then measured **worse
+      overall: 52.0% vs. the flat cap's 56.0%, F1 macro 0.266 vs. 0.345**
+      (Conflicting Evidence F1 collapsed to 0.000). Best-guess reason:
+      independent domains repeating the SAME correct fact is real
+      corroborating signal for this project's reliability-weighted
+      aggregator — `aidam/aggregate.py`'s one-voice-per-domain rule already
+      prevents them from over-counting, so diversifying past that traded
+      away genuine multi-source confirmation for topical spread that turned
+      out to include more off-target noise than decisive detail. Reverted;
+      the mechanism (`_seleccionar_diverso` in
+      `evaluation/knowledge_store.py`) is documented in the function's own
+      history, not left as unused code. A more targeted version — diversify
+      only among near-identical candidates, not the whole shortlist, or
+      split compound claims into sub-facts and retrieve each independently —
+      might still work; this specific implementation didn't.
 - [ ] Temporal handling: volatile vs. stable facts
 - [ ] Active search for contrary evidence (anti-confirmation bias)
 

@@ -96,7 +96,18 @@ def crear_recuperador_offline(indice: int, ruta_dir: Path, max_pasajes: int = 25
     """Builds a `(hecho, lang, max_idiomas, categoria) -> list[Evidencia]`
     callable — same shape as `aidam.retrieve.recuperar` — over one claim's
     pre-scraped documents, lexically ranked (same `_relevancia` scoring the
-    live pipeline already uses for passage selection within a page)."""
+    live pipeline already uses for passage selection within a page).
+
+    Tried and reverted: MMR-style diversity reranking (penalize near-duplicate
+    passages instead of a flat top-K), hypothesized after tracing a claim
+    where six near-identical paraphrases crowded a decisive rarer detail out
+    of the top 12. Measured worse, not better: 52.0% vs. this flat cap's
+    56.0%, F1 macro 0.266 vs. 0.345 — most likely because independent domains
+    repeating the SAME correct fact is real corroborating signal for this
+    project's reliability-weighted aggregator (`aidam/aggregate.py`'s
+    one-voice-per-domain rule already prevents them from over-counting),
+    not redundant noise worth trading away for topical spread.
+    """
     documentos = _cargar_documentos(ruta_dir / f"{indice}.json")
 
     def _buscar(hecho: HechoAtomico, lang: str = "", max_idiomas: int = 0, categoria=None):
