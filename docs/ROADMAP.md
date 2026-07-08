@@ -219,6 +219,17 @@ verifier in Spanish.
       session.** A same-session live-AVeriTeC "A/B" between two verifiers is
       not a valid comparison — the second run is always structurally
       disadvantaged regardless of which model is better.
+      **Update, same day**: waiting doesn't rescue this either. A fresh
+      health probe after an hour-plus of unrelated work showed full recovery
+      (15/15 distinct fresh queries succeeded, real network latency, not
+      cache); a full AVeriTeC-100 launched immediately after still landed at
+      **22.0%, matching the already-exhausted v6 run almost exactly**, with
+      voces degrading from the healthy start down to 1.1-1.2 well before the
+      run finished. **The exhaustion threshold is reached WITHIN a single
+      ~100-claim run, not just across runs** — so "start from a healthy
+      network" doesn't help if the eval itself is long enough to re-exhaust
+      it. The only real fix is removing the live-search dependency for
+      evaluation, which is what the knowledge-store integration below does.
 - [x] **New keyless sources (2026-07-08): Wikidata, openFDA,
       ClinicalTrials.gov.** Wikidata renders structured facts (dates,
       positions held, populations) precision-aware (a year-only fact
@@ -242,8 +253,49 @@ verifier in Spanish.
       throttled is strictly worse than keeping it. The kill switch itself is
       kept (`aidam/retrieve.py::_ddg_deshabilitado`, tests included) since
       it's a legitimate tool for other claim styles or a fully-dead network,
-      but it is NOT the fix for this specific exhaustion problem — the fix
-      is still "wait for reputation to reset" or "pay for a search API."
+      but it is NOT the fix for this specific exhaustion problem. (Later the
+      same day: waiting for reputation to reset turned out not to be the fix
+      either — see the update above. The knowledge-store integration below is.)
+- [x] **Tested and rejected: public SearXNG instances (2026-07-08).** SearXNG
+      is open source and instances are keyless, so it looked like a natural
+      way to diversify away from the specific ddgs backends we'd exhausted.
+      Six public instances tested live: every one either rate-limited
+      immediately (429, likely from other users' global traffic) or has its
+      JSON API disabled for anonymous/external callers — a deliberate admin
+      choice specifically to prevent the kind of automated querying we do.
+      Not viable as a search-diversity lever.
+- [x] **The official AVeriTeC "score" is a different, stricter metric than
+      what this project measures — correcting a conflation (2026-07-08).**
+      `evaluation/eval_averitec.py` computes plain label accuracy (does the
+      predicted class match gold). The shared task's own "AVeriTeC score"
+      only counts a claim correct if the label ALSO comes with evidence
+      scoring ≥0.44 Ev2R recall against gold evidence (graded by an LLM) —
+      much stricter. Concretely, from the HerO paper: **label accuracy
+      0.752, AVeriTeC score 0.578** — same system, same run, very different
+      numbers depending which one you read off a leaderboard. Confirms the
+      90% ceiling either way: 75.2% is the best published *label accuracy*
+      we found (HerO); the stricter score runs lower still (winning team:
+      33.17% in the 2025 shared task). Sources: HerO paper
+      (arxiv.org/html/2410.12377v2), 2nd AVeriTeC Shared Task overview
+      (aclanthology.org/2025.fever-1.15/).
+- [x] **Open-source reference systems worth reading for technique ideas**:
+      [HerO](https://github.com/ssu-humane/HerO) (runner-up 2025, open-LLM
+      pipeline, closest in spirit to AIDAM's design) and
+      [CTU AIC](https://github.com/aic-factcheck/aic_averitec) (winner 2025,
+      "fact-checking as simple RAG"). Not yet read in depth this session —
+      next-cycle task.
+- [x] **Offline evaluation via the organizers' knowledge store (2026-07-08).**
+      The shared task publishes a pre-scraped document collection per claim
+      (`huggingface.co/chenxwh/AVeriTeC`, gated behind a free HF account —
+      Jeffrey's existing token already has access) specifically so systems
+      don't need live search. `evaluation/knowledge_store.py` +
+      `aidam/pipeline.py`'s new `recuperador` seam wire it into
+      `eval_averitec.py --knowledge-store DIR`. This is the real fix for
+      every exhaustion finding above — no amount of pacing, backend
+      rotation, or waiting helps when the eval itself is the thing
+      exhausting the resource; removing the live-search dependency for
+      evaluation does. Dev-split archive (11.5 GB) downloading; first clean
+      offline run pending as of this entry.
 - [ ] Temporal handling: volatile vs. stable facts
 - [ ] Active search for contrary evidence (anti-confirmation bias)
 
