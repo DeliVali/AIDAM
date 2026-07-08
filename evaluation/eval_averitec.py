@@ -109,13 +109,11 @@ def main() -> None:
         "--knowledge-store", type=Path, default=None,
         help="dir of extracted {indice}.json claim files (evaluation/knowledge_store.py "
         "--extraer) — evidence comes from the AVeriTeC organizers' offline store instead "
-        "of live search: reproducible, immune to search-engine throttling. Disables "
-        "--preguntas (its search calls are still live).",
+        "of live search: reproducible, immune to search-engine throttling. With "
+        "--preguntas, the LLM's sub-questions also search this same per-claim store "
+        "instead of live web (no live search happens at all).",
     )
     args = parser.parse_args()
-
-    if args.knowledge_store and args.preguntas:
-        parser.error("--knowledge-store and --preguntas are mutually exclusive")
 
     datos = _cargar_dev()[: args.limite]
     previos = _cargar_previos(args.salida)
@@ -131,10 +129,17 @@ def main() -> None:
             inicio = time.time()
             try:
                 recuperador = None
+                buscador_preguntas = None
                 if args.knowledge_store:
                     from evaluation.knowledge_store import crear_recuperador_offline
 
                     recuperador = crear_recuperador_offline(indice, args.knowledge_store)
+                    if args.preguntas:
+                        from aidam.models import HechoAtomico
+
+                        buscador_preguntas = lambda p: recuperador(  # noqa: E731
+                            HechoAtomico(texto=p, origen=p), lang="en"
+                        )
                 informe = verificar(
                     ejemplo["claim"],
                     lang="en",
@@ -142,6 +147,7 @@ def main() -> None:
                     preguntas=args.preguntas,
                     verificador=verificador,
                     recuperador=recuperador,
+                    buscador_preguntas=buscador_preguntas,
                 )
                 prediccion = A_AVERITEC[informe.veredicto.value]
                 confianza = informe.confianza

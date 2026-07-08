@@ -375,6 +375,27 @@ verifier in Spanish.
       only among near-identical candidates, not the whole shortlist, or
       split compound claims into sub-facts and retrieve each independently —
       might still work; this specific implementation didn't.
+- [x] **Offline question-driven search: 58.0%, new best (2026-07-08).** MMR
+      diversified WITHIN one query's results and lost to genuine
+      corroboration; this instead changes the QUERY — the split-compound-
+      claims idea flagged above, using the machinery already built for
+      `--preguntas` rather than new code. `aidam/pipeline.py::verificar()`
+      gained a `buscador_preguntas` seam (mirrors `recuperador`, same
+      non-invasive pattern) so the LLM's follow-up sub-questions can search
+      anywhere, not just live `buscar_web`. `eval_averitec.py --knowledge-store
+      --preguntas` now points them at the SAME per-claim offline store,
+      wrapping each sub-question as its own query — no live search at all,
+      still fully reproducible. Claim #2 ("Khan criticized Macron" +
+      "France cancelled visas") is the motivating case: the LLM generates a
+      sub-question aimed at the specific visa detail, searched independently
+      of the dominant "Khan criticized Macron" term frequency that was
+      crowding it out. Result: **58.0% accuracy, F1 macro 0.368** (vs. the
+      flat-cap-only 56.0%/0.345) — Conflicting Evidence F1 0.250 (up from
+      0.133), Not Enough Evidence F1 0.235 (up from 0.182), at 9.1s/claim
+      (LLM generation cost, still no network wait). Supported F1 dipped
+      slightly (0.242 vs 0.308) — worth watching, not yet enough of a signal
+      to act on with a 100-claim sample. This is now the recommended way to
+      run the offline eval when the local LLM is available.
 - [ ] Temporal handling: volatile vs. stable facts
 - [ ] Active search for contrary evidence (anti-confirmation bias)
 

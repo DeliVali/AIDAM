@@ -37,6 +37,7 @@ def verificar(
     verificador=None,
     progreso: Callable[[str], None] | None = None,
     recuperador: Callable[..., list] | None = None,
+    buscador_preguntas: Callable[[str], list] | None = None,
 ) -> Informe:
     """Verifies a claim end to end and returns the report.
 
@@ -49,6 +50,13 @@ def verificar(
     `evaluation/knowledge_store.py` uses to swap in the AVeriTeC organizers'
     offline knowledge store, so a reproducible eval never depends on live
     search staying healthy.
+
+    `buscador_preguntas` accepts any `(pregunta: str) -> list[Evidencia]`
+    callable, used for the LLM-generated follow-up questions when `preguntas`
+    is set. Defaults to live `buscar_web`; the offline knowledge-store eval
+    overrides it to re-query the SAME per-claim document set with the more
+    targeted sub-question instead of the whole (possibly compound) claim —
+    the same mechanism `recuperador` uses, applied per generated question.
     """
     avisar = progreso or (lambda _mensaje: None)
     buscar = recuperador or recuperar
@@ -78,13 +86,17 @@ def verificar(
         evidencias = buscar(hecho, lang=lang, max_idiomas=max_idiomas, categoria=categoria)
 
         if generador is not None:
-            from .retrieve import buscar_web
+            buscar_pregunta = buscador_preguntas
+            if buscar_pregunta is None:
+                from .retrieve import buscar_web
+
+                buscar_pregunta = lambda p: buscar_web(  # noqa: E731
+                    p, max_resultados=4, lang=lang, paginas_completas=1
+                )
 
             for pregunta in generador.preguntas(hecho.texto, n=2, lang=lang):
                 avisar(f"  pregunta de búsqueda: «{pregunta[:70]}»")
-                evidencias.extend(
-                    buscar_web(pregunta, max_resultados=4, lang=lang, paginas_completas=1)
-                )
+                evidencias.extend(buscar_pregunta(pregunta))
         idiomas = sorted({e.idioma for e in evidencias if e.idioma})
         avisar(
             f"  {len(evidencias)} pasajes de {len({e.dominio for e in evidencias})} dominios"
