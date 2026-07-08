@@ -17,7 +17,7 @@ import os
 import re
 from pathlib import Path
 
-_RUTA_DEFECTO = Path(__file__).resolve().parent.parent / "modelos" / "mimo" / "MiMo-7B-RL-Q4_K_M.gguf"
+_RUTA_DEFECTO = Path(__file__).resolve().parent.parent / "models" / "mimo" / "MiMo-7B-RL-Q4_K_M.gguf"
 _BLOQUE_PENSAMIENTO = re.compile(r"<think>.*?(</think>|$)", re.DOTALL)
 _NUMERACION = re.compile(r"^\s*(?:[-*•]|\d+[.)])\s*")
 
@@ -91,7 +91,7 @@ def ruta_modelo() -> Path | None:
 class GeneradorPreguntas:
     """Client of the local LLM running in an isolated worker.
 
-    llama.cpp lives in its own process (`aidam.mimo_worker`): if it corrupts
+    llama.cpp lives in its own process (`aidam.llm_worker`): if it corrupts
     memory — measured while cohabiting with PyTorch — the worker dies, not
     the verification, and this client restarts it on the next call.
     """
@@ -104,7 +104,7 @@ class GeneradorPreguntas:
         if ruta is None:
             raise FileNotFoundError(
                 "No hay modelo generador de preguntas; descarga MiMo-7B-RL GGUF "
-                "a modelos/mimo/ o define AIDAM_MODELO_PREGUNTAS"
+                "a models/mimo/ o define AIDAM_MODELO_PREGUNTAS"
             )
         self._ruta = ruta
         self._n_gpu_layers = n_gpu_layers
@@ -120,7 +120,7 @@ class GeneradorPreguntas:
         entorno["AIDAM_MODELO_PREGUNTAS"] = str(self._ruta)
         entorno["AIDAM_MIMO_GPU_LAYERS"] = str(self._n_gpu_layers)
         self._proceso = subprocess.Popen(
-            [sys.executable, "-m", "aidam.mimo_worker"],
+            [sys.executable, "-m", "aidam.llm_worker"],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,

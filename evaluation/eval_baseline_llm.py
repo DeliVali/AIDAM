@@ -18,8 +18,8 @@ import re
 import time
 from pathlib import Path
 
-from aidam.preguntas import GeneradorPreguntas, _BLOQUE_PENSAMIENTO
-from evaluacion.eval_averitec import A_AVERITEC, _cargar_dev, _cargar_previos, _reporte
+from aidam.questions import GeneradorPreguntas, _BLOQUE_PENSAMIENTO
+from evaluation.eval_averitec import A_AVERITEC, _cargar_dev, _cargar_previos, _reporte
 
 RUTA_RESULTADOS = Path("data/local/averitec_baseline_llm.jsonl")
 

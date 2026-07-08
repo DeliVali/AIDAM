@@ -14,8 +14,8 @@ Measured recipe (2026-07-06), in order of what worked and what didn't:
 and 80 → 39 ms/pair on CPU (2x faster than fp32/ONNX, ~3x than PyTorch CPU).
 
 Produces two artifacts:
-  modelos/verificador-onnx       (fp32: full accuracy, CPU default)
-  modelos/verificador-onnx-mini  (int4+int8: low-RAM machines;
+  models/verificador-onnx       (fp32: full accuracy, CPU default)
+  models/verificador-onnx-mini  (int4+int8: low-RAM machines;
                                   AIDAM_BACKEND=onnx-mini)
 
 Usage:
@@ -31,8 +31,8 @@ from pathlib import Path
 
 import numpy as np
 
-SALIDA_FP32 = Path("modelos/verificador-onnx")
-SALIDA_MINI = Path("modelos/verificador-onnx-mini")
+SALIDA_FP32 = Path("models/verificador-onnx")
+SALIDA_MINI = Path("models/verificador-onnx-mini")
 _MAPA = {"SUPPORTS": "entailment", "REFUTES": "contradiction", "NOT ENOUGH INFO": "neutral"}
 _EXTRAS = ("config.json", "tokenizer.json", "tokenizer_config.json")
 

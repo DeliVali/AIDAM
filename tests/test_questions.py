@@ -1,6 +1,6 @@
 """Tests for the question parser and the omission judge (no model)."""
 
-from aidam.preguntas import _extraer_preguntas, _parsear_omision
+from aidam.questions import _extraer_preguntas, _parsear_omision
 
 
 def test_parsear_omision():

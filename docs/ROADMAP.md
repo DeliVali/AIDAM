@@ -17,7 +17,7 @@ the architecture before training anything, and gives us the baseline to beat.
 - [x] **AVeriTeC evaluation (2026-07-05, first 100 of dev)**: 30–31% accuracy,
       macro F1 0.21–0.25 (majority baseline: 61%). The number is harsh and that is
       the point: from here on, every change gets measured. Script in
-      `evaluacion/eval_averitec.py` (live retrieval, not the shared task's official
+      `evaluation/eval_averitec.py` (live retrieval, not the shared task's official
       track). **Measured diagnosis**: the dominant failure is viral lie → "supported"
       (25/100); in most of those cases the fact-checker never appears in the evidence,
       and when it does, its truncated snippet *repeats* the claim and the verifier
@@ -33,7 +33,7 @@ AVeriTeC 2025 shared task standard) and publishes its score.
 - **Head-to-head against a current (2026) model without retrieval** — same 100
   claims, MiMo-7B-RL with free reasoning and only parametric memory: **25.0% /
   F1 0.186 / 63.7 s**. AIDAM: **41.0% / 0.274 / 20 s** → **+16 points and 3x
-  faster**: live evidence beats recall. (`evaluacion/eval_baseline_llm.py`)
+  faster**: live evidence beats recall. (`evaluation/eval_baseline_llm.py`)
 - Structural pendings: NEI still weak, and the 61% majority ceiling still above.
 - **LLM-AggreFact (2026-07-06)**: verifier v3 scores **66.2% average balanced
   accuracy** over the 11 test datasets (29,320 pairs) — above generic NLI
@@ -50,7 +50,7 @@ Replicate, then try to beat, the MiniCheck recipe with our own data.
 - [x] **v0 trained (2026-07-05)**: contrastive fine-tuning on VitaminC (120k pairs)
       from the multilingual NLI checkpoint, on an RTX 5070 (11 min).
       **VitaminC test: 73.3% → 88.8% accuracy, macro F1 0.664 → 0.845.**
-      Script in `training/entrenar_verificador.py`.
+      Script in `training/train_verifier.py`.
       ⚠️ With transformers v5 (5.13) training collapses to a single class
       (DeBERTa-v3 regression); that is why `pyproject.toml` pins `<5`.
 - [x] **v1 with neutral restored (2026-07-05)**: training on VitaminC alone
@@ -61,7 +61,7 @@ Replicate, then try to beat, the MiniCheck recipe with our own data.
       data goal #1 is hard-neutral pairs (generic intro × specific claim).
 - [x] **v2 with hard neutrals (2026-07-05)**: 30k mechanical pairs from VitaminC's
       structure (same page, different fact — Auto-GDA recipe,
-      `training/generar_neutrales.py`). The measured spurious refutation dropped
+      `training/generate_neutrals.py`). The measured spurious refutation dropped
       from 86% to 53% (below the signal threshold); VitaminC test 88.21%.
       "Python lists are mutable": REFUTED 74% → SUPPORTED 100%.
 - [x] **v3 with LLM-generated subtle errors (2026-07-06)**: 4k pairs generated with
@@ -173,7 +173,7 @@ task.
 - [x] **Verifier on ONNX → any CPU (2026-07-05)**: accuracy identical to PyTorch
       (88.3%), 1.4x faster on CPU, and the runtime weighs ~50 MB instead of ~3 GB
       (`pip install aidam[verificador-cpu]`, automatic backend when torch is absent).
-      Export: `training/cuantizar_verificador.py`.
+      Export: `training/quantize_verifier.py`.
       ⚠️ Measured finding: dynamic INT8 **breaks** DeBERTa-v3 (88.3% → 51.4%;
       per-channel doesn't rescue it either) — its activation outliers don't tolerate
       activation quantization.

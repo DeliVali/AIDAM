@@ -13,7 +13,7 @@ only the key fact changes. This script builds them with a local LLM
 Mechanical quality control: the generated claim must differ from the
 original but keep most of its words (minimal edit).
 
-Output: data/local/sinteticos_mimo.jsonl with {claim, evidence, label}.
+Output: data/local/synthetic_llm.jsonl with {claim, evidence, label}.
 """
 
 from __future__ import annotations
@@ -25,9 +25,9 @@ from pathlib import Path
 
 from datasets import load_dataset
 
-from aidam.preguntas import GeneradorPreguntas
+from aidam.questions import GeneradorPreguntas
 
-SALIDA = Path("data/local/sinteticos_mimo.jsonl")
+SALIDA = Path("data/local/synthetic_llm.jsonl")
 SEMILLA = 43  # different from the training seed: other VitaminC rows
 
 _PROMPT_REFUTA = (

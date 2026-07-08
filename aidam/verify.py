@@ -25,7 +25,7 @@ def _resolver_modelo() -> str:
     """Priority: environment variable > locally trained model > public checkpoint."""
     if entorno := os.environ.get("AIDAM_MODELO_VERIFICADOR"):
         return entorno
-    local = Path(__file__).resolve().parent.parent / "modelos" / "verificador-v0"
+    local = Path(__file__).resolve().parent.parent / "models" / "verificador-v0"
     if (local / "config.json").exists():
         return str(local)
     return VerificadorNLI.MODELO
@@ -43,7 +43,7 @@ def crear_verificador(device: str | None = None):
     # the cost of −2.2 accuracy — for low-RAM machines (AIDAM_BACKEND=onnx-mini).
     # Dynamic INT8 is ruled out by measurement: quantizing DeBERTa-v3
     # activations (extreme outliers) collapses 88%→51%.
-    base = Path(__file__).resolve().parent.parent / "modelos"
+    base = Path(__file__).resolve().parent.parent / "models"
     forzado = os.environ.get("AIDAM_BACKEND", "").lower()
     if forzado == "onnx-mini":
         return VerificadorONNX(str(base / "verificador-onnx-mini"))

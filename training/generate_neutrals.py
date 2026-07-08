@@ -14,7 +14,7 @@ Anti-noise filters:
 - the two claims must be distinct facts (overlap < 50%),
 - one evidence per (claim, page) to avoid repetition.
 
-Output: data/local/neutrales_dificiles.jsonl with {claim, evidence, label}.
+Output: data/local/hard_neutrals.jsonl with {claim, evidence, label}.
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ from pathlib import Path
 
 from datasets import load_dataset
 
-SALIDA = Path("data/local/neutrales_dificiles.jsonl")
+SALIDA = Path("data/local/hard_neutrals.jsonl")
 SEMILLA = 42
 
 

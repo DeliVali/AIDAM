@@ -5,21 +5,21 @@ __pycache__/
 dist/
 build/
 
-# Entornos
+# Environments
 .venv/
 venv/
 
-# Herramientas
+# Tools
 .pytest_cache/
 .ruff_cache/
 .coverage
 
-# Editores
+# Editors
 .vscode/
 .idea/
 
-# Datos locales / artefactos de experimentos
+# Local data / experiment artifacts
 data/local/
-modelos/
+models/
 training/checkpoints/
 *.log

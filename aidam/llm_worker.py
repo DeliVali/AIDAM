@@ -11,7 +11,7 @@ Protocol (one JSON line per message):
   client → {"prompt": ..., "max_tokens": ..., "temperature": ..., "stop": [...]}
   worker → {"texto": ...} | {"error": ...}
 
-Launched with: python -m aidam.mimo_worker
+Launched with: python -m aidam.llm_worker
 Environment config: AIDAM_MODELO_PREGUNTAS, AIDAM_MIMO_GPU_LAYERS.
 """
 
@@ -23,7 +23,7 @@ import sys
 
 
 def main() -> None:
-    from .preguntas import _precargar_cuda, ruta_modelo
+    from .questions import _precargar_cuda, ruta_modelo
 
     _precargar_cuda()
     from llama_cpp import Llama

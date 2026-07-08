@@ -85,7 +85,7 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="generar preguntas de búsqueda con un LLM local (MiMo) para dirigir "
         "la recuperación — técnica ganadora de AVeriTeC 2.0; requiere el modelo "
-        "en modelos/mimo/",
+        "en models/mimo/",
     )
     p_verificar.add_argument("--json", action="store_true", help="salida en JSON")
 

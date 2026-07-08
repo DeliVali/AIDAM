@@ -31,7 +31,7 @@ from transformers import (
 
 CHECKPOINT_BASE = "MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7"
 DATASET = "tals/vitaminc"
-SALIDA = Path(__file__).resolve().parent.parent / "modelos" / "verificador-v0"
+SALIDA = Path(__file__).resolve().parent.parent / "models" / "verificador-v0"
 MAX_LEN = 256
 SEMILLA = 42
 
@@ -88,14 +88,14 @@ def main() -> None:
     parser.add_argument(
         "--neutrales-dificiles",
         type=Path,
-        default=Path("data/local/neutrales_dificiles.jsonl"),
+        default=Path("data/local/hard_neutrals.jsonl"),
         help="hard-neutral pairs (training/generate_neutrals.py); they attack "
         "the measured failure: generic intros judged as contradiction",
     )
     parser.add_argument(
         "--sinteticos",
         type=Path,
-        default=Path("data/local/sinteticos_mimo.jsonl"),
+        default=Path("data/local/synthetic_llm.jsonl"),
         help="subtle errors generated with a local LLM (training/generate_synthetic_llm.py)",
     )
     parser.add_argument("--checkpoint", default=CHECKPOINT_BASE)

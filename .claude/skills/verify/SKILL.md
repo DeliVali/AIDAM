@@ -15,7 +15,7 @@ uv venv --python 3.12 && uv pip install -e ".[dev,verificador]"   # first time o
 .venv/bin/aidam verificar "claim" [--lang en] [--max-idiomas N] [--json]
 ```
 
-- The first run downloads the model (~1 GB); with `modelos/verificador-v0/`
+- The first run downloads the model (~1 GB); with `models/verificador-v0/`
   present it uses the locally trained model.
 - **`--json` turns off the progress lines** (router category included).
   To observe routing, run WITHOUT `--json` and watch stderr:

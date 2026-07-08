@@ -34,7 +34,7 @@ from aidam.verify import VerificadorNLI
 
 URL_DEV = "https://raw.githubusercontent.com/MichSchli/AVeriTeC/main/data/dev.json"
 RUTA_DEV = Path("data/local/averitec_dev.json")
-RUTA_RESULTADOS = Path("data/local/averitec_resultados.jsonl")
+RUTA_RESULTADOS = Path("data/local/averitec_results.jsonl")
 
 # Our verdicts → AVeriTeC classes (one-to-one mapping by design)
 A_AVERITEC = {

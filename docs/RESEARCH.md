@@ -9,7 +9,7 @@ for this project.
   [quantized GGUF](https://huggingface.co/jedisct1/MiMo-7B-RL-GGUF)
   7B reasoning model at o1-mini level, open source, Q4-quantized at ~4.7 GB — runs
   on the project's consumer GPU via llama.cpp.
-  → *Our first search-question generator (`aidam/preguntas.py`); candidates are
+  → *Our first search-question generator (`aidam/questions.py`); candidates are
   swappable via `AIDAM_MODELO_PREGUNTAS` (DeepSeek-R1-0528-Qwen3-8B, MIT, is the
   current best in its class). Required trick: empty `<think></think>` prefill,
   because RL reasoning models spend hundreds of tokens thinking before answering.*
@@ -25,7 +25,7 @@ for this project.
   [claim matching with LLMs](https://arxiv.org/pdf/2402.05904)
   The published recipe for our measured failure (same-topic passages judged as
   contradiction): generate pairs "topically aligned, semantically irrelevant".
-  → *`training/generar_neutrales.py` builds them mechanically from VitaminC's
+  → *`training/generate_neutrals.py` builds them mechanically from VitaminC's
   structure (same page, different fact) — 30k pairs without needing an LLM.*
 
 - **2026 training tooling** — [overview](https://codersera.com/blog/fine-tuning-llms-complete-guide-2026/)

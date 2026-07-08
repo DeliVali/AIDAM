@@ -19,7 +19,7 @@ def _generador_preguntas():
     100-claim evaluation died at #7 because of this. If loading fails, it
     returns None and the pipeline continues without that stage.
     """
-    from .preguntas import GeneradorPreguntas, ruta_modelo
+    from .questions import GeneradorPreguntas, ruta_modelo
 
     if ruta_modelo() is None:
         return None
