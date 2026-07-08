@@ -230,14 +230,27 @@ def _texto_de_pagina(url: str) -> str:
         return ""
 
 
+# Rotación de motores de búsqueda: DuckDuckGo nos bloqueó la conexión tras un
+# día de evaluaciones (medido: 73/100 afirmaciones sin evidencia). Ningún motor
+# único puede ser punto de fallo del recuperador.
+_BACKENDS_BUSQUEDA = ("duckduckgo", "bing", "yahoo")
+
+
 def _buscar_ddg(consulta: str, max_resultados: int) -> list[dict]:
     try:
         from ddgs import DDGS
-
-        with DDGS() as ddgs:
-            return list(ddgs.text(consulta, max_results=max_resultados))
-    except Exception:
+    except ImportError:
         return []
+    for backend in _BACKENDS_BUSQUEDA:
+        try:
+            hits = list(
+                DDGS(timeout=6).text(consulta, max_results=max_resultados, backend=backend)
+            )
+            if hits:
+                return hits
+        except Exception:
+            continue
+    return []
 
 
 def _evidencias_de_paginas(
