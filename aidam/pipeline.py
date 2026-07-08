@@ -36,14 +36,22 @@ def verificar(
     preguntas: bool = False,
     verificador=None,
     progreso: Callable[[str], None] | None = None,
+    recuperador: Callable[..., list] | None = None,
 ) -> Informe:
     """Verifies a claim end to end and returns the report.
 
     `verificador` accepts any object with the contract
     `juzgar(hecho, evidencias) -> list[VeredictoPar]`; if not given, the
     default NLI backend is loaded (requires `pip install aidam[verificador]`).
+
+    `recuperador` accepts any `(hecho, lang, max_idiomas, categoria) ->
+    list[Evidencia]` callable in place of live `recuperar()` — the seam
+    `evaluation/knowledge_store.py` uses to swap in the AVeriTeC organizers'
+    offline knowledge store, so a reproducible eval never depends on live
+    search staying healthy.
     """
     avisar = progreso or (lambda _mensaje: None)
+    buscar = recuperador or recuperar
 
     if verificador is None:
         avisar("Cargando el núcleo verificador…")
@@ -67,7 +75,7 @@ def verificar(
     for hecho in hechos:
         categoria = clasificar(hecho.texto, verificador)
         avisar(f"Buscando evidencia [{categoria}]: «{hecho.texto[:70]}»")
-        evidencias = recuperar(hecho, lang=lang, max_idiomas=max_idiomas, categoria=categoria)
+        evidencias = buscar(hecho, lang=lang, max_idiomas=max_idiomas, categoria=categoria)
 
         if generador is not None:
             from .retrieve import buscar_web

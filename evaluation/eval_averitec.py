@@ -105,7 +105,17 @@ def main() -> None:
     )
     parser.add_argument("--pausa", type=float, default=2.0, help="seconds between claims")
     parser.add_argument("--salida", type=Path, default=RUTA_RESULTADOS)
+    parser.add_argument(
+        "--knowledge-store", type=Path, default=None,
+        help="dir of extracted {indice}.json claim files (evaluation/knowledge_store.py "
+        "--extraer) — evidence comes from the AVeriTeC organizers' offline store instead "
+        "of live search: reproducible, immune to search-engine throttling. Disables "
+        "--preguntas (its search calls are still live).",
+    )
     args = parser.parse_args()
+
+    if args.knowledge_store and args.preguntas:
+        parser.error("--knowledge-store and --preguntas are mutually exclusive")
 
     datos = _cargar_dev()[: args.limite]
     previos = _cargar_previos(args.salida)
@@ -120,12 +130,18 @@ def main() -> None:
                 continue
             inicio = time.time()
             try:
+                recuperador = None
+                if args.knowledge_store:
+                    from evaluation.knowledge_store import crear_recuperador_offline
+
+                    recuperador = crear_recuperador_offline(indice, args.knowledge_store)
                 informe = verificar(
                     ejemplo["claim"],
                     lang="en",
                     max_idiomas=args.max_idiomas,
                     preguntas=args.preguntas,
                     verificador=verificador,
+                    recuperador=recuperador,
                 )
                 prediccion = A_AVERITEC[informe.veredicto.value]
                 confianza = informe.confianza
