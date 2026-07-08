@@ -92,7 +92,7 @@ def _cargar_documentos(ruta_claim: Path) -> list[tuple[str, str]]:
     return pares
 
 
-def crear_recuperador_offline(indice: int, ruta_dir: Path, max_pasajes: int = 12):
+def crear_recuperador_offline(indice: int, ruta_dir: Path, max_pasajes: int = 25):
     """Builds a `(hecho, lang, max_idiomas, categoria) -> list[Evidencia]`
     callable — same shape as `aidam.retrieve.recuperar` — over one claim's
     pre-scraped documents, lexically ranked (same `_relevancia` scoring the

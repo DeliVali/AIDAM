@@ -338,6 +338,25 @@ verifier in Spanish.
       data**: minimal-edit pairs teaching "subject denies X" / "X was ruled
       false" style sentences as REFUTES, not NEUTRAL — a `generate_synthetic_llm.py`-shaped
       task, not an aggregation-weight tweak. Next-cycle item.
+- [x] **`max_pasajes` swept on the offline eval (2026-07-08): 12→25 nearly
+      doubles the improvement over the original number, real headroom found
+      because the fast offline eval finally makes sweeping cheap (~2 min/run,
+      vs. a live sweep that would each independently re-exhaust the search
+      substrate).** Traced from a genuine retrieval-recall failure: claim #2
+      ("...cancelled the visas...") had a 1.18-million-sentence candidate
+      pool per claim, and the original cap of 12 was dominated by six
+      near-duplicate paraphrases of the claim's easy half ("Khan criticized
+      Macron"), crowding out the decisive, rarer detail. Swept 12/20/25/40:
+      **47.0% → 51.0% → 56.0% → 54.0%** (F1 macro 0.326 → 0.331 → 0.345 →
+      0.359 — 25 wins accuracy, 40 wins macro-F1 by favoring Conflicting
+      Evidence recall over Supported precision). Kept **25** as the default:
+      accuracy has been this project's headline metric throughout, and 25 is
+      cheap enough that a real deployment could reasonably go higher still.
+      **56.0% is now the session's best number, and likely undersells the
+      real ceiling** — a proper MMR-style diversity rerank (penalize
+      near-duplicate passages instead of just raising the flat cap) or
+      per-sub-fact retrieval on compound claims would very plausibly beat
+      flat-cap tuning further; not attempted this session, next-cycle item.
 - [ ] Temporal handling: volatile vs. stable facts
 - [ ] Active search for contrary evidence (anti-confirmation bias)
 
