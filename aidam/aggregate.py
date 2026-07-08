@@ -48,6 +48,8 @@ VERIFICADORES = {
     "factcheck.afp.com", "leadstories.com", "checkyourfact.com",
     "boomlive.in", "altnews.in", "colombiacheck.com", "verificado.com.mx",
     "aosfatos.org", "lupa.uol.com.br", "correctiv.org", "pagellapolitica.it",
+    "africacheck.org", "teyit.org", "faktisk.no", "demagog.org.pl",
+    "verafiles.org", "factcheckni.org",
 }
 # A professional debunk is worth ~an order of magnitude more than the claim
 # of an unknown domain: at 8.0, one fact-checker beats 3 viral sites, but

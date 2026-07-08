@@ -467,9 +467,21 @@ def buscar_desmentidos(consulta: str, lang: str = "es") -> list[Evidencia]:
     looks for it explicitly, and reads the full article (the verdict doesn't
     fit in a snippet).
     """
-    sufijo = "fact check" if lang == "en" else "verificación bulo fact check"
+    sufijo = _SUFIJOS_DESMENTIDO.get(lang, "fact check")
     hits = _buscar_ddg(f"{consulta} {sufijo}", max_resultados=5)
     return _evidencias_de_paginas(hits, consulta, "desmentidos", lang, max_paginas=3)
+
+
+# The debunk-hunting query speaks the claim's language: a Spanish suffix on a
+# French claim finds nothing.
+_SUFIJOS_DESMENTIDO = {
+    "en": "fact check",
+    "es": "verificación bulo fact check",
+    "fr": "vérification des faits fact check",
+    "de": "Faktencheck fact check",
+    "pt": "verificação de fatos checagem",
+    "it": "verifica dei fatti fact check",
+}
 
 
 # ───────────────────────── technical / programming ─────────────────────────
