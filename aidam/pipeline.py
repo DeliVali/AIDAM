@@ -126,6 +126,21 @@ def verificar(
                 vh.veredicto = Veredicto.CONTRADICTORIO
                 vh.confianza = round(min(vh.confianza, 0.6), 3)
 
+        # Both LLM resolvers below need the passages that actually swayed the
+        # NLI verifier, not just the first N in retrieval order — with
+        # question-driven search routinely pulling in 30+ passages, the
+        # informative ones (highest-signal SUSTENTA/REFUTA) can easily fall
+        # past evidencias[:8] while low-signal NO_CONCLUYE filler stays at
+        # the front (measured: this exact bug silently starved the dissent
+        # resolver below of the very REFUTA evidence that triggered it).
+        pasajes_priorizados = [
+            p.evidencia.texto
+            for p in sorted(
+                pares, key=lambda p: (p.etiqueta is not EtiquetaPar.NO_CONCLUYE, p.prob),
+                reverse=True,
+            )
+        ]
+
         # NEI resolver: the aggregator has no confident signal (no passage
         # cleared UMBRAL_SENAL, or nothing but neutral judgements) — often
         # exactly the implicit-negation case a pairwise NLI classifier can't
@@ -138,9 +153,7 @@ def verificar(
         # with a confident answer despite its own bias toward "not enough
         # evidence", that disagreement is real signal, not noise.
         if generador is not None and vh.veredicto is Veredicto.INSUFICIENTE and evidencias:
-            etiqueta_llm = generador.juzgar_veredicto(
-                hecho.texto, [e.texto for e in evidencias]
-            )
+            etiqueta_llm = generador.juzgar_veredicto(hecho.texto, pasajes_priorizados)
             veredicto_llm = {
                 "Supported": Veredicto.SUSTENTADO,
                 "Refuted": Veredicto.REFUTADO,
@@ -150,6 +163,25 @@ def verificar(
                 avisar(f"  resolutor NEI: {etiqueta_llm} (evidencia insuficiente para el NLI)")
                 vh.veredicto = veredicto_llm
                 vh.confianza = 0.5  # categorical LLM answer, not a calibrated probability
+
+        # Tried and reverted (2026-07-08): a broader "dissent resolver" that
+        # also consulted the LLM whenever SUSTENTADO coexisted with
+        # substantial REFUTA evidence the aggregator's weighting had simply
+        # outvoted — motivated by a real traced case (Pogba hoax: SUSTENTADO
+        # at confidence 1.00, because six denial-carrying passages were each
+        # individually judged NEUTRAL, so they never got to outvote the one
+        # passage stating the rumor directly). Fixed two real bugs finding
+        # this out — `pasajes_priorizados` above (the LLM was silently
+        # seeing evidencias[:8] in retrieval order, missing the very REFUTA
+        # passages that triggered it) and the reasoning-length cap on
+        # `juzgar_veredicto` (this model circles rather than converging on
+        # ambiguous compound claims; needed an explicit "2-3 sentences, then
+        # answer" constraint, not just more max_tokens — measured up to
+        # 8,861 characters of reasoning, still undecided). Even with both
+        # fixed, the specific Pogba case still didn't resolve, and the
+        # broader trigger measured worse overall (58.0%→57.0%, Supported F1
+        # 0.286→0.229) — reverted. The two bug fixes stay, since they're
+        # real improvements to `juzgar_veredicto` itself.
 
         veredictos_hechos.append(vh)
 

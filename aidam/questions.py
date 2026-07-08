@@ -288,11 +288,17 @@ class GeneradorPreguntas:
             f"Evidence:\n{lineas}\n"
             "Watch for evidence that reports a claim only to deny or debunk "
             "it — that REFUTES the claim, it doesn't support it. "
-            "End your answer with just the label."
+            "Reason in 2-3 short sentences AT MOST, weighing each side once "
+            "— do not re-examine the evidence repeatedly. Then end your "
+            "answer with just the label."
         )
         plantilla = f"<|im_start|>user\n{prompt}<|im_end|>\n<|im_start|>assistant\n"
-        # Measured: 500 tokens wasn't enough for the reasoning trace to reach
-        # a conclusion — the model correctly worked through the evidence but
-        # got cut off before emitting the label. 1200 gives it room to finish.
-        respuesta = self.completar(plantilla, max_tokens=1200, temperature=0.0, stop=["<|im_end|>"])
+        # Measured three times: 500 and 1200 tokens both cut the reasoning
+        # off mid-thought; even 2000 wasn't enough — this model re-examines
+        # the evidence in circles rather than converging (measured: 8,861
+        # chars of reasoning, still undecided). Open-ended "reason as long as
+        # you need" doesn't self-terminate for this task; capping the
+        # reasoning length explicitly in the prompt does what raising
+        # max_tokens alone couldn't.
+        respuesta = self.completar(plantilla, max_tokens=600, temperature=0.0, stop=["<|im_end|>"])
         return _parsear_veredicto_llm(respuesta)

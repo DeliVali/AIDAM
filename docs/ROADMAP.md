@@ -427,6 +427,38 @@ verifier in Spanish.
       architecturally sound, doesn't regress) rather than reverted like MMR;
       may matter more on the full 500-claim dev set or a different claim mix
       with more genuine evidence gaps.
+- [x] **Tried extending the resolver to also cover SUSTENTADO-with-dissent —
+      found two real bugs, reverted the extension anyway, kept the bugfixes:
+      59.0%, new best (2026-07-08).** The Pogba case that motivated the whole
+      resolver family was traced to SUSTENTADO at confidence 1.00, never
+      INSUFICIENTE (the NLI classifier judged all six denial passages NEUTRAL
+      individually, so they never got to outvote the one passage stating the
+      rumor directly) — meaning the INSUFICIENTE-only trigger could
+      *structurally never reach the case it was named after*. Built a broader
+      "dissent resolver" (also consult on SUSTENTADO + substantial dissenting
+      REFUTA evidence) to close that gap, and found two genuine bugs on the
+      way: (1) `juzgar_veredicto` was reading `evidencias[:8]` in raw
+      retrieval order — with question-driven search routinely pulling 30+
+      passages, the actual triggering REFUTA evidence could fall past the
+      cutoff entirely (measured: this silently starved the very case being
+      debugged); (2) even after fixing that, 500/1200/2000-token budgets all
+      cut the reasoning off mid-thought — this model doesn't self-terminate
+      on ambiguous compound claims, it circles (measured: 8,861 characters
+      of reasoning, still undecided). Fixed both — sort evidence into the
+      prompt by (NLI signal, probability) instead of retrieval order; cap
+      reasoning explicitly in the prompt ("2-3 sentences, then answer")
+      instead of just raising the token ceiling. Even fixed, the *specific*
+      Pogba case still didn't resolve (genuinely ambiguous compound claim —
+      initial reports vs. a later denial vs. what the claim precisely
+      asserts), and the *broader trigger* measured worse overall on the full
+      100-claim eval (58.0%→57.0%). Reverted the trigger. **But the same two
+      bugfixes also apply to the existing INSUFICIENTE-only resolver above
+      (it was making the same evidencias[:8]-ordering and reasoning-budget
+      mistakes) — re-measured with just those fixes and the trigger reverted:
+      59.0% accuracy, F1 macro 0.385, both new session bests** (NEI F1 0.250,
+      Supported F1 0.294, both up from the prior 58.0% run). The real lesson:
+      chasing one specific hard case led nowhere, but the debugging surfaced
+      genuine defects in shared machinery that helped everywhere else.
 - [ ] Temporal handling: volatile vs. stable facts
 - [ ] Active search for contrary evidence (anti-confirmation bias)
 
