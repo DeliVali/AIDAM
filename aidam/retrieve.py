@@ -13,11 +13,18 @@ Current families (all with free APIs, no keys):
 - Wikinews: collaborative journalism, same MediaWiki API.
 - Wikiquote: the certified source for attribution claims ("X said Y" is a
   top viral-misinformation genre), same MediaWiki API.
+- Wikidata: structured facts (dates, positions held, populations) — the exact
+  atomic-fact shape many claims take, on independent infrastructure from
+  Wikipedia's own text search.
 - Open web (DuckDuckGo/Bing/Yahoo rotation): thousands of domains, with a
   local cache and pacing so no engine rate-limits the machine.
+  `AIDAM_SIN_DDG=1` disables this whole family when the shared budget is
+  exhausted, falling back on every source below (all keyless, no paid tier).
 - News: GDELT (global, multilingual press coverage).
 - Academic: Semantic Scholar, OpenAlex, arXiv, Europe PMC and Crossref —
   paper abstracts for scientific claims (mostly English corpus).
+- Medical: openFDA drug labels and ClinicalTrials.gov — official registries,
+  not secondary summaries.
 - Technical Q&A: Stack Overflow and Math StackExchange.
 
 Source independence is approximated by domain: a hundred pages from the same
@@ -224,6 +231,121 @@ def buscar_wikiquote(consulta: str, lang: str = "es", max_pasajes: int = 3) -> l
             _pasajes_de_articulo(host, titulo, 2, "wikiquote", lang, consulta=consulta)
         )
     return evidencias[:max_pasajes]
+
+
+# Wikidata property IDs worth rendering as short factual sentences — picked
+# for AVeriTeC's claim style ("X was confirmed on date Y", "X has population
+# Y"). Time/quantity values render directly; entity-valued ones (P39, P27)
+# need one batched label lookup, done below.
+_PROPIEDADES_WIKIDATA = {
+    "P569": "date of birth", "P570": "date of death", "P571": "inception",
+    "P580": "start time", "P582": "end time", "P585": "point in time",
+    "P39": "position held", "P27": "country of citizenship",
+    "P1082": "population",
+}
+
+
+def _formatear_fecha_wikidata(valor: dict) -> str | None:
+    """Wikidata time values carry a precision code; render only what it claims
+    (year-only for precision 9, full date for 11) instead of a fake day."""
+    tiempo = valor.get("time", "")
+    if not tiempo:
+        return None
+    signo, resto = tiempo[0], tiempo[1:]
+    anio, mes, dia = resto.split("-", 2)
+    dia = dia.split("T")[0]
+    precision = valor.get("precision", 11)
+    if precision <= 9:
+        return f"{'-' if signo == '-' else ''}{int(anio)}"
+    if precision == 10:
+        return f"{anio}-{mes}"
+    return f"{anio}-{mes}-{dia}"
+
+
+def buscar_wikidata(consulta: str, lang: str = "es", max_entidades: int = 2) -> list[Evidencia]:
+    """Structured facts from Wikidata: dates, positions held, populations.
+
+    Complements Wikipedia's prose with the exact atomic-fact shape AVeriTeC
+    claims often take. Independent infrastructure from Wikipedia's own
+    search (a different API, a different rate limiter) — stays available
+    even when the shared web-search budget is exhausted.
+    """
+    datos = _get_json(
+        "https://www.wikidata.org/w/api.php",
+        {
+            "action": "wbsearchentities", "search": consulta, "language": lang,
+            "format": "json", "limit": max_entidades,
+        },
+    )
+    entidades = [h["id"] for h in (datos or {}).get("search", []) if h.get("id")]
+    if not entidades:
+        return []
+
+    detalle = _get_json(
+        "https://www.wikidata.org/w/api.php",
+        {
+            "action": "wbgetentities", "ids": "|".join(entidades), "format": "json",
+            "props": "labels|descriptions|claims", "languages": f"{lang}|en",
+        },
+    )
+    entidades_datos = (detalle or {}).get("entities", {})
+
+    # Batch-resolve entity-valued property targets (e.g. P39's value is
+    # itself a QID) in one extra call instead of one per reference.
+    referidos: set[str] = set()
+    for ent in entidades_datos.values():
+        for pid in ("P39", "P27"):
+            for c in ent.get("claims", {}).get(pid, []):
+                valor = c.get("mainsnak", {}).get("datavalue", {}).get("value", {})
+                if isinstance(valor, dict) and valor.get("id"):
+                    referidos.add(valor["id"])
+    etiquetas_referidas: dict[str, str] = {}
+    if referidos:
+        lote = _get_json(
+            "https://www.wikidata.org/w/api.php",
+            {
+                "action": "wbgetentities", "ids": "|".join(sorted(referidos)[:50]),
+                "format": "json", "props": "labels", "languages": f"{lang}|en",
+            },
+        )
+        for qid, ent in ((lote or {}).get("entities", {})).items():
+            etiquetas = ent.get("labels", {})
+            nombre = etiquetas.get(lang) or etiquetas.get("en")
+            if nombre:
+                etiquetas_referidas[qid] = nombre["value"]
+
+    evidencias: list[Evidencia] = []
+    for qid, ent in entidades_datos.items():
+        etiquetas = ent.get("labels", {})
+        sujeto = (etiquetas.get(lang) or etiquetas.get("en") or {}).get("value", qid)
+        frases = []
+        for pid, nombre_propiedad in _PROPIEDADES_WIKIDATA.items():
+            for c in ent.get("claims", {}).get(pid, [])[:1]:
+                valor = c.get("mainsnak", {}).get("datavalue", {}).get("value")
+                if valor is None:
+                    continue
+                if isinstance(valor, dict) and "time" in valor:
+                    texto_valor = _formatear_fecha_wikidata(valor)
+                elif isinstance(valor, dict) and "amount" in valor:
+                    texto_valor = valor["amount"].lstrip("+")
+                elif isinstance(valor, dict) and valor.get("id"):
+                    texto_valor = etiquetas_referidas.get(valor["id"])
+                else:
+                    texto_valor = None
+                if texto_valor:
+                    frases.append(f"{sujeto} {nombre_propiedad}: {texto_valor}.")
+        if not frases:
+            continue
+        descripcion = (ent.get("descriptions", {}).get(lang)
+                       or ent.get("descriptions", {}).get("en") or {}).get("value", "")
+        texto = f"{sujeto} ({descripcion}). " + " ".join(frases) if descripcion else " ".join(frases)
+        evidencias.append(
+            Evidencia(
+                texto=texto, url=f"https://www.wikidata.org/wiki/{qid}",
+                titulo=sujeto, dominio="wikidata.org", fuente="wikidata", idioma="",
+            )
+        )
+    return evidencias
 
 
 # ───────────────────────── open web ─────────────────────────
@@ -740,6 +862,68 @@ def buscar_europepmc(consulta: str, lang: str = "", max_papers: int = 4) -> list
     return evidencias
 
 
+def buscar_openfda(consulta: str, lang: str = "", max_resultados: int = 3) -> list[Evidencia]:
+    """Official FDA drug label data via openFDA (free, no key for this volume).
+
+    For claims about a drug's approved use, dosage or warnings: the label
+    itself is the certified source, the same role docs-oficiales plays for
+    code. Searches brand and generic name fields.
+    """
+    consulta_segura = consulta.replace('"', "")
+    datos = _get_json(
+        "https://api.fda.gov/drug/label.json",
+        {
+            "search": f'openfda.brand_name:"{consulta_segura}" OR openfda.generic_name:"{consulta_segura}"',
+            "limit": max_resultados,
+        },
+    )
+    evidencias: list[Evidencia] = []
+    for resultado in (datos or {}).get("results", []):
+        marca = (resultado.get("openfda", {}).get("brand_name") or ["?"])[0]
+        for campo in ("indications_and_usage", "warnings", "dosage_and_administration"):
+            for parrafo in (resultado.get(campo) or [])[:1]:
+                if len(parrafo) < 40:
+                    continue
+                evidencias.append(
+                    Evidencia(
+                        texto=parrafo[:1000], url="https://open.fda.gov", titulo=f"FDA label: {marca}",
+                        dominio="fda.gov", fuente="docs-oficiales", idioma="en",
+                    )
+                )
+    return evidencias
+
+
+def buscar_clinicaltrials(consulta: str, lang: str = "", max_estudios: int = 4) -> list[Evidencia]:
+    """Registered clinical trials via ClinicalTrials.gov API v2 (free, no key).
+
+    For claims about whether a treatment has been studied, and what a trial
+    found — official registry data, not a secondary summary.
+    """
+    datos = _get_json(
+        "https://clinicaltrials.gov/api/v2/studies",
+        {"query.term": consulta, "pageSize": max_estudios, "format": "json"},
+    )
+    evidencias: list[Evidencia] = []
+    for estudio in (datos or {}).get("studies", []):
+        modulo = estudio.get("protocolSection", {})
+        identificacion = modulo.get("identificationModule", {})
+        descripcion = modulo.get("descriptionModule", {})
+        estado = modulo.get("statusModule", {})
+        nct = identificacion.get("nctId", "")
+        resumen = descripcion.get("briefSummary", "")
+        if len(resumen) < 40:
+            continue
+        texto = f"{resumen} Status: {estado.get('overallStatus', 'unknown')}."
+        evidencias.append(
+            Evidencia(
+                texto=texto[:1000], url=f"https://clinicaltrials.gov/study/{nct}",
+                titulo=identificacion.get("briefTitle", ""), dominio="clinicaltrials.gov",
+                fuente="docs-oficiales", idioma="en",
+            )
+        )
+    return evidencias
+
+
 # ───────────────────────── registry and orchestration ─────────────────────────
 
 # name → (description, categories it serves or None = universal,
@@ -767,6 +951,11 @@ FUENTES: dict[str, tuple[str, set[str] | None, object]] = {
         "Citas con fuente de Wikiquote (atribuciones «X dijo Y»)",
         {"actualidad", "general"},
         lambda c, lang, mi: buscar_wikiquote(c, lang=lang),
+    ),
+    "wikidata": (
+        "Hechos estructurados de Wikidata (fechas, cargos, población)",
+        None,
+        lambda c, lang, mi: buscar_wikidata(c, lang=lang),
     ),
     "gdelt": (
         "Prensa global multilingüe vía GDELT (páginas completas)",
@@ -829,6 +1018,16 @@ FUENTES: dict[str, tuple[str, set[str] | None, object]] = {
         "Literatura biomédica de Europe PMC",
         {"medicina", "ciencia"},
         lambda c, lang, mi: buscar_europepmc(c, lang=lang),
+    ),
+    "openfda": (
+        "Etiquetas oficiales de medicamentos vía openFDA",
+        {"medicina"},
+        lambda c, lang, mi: buscar_openfda(c),
+    ),
+    "clinicaltrials": (
+        "Ensayos clínicos registrados vía ClinicalTrials.gov",
+        {"medicina"},
+        lambda c, lang, mi: buscar_clinicaltrials(c),
     ),
 }
 

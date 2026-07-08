@@ -112,6 +112,7 @@ def test_registro_de_fuentes_completo():
         "wikipedia-multilingue",
         "wikinews",
         "wikiquote",
+        "wikidata",
         "web",
         "desmentidos",
         "gdelt",
@@ -122,6 +123,8 @@ def test_registro_de_fuentes_completo():
         "arxiv",
         "crossref",
         "europepmc",
+        "openfda",
+        "clinicaltrials",
     } <= set(FUENTES)
     from aidam.router import CATEGORIAS
 
@@ -154,6 +157,10 @@ def test_categorias_enrutan_fuentes():
     assert "gdelt" not in activas("medicina")
     assert "wikiquote" in activas("general")
     assert "crossref" in activas("ciencia")
+    assert "wikidata" in activas("general")
+    assert "openfda" in activas("medicina")
+    assert "openfda" not in activas("programacion")
+    assert "clinicaltrials" in activas("medicina")
 
 
 def test_docs_oficiales_pesan_como_verificador():
@@ -235,3 +242,33 @@ def test_ddg_deshabilitado_devuelve_vacio(monkeypatch):
 
     monkeypatch.setenv("AIDAM_SIN_DDG", "1")
     assert retrieve._buscar_ddg("cualquier consulta", 5) == []
+
+
+def test_formatear_fecha_wikidata_respeta_precision():
+    """Wikidata's precision code says how much of the date is actually
+    claimed — rendering a fake day for a year-only fact would be a fabrication."""
+    from aidam.retrieve import _formatear_fecha_wikidata
+
+    anio_only = {"time": "+2020-00-00T00:00:00Z", "precision": 9}
+    assert _formatear_fecha_wikidata(anio_only) == "2020"
+
+    fecha_completa = {"time": "+1972-01-28T00:00:00Z", "precision": 11}
+    assert _formatear_fecha_wikidata(fecha_completa) == "1972-01-28"
+
+    mes_anio = {"time": "+2020-10-00T00:00:00Z", "precision": 10}
+    assert _formatear_fecha_wikidata(mes_anio) == "2020-10"
+
+
+def test_wikidata_pesa_como_enciclopedia():
+    from aidam.aggregate import PESO_ENCICLOPEDIA, peso_fuente
+    from aidam.models import Evidencia
+
+    hecho = Evidencia(
+        texto="Amy Coney Barrett position held: Associate Justice.",
+        url="https://www.wikidata.org/wiki/Q29863844",
+        titulo="Amy Coney Barrett",
+        dominio="wikidata.org",
+        fuente="wikidata",
+        idioma="",
+    )
+    assert peso_fuente(hecho) == PESO_ENCICLOPEDIA
