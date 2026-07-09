@@ -518,6 +518,23 @@ verifier in Spanish.
       and for real-world use (where claims aren't 63% false) v7's shifted
       prior is a liability, not a feature. The milestone that counts is
       still ahead: past 61% with macro-F1 holding.
+- [x] **Full 500-claim offline run — the real number: 55.0% accuracy, F1
+      macro 0.309, 11.1 s/claim (2026-07-08).** Best configuration (v6 +
+      DeepSeek question-driven search + NEI resolver) on the complete dev
+      set with the organizers' knowledge store. Honest readings:
+      1. **The 100-claim numbers ran ~5 points hot** (60% sample → 55%
+         full set): the dev set's first 100 claims are evidently easier
+         than its average. Every future comparison should quote the
+         500-claim figure.
+      2. **Against the last full-500 measurement (44.0%, live retrieval,
+         2026-07-06): +11 points** — the sum of tonight's verifier,
+         retrieval, and methodology work, measured on identical claims.
+      3. Refuted F1 0.705 (was 0.604); Supported F1 0.354 (was 0.390);
+         Conflicting remains near-floor (0.074) — the hardest class, still
+         the biggest open problem, consistent with every run tonight.
+      4. Still below the 61% majority baseline on accuracy — the honest
+         gap to close next; the class-skew route to beat it (v7) was
+         measured and rejected on principle.
 - [ ] Temporal handling: volatile vs. stable facts
 - [ ] Active search for contrary evidence (anti-confirmation bias)
 - [ ] **Triage of Jeffrey's source brainstorm (2026-07-08)** — judged

@@ -50,9 +50,10 @@ The model is published on
 
 ## Status
 
-44% accuracy on AVeriTeC-500 at 17.9 s per claim. Against the same reasoning
-LLM without retrieval: +16 accuracy points and 3x faster. Numbers,
-architecture and roadmap live in [docs/](docs/).
+55% accuracy on AVeriTeC-500 (evaluated against the shared task's official
+knowledge store) at 11.1 s per claim, with a ~280M-parameter verifier core.
+Against the same reasoning LLM without retrieval: +30 accuracy points.
+Numbers, architecture and roadmap live in [docs/](docs/).
 
 ## Contributing
 
