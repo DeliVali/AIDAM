@@ -520,6 +520,29 @@ verifier in Spanish.
       still ahead: past 61% with macro-F1 holding.
 - [ ] Temporal handling: volatile vs. stable facts
 - [ ] Active search for contrary evidence (anti-confirmation bias)
+- [ ] **Extraction purity workstream (requested by Jeffrey, 2026-07-08):
+      close the measured quality gap between live-scraped evidence and the
+      knowledge store's.** The live pipeline already uses trafilatura (best
+      open-source main-content extraction) but the store's evidence is still
+      cleaner, and part of tonight's 47→56% gain came from its sentence-level
+      segmentation vs. our ~600-char chunks (which can glue a decisive
+      sentence to irrelevant neighbors, diluting the NLI signal). Concrete
+      pieces, in value order:
+      1. **Extraction benchmark first**: the knowledge store doubles as a
+         gold standard for extraction itself — it has the URLs AND the
+         professionally-extracted sentences for thousands of real pages.
+         Fetch the same URLs, run our extractor, score against the store's
+         output. Makes every extraction change below measurable instead of
+         a matter of taste (the project's philosophy applied to its own
+         plumbing).
+      2. Sentence-level segmentation of extracted pages (replace flat
+         600-char chunking for ranking/selection; keep surrounding context
+         when handing passages to the verifier).
+      3. PDF support (government/scientific sources publish decisive
+         documents as PDFs; currently invisible to us).
+      4. Headless-browser fallback for JavaScript-rendered pages (real
+         complexity/latency cost — measure how often it's actually needed
+         via the benchmark in 1 before paying it).
 
 **Success criterion:** measurable improvement on AVeriTeC's "conflicting evidence"
 class, the hardest in the benchmark.
