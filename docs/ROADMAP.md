@@ -642,6 +642,17 @@ The generate→verify→select loop, starting with the domain where verification
 objective: **code**.
 
 - [ ] Execution sandbox (containers) with automatic tests, benchmark and profiling
+      — code is the one domain where verification needs no sources: execution
+      is ground truth. Correctness = the task's tests pass (observation, not
+      opinion); efficiency = measured time/peak memory at SEVERAL input sizes
+      (observe the real scaling curve — catch the O(n²) behind code that
+      "looks fine"). Benchmark corpus (Jeffrey asked re: LeetCode, 2026-07-08):
+      not LeetCode itself (ToS/closed content) — the open equivalents:
+      HumanEval + MBPP (open, tests included), LiveCodeBench (continuously
+      refreshed → contamination-resistant), SWE-bench (real GitHub issues
+      with real test suites). Separately: GitHub repos/changelogs/issues as
+      primary sources for claims ABOUT code ("X deprecated Y in vZ", CVE
+      claims) — the docs-oficiales of software history; free token when built.
 - [ ] Code generator: small quantized Qwen3-Coder (Q4) on a consumer GPU
 - [ ] Best-of-N loop: N candidates → execution-based score → the best survives;
       if none passes, retry with the failure feedback
