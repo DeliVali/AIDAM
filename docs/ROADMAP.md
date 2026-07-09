@@ -732,6 +732,25 @@ verifier in Spanish.
 **Success criterion:** measurable improvement on AVeriTeC's "conflicting evidence"
 class, the hardest in the benchmark.
 
+### Cross-benchmark generalization (does AVeriTeC tuning overfit?)
+
+- [x] **SciFact (2026-07-09): 55.0% accuracy, F1 macro 0.528, oracle
+      retrieval.** A second certified benchmark — scientific claims vs.
+      peer-reviewed abstracts — as an honest overfitting check on a verifier
+      (v8) never trained on scientific language. `evaluation/eval_scifact.py`
+      hands it the gold cited abstract and scores the predicted label
+      (SUPPORT/CONTRADICT/NEI), isolating judgment from retrieval. Read
+      honestly: NEI is the strongest class (F1 0.613) but **63 SUPPORT and
+      33 CONTRADICT claims are called NEI** — scientific abstracts hedge
+      ("may suggest", "is associated with"), so no single sentence clears
+      the entailment threshold, and the model has never seen this register.
+      This is a genuine domain gap, deliberately NOT tuned away by lowering
+      the threshold to fit this test set (the overfitting sin avoided all
+      campaign). It says the AVeriTeC gains didn't come from overfitting
+      (the core transfers — 55% cold on a new domain), and points the next
+      training-data lever at scientific-register SUPPORT/CONTRADICT pairs.
+      FEVER and a fresh LLM-AggreFact-on-v8 are the remaining cross-checks.
+
 ## Phase 3 — Frontier mode (2–3 months, research)
 
 - [ ] Router: is this evidence-less fact computable, deducible, or only proposable?
