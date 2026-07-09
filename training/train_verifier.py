@@ -106,6 +106,14 @@ def main() -> None:
         "(training/generate_averitec_pairs.py); never touches dev",
     )
     parser.add_argument(
+        "--negaciones",
+        type=Path,
+        default=Path("data/local/denial_pairs.jsonl"),
+        help="denial-pattern pairs (training/generate_denial_pairs.py); teach that "
+        "'X denied reports that Y' refutes Y — the traced Pogba-case gap where "
+        "denial passages all read NEUTRAL. Three-way balanced by construction",
+    )
+    parser.add_argument(
         "--fecha-neutrales",
         type=Path,
         default=Path("data/local/date_neutrals.jsonl"),
@@ -178,7 +186,7 @@ def main() -> None:
             (args.neutrales_dificiles, "neutrales-difíciles"),
             (args.sinteticos, "sintéticos-MiMo"),
             (args.averitec, "averitec-train"),
-            (args.fecha_neutrales, "neutrales-fecha"),
+            (args.negaciones, "negaciones"),
         ):
             if ruta.exists():
                 extra = load_dataset("json", data_files=str(ruta), split="train").map(
