@@ -520,6 +520,25 @@ verifier in Spanish.
       still ahead: past 61% with macro-F1 holding.
 - [ ] Temporal handling: volatile vs. stable facts
 - [ ] Active search for contrary evidence (anti-confirmation bias)
+- [ ] **Time-dimension and unconventional sources (2026-07-08).** Everything
+      in the current registry answers "what do sources say NOW"; these add
+      axes nothing else covers. In value order:
+      1. **Wayback Machine (Internet Archive)** — evidence with a time
+         dimension, keyless API. Three distinct capabilities: deleted
+         content ("X said Y then deleted it" — the archive is often the
+         only surviving evidence, and deletion is itself signal); temporal
+         claims ("the site said X in March 2020" — unverifiable against
+         today's version); and dead-link resurrection (recover 404'd
+         evidence URLs from snapshots instead of silently dropping them —
+         a recall improvement to the whole existing pipeline).
+      2. **SEC EDGAR** — keyless full-text search of company filings;
+         primary source for "company X reported/did Y" claims.
+      3. **Retraction Watch (now free via Crossref)** — flags claims citing
+         since-retracted studies ("zombie science"), a misinformation genre
+         nothing else in the registry detects.
+      4. **Our World in Data** — curated keyless statistics for "country X
+         has the highest Y" claims, where web search returns mostly
+         blogspam.
 - [ ] **Community sources — Reddit as index, not testimony (Jeffrey's idea,
       2026-07-08).** Moderated communities (r/AskHistorians, r/science,
       r/OutOfTheLoop) are often the fastest aggregators of PRIMARY sources
