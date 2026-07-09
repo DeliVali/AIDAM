@@ -520,6 +520,18 @@ verifier in Spanish.
       still ahead: past 61% with macro-F1 holding.
 - [ ] Temporal handling: volatile vs. stable facts
 - [ ] Active search for contrary evidence (anti-confirmation bias)
+- [ ] **Video subtitles/transcripts as an evidence family (Jeffrey's idea,
+      2026-07-08).** A large share of viral claims are about what someone
+      said on camera; transcripts are the PRIMARY source for that genre,
+      strictly better than secondary reporting, and they're just text —
+      zero new models, flows straight into the existing passage→NLI→
+      aggregator pipeline as one more FUENTES family. YouTube transcripts
+      are fetchable keyless. Design notes: prefer manually-uploaded
+      subtitles over noisy auto-captions; add an aggregator rule
+      distinguishing attribution claims ("X said Y" — transcript is
+      near-decisive) from content claims (the truth of Y — transcript is
+      one more voice); captions-only in v1, NO local Whisper transcription
+      until a measured miss-rate justifies the GPU cost.
 - [ ] **Extraction purity workstream (requested by Jeffrey, 2026-07-08):
       close the measured quality gap between live-scraped evidence and the
       knowledge store's.** The live pipeline already uses trafilatura (best
