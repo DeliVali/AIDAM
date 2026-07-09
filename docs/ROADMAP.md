@@ -520,6 +520,21 @@ verifier in Spanish.
       still ahead: past 61% with macro-F1 holding.
 - [ ] Temporal handling: volatile vs. stable facts
 - [ ] Active search for contrary evidence (anti-confirmation bias)
+- [ ] **National statistics offices — the certifying authorities themselves
+      (Jeffrey, 2026-07-08).** For "country X's inflation/unemployment/
+      population is Y" claims, the national office isn't A source, it's THE
+      source. Keyless/free shortlist: INE Spain (keyless JSON — priority for
+      the Spanish-language mission, with INEGI+Banxico Mexico, free token);
+      US BLS/Census/CDC; UK ONS; Eurostat. **Scaling insight: connect
+      platforms, not countries** — most governments run CKAN, Socrata or
+      OData standard portals, so three connectors cover hundreds of portals
+      (datos.gob.mx, data.gov, datos.gob.es, data.gov.uk…). Caveats: the
+      query-translation problem applies double (per-office indicator
+      taxonomies → LLM translator design carries over), and official
+      statistics LAG — a claim about last month may predate the certified
+      number, which is an honest NEI, not a failure. The .gov/.gob 2x domain
+      prior already up-weights these pages when web search finds them; a
+      dedicated connector would raise them to docs-oficiales tier (8x).
 - [ ] **Public statistical databases as certified sources (Jeffrey's idea,
       2026-07-08)** — the docs-oficiales equivalent for number claims, where
       web search returns blogspam arguing about the number and the database
