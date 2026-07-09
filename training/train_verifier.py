@@ -114,6 +114,14 @@ def main() -> None:
         "denial passages all read NEUTRAL. Three-way balanced by construction",
     )
     parser.add_argument(
+        "--scifact",
+        type=Path,
+        default=Path("data/local/scifact_pairs.jsonl"),
+        help="scientific-register pairs from SciFact TRAIN "
+        "(training/generate_scifact_pairs.py); closes the hedged-language gap "
+        "SciFact dev exposed. Never touches dev/test",
+    )
+    parser.add_argument(
         "--temporales",
         type=Path,
         default=Path("data/local/temporal_pairs.jsonl"),
@@ -195,7 +203,7 @@ def main() -> None:
             (args.sinteticos, "sintéticos-MiMo"),
             (args.averitec, "averitec-train"),
             (args.negaciones, "negaciones"),
-            (args.temporales, "temporales"),
+            (args.scifact, "scifact"),
         ):
             if ruta.exists():
                 extra = load_dataset("json", data_files=str(ruta), split="train").map(
