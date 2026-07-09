@@ -520,6 +520,35 @@ verifier in Spanish.
       still ahead: past 61% with macro-F1 holding.
 - [ ] Temporal handling: volatile vs. stable facts
 - [ ] Active search for contrary evidence (anti-confirmation bias)
+- [ ] **Triage of Jeffrey's source brainstorm (2026-07-08)** — judged
+      per-category, honest verdicts:
+      - **Laws by country — WORTH IT**: BOE Spain (keyless open-data API,
+        priority for the Spanish mission), EUR-Lex EU, GovInfo/Congress.gov
+        US (free keys). "The law says X" is a real viral genre and the
+        gazette is the primary source.
+      - **Public testimony/trials — WORTH IT**: UK Hansard (keyless API) for
+        "politician said X in parliament"; US CourtListener already shipped;
+        GovInfo hearing transcripts (free key) later.
+      - **Cybersecurity — SHIPPED same day**: NIST NVD (keyless) as `nvd`
+        source, docs-oficiales tier — CVE records are the certified source
+        for vulnerability/breach claims. Follow-up: CISA KEV catalog (free
+        JSON, actively-exploited list).
+      - **Nutrition (the verifiable core of "food") — WORTH IT**: USDA
+        FoodData Central (free key) for "X has more protein than Y" claims.
+        Recipes themselves are procedures, not factual claims — no verdict
+        to check, out of scope.
+      - **How-to/build guides — DEFERRED**: wikiHow is NC-licensed with no
+        API; procedures mostly aren't claims. The verifiable slice (technical
+        how-tos) is already covered by docs-oficiales.
+      - **Podcasts — FOLDED into the video-transcripts workstream**: no
+        transcript APIs exist generally; same Whisper-cost gate applies.
+      - **Tweets of scientists — NOT VIABLE as X/Twitter**: the API has been
+        paid-only since 2023, no keyless tier, scraping violates ToS.
+        Honest alternative: **Bluesky (keyless AT Protocol API) and Mastodon
+        (keyless public APIs)** where scientific communities increasingly
+        post; plus expert statements already reach us via news/GDELT/
+        Wikiquote. Open question flagged: expert identity ≠ authority on
+        truth — expertise weighting needs the same care as source priors.
 - [ ] **National statistics offices — the certifying authorities themselves
       (Jeffrey, 2026-07-08).** For "country X's inflation/unemployment/
       population is Y" claims, the national office isn't A source, it's THE

@@ -128,6 +128,7 @@ def test_registro_de_fuentes_completo():
         "wikisource",
         "wiktionary",
         "tribunales",
+        "nvd",
     } <= set(FUENTES)
     from aidam.router import CATEGORIAS
 
@@ -169,6 +170,8 @@ def test_categorias_enrutan_fuentes():
     assert "wiktionary" not in activas("medicina")
     assert "tribunales" in activas("actualidad")
     assert "tribunales" not in activas("ciencia")
+    assert "nvd" in activas("programacion")
+    assert "nvd" not in activas("general")
 
 
 def test_docs_oficiales_pesan_como_verificador():

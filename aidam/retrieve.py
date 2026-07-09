@@ -915,6 +915,40 @@ def buscar_europepmc(consulta: str, lang: str = "", max_papers: int = 4) -> list
     return evidencias
 
 
+def buscar_nvd(consulta: str, lang: str = "", max_cves: int = 3) -> list[Evidencia]:
+    """Official vulnerability records via NIST's NVD (free API, no key).
+
+    For "vulnerability X affects Y" / breach claims: the CVE record is the
+    certified source — cybersecurity claims are a real misinformation genre
+    (inflated severity, wrong products, vulnerabilities that don't exist).
+    Keyless rate limit is 5 requests/30s; one query per fact is well within it.
+    """
+    datos = _get_json(
+        "https://services.nvd.nist.gov/rest/json/cves/2.0",
+        {"keywordSearch": consulta, "resultsPerPage": max_cves},
+    )
+    evidencias: list[Evidencia] = []
+    for vulnerabilidad in (datos or {}).get("vulnerabilities", []):
+        cve = vulnerabilidad.get("cve", {})
+        cve_id = cve.get("id", "")
+        descripcion = next(
+            (d["value"] for d in cve.get("descriptions", []) if d.get("lang") == "en"), ""
+        )
+        if not cve_id or len(descripcion) < 40:
+            continue
+        evidencias.append(
+            Evidencia(
+                texto=f"{cve_id}: {descripcion}"[:1000],
+                url=f"https://nvd.nist.gov/vuln/detail/{cve_id}",
+                titulo=cve_id,
+                dominio="nvd.nist.gov",
+                fuente="docs-oficiales",
+                idioma="en",
+            )
+        )
+    return evidencias
+
+
 def buscar_courtlistener(consulta: str, lang: str = "", max_casos: int = 3) -> list[Evidencia]:
     """US court records via CourtListener (free API, anonymous read).
 
@@ -1061,6 +1095,11 @@ FUENTES: dict[str, tuple[str, set[str] | None, object]] = {
         "Expedientes judiciales de EE.UU. vía CourtListener",
         {"actualidad"},
         lambda c, lang, mi: buscar_courtlistener(c),
+    ),
+    "nvd": (
+        "Registro oficial de vulnerabilidades (NIST NVD)",
+        {"programacion"},
+        lambda c, lang, mi: buscar_nvd(c),
     ),
     "gdelt": (
         "Prensa global multilingüe vía GDELT (páginas completas)",
