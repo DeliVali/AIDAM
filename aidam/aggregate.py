@@ -92,8 +92,13 @@ def peso_fuente(evidencia: Evidencia) -> float:
         return PESO_VERIFICADOR
     if evidencia.fuente == "docs-oficiales":
         return PESO_DOCS_OFICIALES
-    if dominio.endswith((".wikipedia.org", ".wikiquote.org")) or dominio == "wikidata.org":
+    if (
+        dominio.endswith((".wikipedia.org", ".wikiquote.org", ".wikisource.org", ".wiktionary.org"))
+        or dominio == "wikidata.org"
+    ):
         return PESO_ENCICLOPEDIA
+    if evidencia.fuente == "tribunales":
+        return PESO_OFICIAL  # primary court records: official-registry tier
     if evidencia.fuente == "academica":
         return PESO_ACADEMICO
     if dominio.endswith((".gov", ".edu")) or ".gov." in dominio or ".edu." in dominio:

@@ -125,6 +125,9 @@ def test_registro_de_fuentes_completo():
         "europepmc",
         "openfda",
         "clinicaltrials",
+        "wikisource",
+        "wiktionary",
+        "tribunales",
     } <= set(FUENTES)
     from aidam.router import CATEGORIAS
 
@@ -161,6 +164,11 @@ def test_categorias_enrutan_fuentes():
     assert "openfda" in activas("medicina")
     assert "openfda" not in activas("programacion")
     assert "clinicaltrials" in activas("medicina")
+    assert "wikisource" in activas("actualidad")
+    assert "wiktionary" in activas("general")
+    assert "wiktionary" not in activas("medicina")
+    assert "tribunales" in activas("actualidad")
+    assert "tribunales" not in activas("ciencia")
 
 
 def test_docs_oficiales_pesan_como_verificador():
@@ -272,3 +280,35 @@ def test_wikidata_pesa_como_enciclopedia():
         idioma="",
     )
     assert peso_fuente(hecho) == PESO_ENCICLOPEDIA
+
+
+def test_tribunales_pesan_como_registro_oficial():
+    """Primary court records weigh at the official-registry tier."""
+    from aidam.aggregate import PESO_OFICIAL, peso_fuente
+    from aidam.models import Evidencia
+
+    caso = Evidencia(
+        texto="Smith v. Jones. Court of Appeals, 2024-05-02. Fraud conviction affirmed.",
+        url="https://www.courtlistener.com/opinion/123/smith-v-jones/",
+        titulo="Smith v. Jones",
+        dominio="courtlistener.com",
+        fuente="tribunales",
+        idioma="en",
+    )
+    assert peso_fuente(caso) == PESO_OFICIAL
+
+
+def test_wikisource_y_wiktionary_pesan_como_enciclopedia():
+    from aidam.aggregate import PESO_ENCICLOPEDIA, peso_fuente
+    from aidam.models import Evidencia
+
+    for dominio in ("en.wikisource.org", "es.wiktionary.org"):
+        e = Evidencia(
+            texto="texto del documento primario o definición",
+            url=f"https://{dominio}/wiki/x",
+            titulo="x",
+            dominio=dominio,
+            fuente="wikisource",
+            idioma="es",
+        )
+        assert peso_fuente(e) == PESO_ENCICLOPEDIA

@@ -25,6 +25,10 @@ Current families (all with free APIs, no keys):
   paper abstracts for scientific claims (mostly English corpus).
 - Medical: openFDA drug labels and ClinicalTrials.gov — official registries,
   not secondary summaries.
+- Primary documents: Wikisource (treaties, speeches, rulings — the document's
+  own text) and Wiktionary (documented etymologies vs. folk ones).
+- Legal: US court records via CourtListener — the docket itself for
+  "X was convicted/sued" claims.
 - Technical Q&A: Stack Overflow and Math StackExchange.
 
 Source independence is approximated by domain: a hundred pages from the same
@@ -229,6 +233,55 @@ def buscar_wikiquote(consulta: str, lang: str = "es", max_pasajes: int = 3) -> l
     for titulo in _buscar_titulos(consulta, host, max_articulos=2):
         evidencias.extend(
             _pasajes_de_articulo(host, titulo, 2, "wikiquote", lang, consulta=consulta)
+        )
+    return evidencias[:max_pasajes]
+
+
+def buscar_wikisource(consulta: str, lang: str = "es", max_pasajes: int = 3) -> list[Evidencia]:
+    """Primary-source documents: treaties, constitutions, speeches, rulings
+    (same MediaWiki search). For "the document actually says X" claims, the
+    document's own text outranks any secondary description of it.
+
+    Content note: Wikisource transcludes document text from its Page:
+    namespace, so TextExtracts returns empty (measured on the Gettysburg
+    Address) — the `parse` API resolves transclusions to rendered HTML,
+    which is stripped of style/script blocks and tags here.
+    """
+    host = f"{lang}.wikisource.org"
+    evidencias: list[Evidencia] = []
+    for titulo in _buscar_titulos(consulta, host, max_articulos=2):
+        datos = _mediawiki_get(host, {"action": "parse", "page": titulo, "prop": "text"})
+        html = ((datos or {}).get("parse", {}).get("text", {}) or {}).get("*", "")
+        html = re.sub(r"<(style|script)[^>]*>.*?</\1>", " ", html, flags=re.DOTALL)
+        texto = re.sub(r"<[^>]+>", " ", html)
+        texto = re.sub(r"\s+", " ", texto).strip()
+        if len(texto) < 40:
+            continue
+        url = f"https://{host}/wiki/{titulo.replace(' ', '_')}"
+        pasajes = _trocear(texto[:8000])
+        pasajes.sort(key=lambda p: _relevancia(consulta, p), reverse=True)
+        for pasaje in pasajes[:2]:
+            evidencias.append(
+                Evidencia(
+                    texto=pasaje, url=url, titulo=titulo, dominio=host,
+                    fuente="wikisource", idioma=lang,
+                )
+            )
+    return evidencias[:max_pasajes]
+
+
+def buscar_wiktionary(consulta: str, lang: str = "es", max_pasajes: int = 2) -> list[Evidencia]:
+    """Definitions and documented etymologies (same MediaWiki API).
+
+    Folk etymology is a real viral-myth genre ("posh comes from Port Out,
+    Starboard Home") and Wiktionary documents both the real origin and the
+    popular misconception.
+    """
+    host = f"{lang}.wiktionary.org"
+    evidencias: list[Evidencia] = []
+    for titulo in _buscar_titulos(consulta, host, max_articulos=2):
+        evidencias.extend(
+            _pasajes_de_articulo(host, titulo, 1, "wiktionary", lang, consulta=consulta)
         )
     return evidencias[:max_pasajes]
 
@@ -862,6 +915,43 @@ def buscar_europepmc(consulta: str, lang: str = "", max_papers: int = 4) -> list
     return evidencias
 
 
+def buscar_courtlistener(consulta: str, lang: str = "", max_casos: int = 3) -> list[Evidencia]:
+    """US court records via CourtListener (free API, anonymous read).
+
+    For "X was convicted/sued/ruled against" claims, the docket is the
+    primary source — a recurring viral-defamation genre gets checked against
+    the actual court record instead of blog coverage of it.
+    """
+    datos = _get_json(
+        "https://www.courtlistener.com/api/rest/v4/search/",
+        {"q": consulta, "type": "o", "page_size": max_casos},
+    )
+    evidencias: list[Evidencia] = []
+    for caso in (datos or {}).get("results", []):
+        nombre = caso.get("caseName", "")
+        corte = caso.get("court", "")
+        fecha = caso.get("dateFiled", "")
+        fragmento = ""
+        for opinion in caso.get("opinions") or []:
+            if opinion.get("snippet"):
+                fragmento = re.sub(r"\s+", " ", opinion["snippet"]).strip()
+                break
+        texto = f"{nombre}. {corte}, {fecha}. {fragmento}".strip()
+        if len(texto) < 40 or not nombre:
+            continue
+        evidencias.append(
+            Evidencia(
+                texto=texto[:1000],
+                url=f"https://www.courtlistener.com{caso.get('absolute_url', '')}",
+                titulo=nombre,
+                dominio="courtlistener.com",
+                fuente="tribunales",
+                idioma="en",
+            )
+        )
+    return evidencias
+
+
 def buscar_openfda(consulta: str, lang: str = "", max_resultados: int = 3) -> list[Evidencia]:
     """Official FDA drug label data via openFDA (free, no key for this volume).
 
@@ -956,6 +1046,21 @@ FUENTES: dict[str, tuple[str, set[str] | None, object]] = {
         "Hechos estructurados de Wikidata (fechas, cargos, población)",
         None,
         lambda c, lang, mi: buscar_wikidata(c, lang=lang),
+    ),
+    "wikisource": (
+        "Documentos primarios de Wikisource (tratados, discursos, fallos)",
+        {"actualidad", "general"},
+        lambda c, lang, mi: buscar_wikisource(c, lang=lang),
+    ),
+    "wiktionary": (
+        "Definiciones y etimologías documentadas de Wiktionary",
+        {"general"},
+        lambda c, lang, mi: buscar_wiktionary(c, lang=lang),
+    ),
+    "tribunales": (
+        "Expedientes judiciales de EE.UU. vía CourtListener",
+        {"actualidad"},
+        lambda c, lang, mi: buscar_courtlistener(c),
     ),
     "gdelt": (
         "Prensa global multilingüe vía GDELT (páginas completas)",
