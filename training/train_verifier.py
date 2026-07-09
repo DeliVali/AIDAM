@@ -114,6 +114,14 @@ def main() -> None:
         "denial passages all read NEUTRAL. Three-way balanced by construction",
     )
     parser.add_argument(
+        "--temporales",
+        type=Path,
+        default=Path("data/local/temporal_pairs.jsonl"),
+        help="temporal/quantity-qualification pairs (training/generate_temporal_pairs.py): "
+        "a number for a DIFFERENT time doesn't contradict a time-qualified claim — the "
+        "biggest v8-500 error signature. Three-way balanced by construction",
+    )
+    parser.add_argument(
         "--fecha-neutrales",
         type=Path,
         default=Path("data/local/date_neutrals.jsonl"),
@@ -187,6 +195,7 @@ def main() -> None:
             (args.sinteticos, "sintéticos-MiMo"),
             (args.averitec, "averitec-train"),
             (args.negaciones, "negaciones"),
+            (args.temporales, "temporales"),
         ):
             if ruta.exists():
                 extra = load_dataset("json", data_files=str(ruta), split="train").map(
