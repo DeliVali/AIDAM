@@ -122,7 +122,7 @@ def barrer(desde: int, hasta: int) -> None:
         params = dict(zip(rejilla.keys(), valores))
         r = evaluar_config(indices, **params)
         mejores.append((r["exactitud"], r["f1_macro"], params))
-    mejores.sort(reverse=True)
+    mejores.sort(key=lambda t: (t[0], t[1]), reverse=True)
     print("top 8 por exactitud:")
     for exactitud, f1, params in mejores[:8]:
         print(f"  {exactitud:.3f} · F1 {f1:.3f} · {params}")

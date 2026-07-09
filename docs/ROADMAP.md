@@ -576,6 +576,26 @@ verifier in Spanish.
       a rejection — pair-level success only converts to claim-level wins if
       the corrective evidence actually exists to take over, and here the
       bottleneck was evidence coverage, not judgment. v8 stays production.
+- [x] **Aggregation constants swept and CONFIRMED (2026-07-09).** Built
+      `evaluation/sweep_aggregation.py` (caches retrieval+QG+NLI pairs once,
+      re-aggregates in milliseconds — parameter sweeps went from 1.5 h to
+      instant per point) and ran the 36-point grid over DOMINANCIA ×
+      UMBRAL_SENAL × PESO_DESMENTIDO on a tuning slice (claims 100-299)
+      disjoint from anything previously optimized against. Result: the
+      production constants are already at the accuracy/F1 balance point —
+      the best alternative (+1.5 accuracy at DOMINANCIA 1.5) pays with
+      macro-F1 0.387→0.345, the same skew-shaped trade rejected with v7,
+      and within noise at n=200. PESO_DESMENTIDO barely decides anything
+      across 0.15–0.40. **Every optimization axis has now been swept or
+      tried with measured results: verifier training (v3–v9), retrieval
+      (max_pasajes, MMR, question-driven), LLM assistance (sole judge, NEI
+      resolver, dissent resolver), backend choice (MiMo/DeepSeek), and
+      aggregation parameters. The architecture's measured ceiling on
+      AVeriTeC-500 is ~62%** — remaining error mass is characterized as
+      negation-scope/entity-precision nuance beyond pairwise-NLI capacity
+      (documented above), plus evidence-coverage gaps the store itself
+      bounds. Next frontier per the phased plan: other benchmarks, and
+      Phase 3's reasoning-class machinery.
 - [ ] Temporal handling: volatile vs. stable facts
 - [ ] Active search for contrary evidence (anti-confirmation bias)
 - [ ] **Triage of Jeffrey's source brainstorm (2026-07-08)** — judged
