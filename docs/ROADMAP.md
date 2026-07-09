@@ -535,6 +535,24 @@ verifier in Spanish.
       4. Still below the 61% majority baseline on accuracy — the honest
          gap to close next; the class-skew route to beat it (v7) was
          measured and rejected on principle.
+- [x] **Verifier v8 (denial-pattern pairs) PROMOTED: 62.0% on the full 500,
+      majority baseline crossed with macro-F1 RISING (2026-07-09).** The
+      denial set (12k three-way shortcut-proofed pairs, see
+      `generate_denial_pairs.py`) did what v7's date neutrals didn't:
+      the mechanism verified causally at every level — the traced Pogba
+      probe flipped (16 REFUTA pair judgments where before there were ~0),
+      a Pogba-claim variant in the eval itself flipped to correct, and the
+      100-claim flip-diff showed denial-genre corrections plus recovered
+      Supported/Conflicting claims, not skew. Full-500 vs v6:
+      **62.0% vs 55.0% accuracy (+7.0), F1 macro 0.360 vs 0.309, and every
+      single class improved** (Refuted 0.767, Supported 0.388, Conflicting
+      0.140, NEI 0.143) — the exact opposite of the v7 signature, and the
+      legitimate version of the criterion-(b) milestone as defined when v7
+      was rejected: past 61% with macro-F1 holding (here: rising). Clean
+      benchmarks drifted marginally (VitaminC 88.17 vs 88.52, AggreFact
+      65.3 vs 66.2) — accepted against a +7.0/+0.051 gain with verified
+      causal mechanism. v6 archived at `models/verificador-v0-v6-archivado`.
+      Series on the full 500: **44.0% → 55.0% → 62.0%**.
 - [ ] Temporal handling: volatile vs. stable facts
 - [ ] Active search for contrary evidence (anti-confirmation bias)
 - [ ] **Triage of Jeffrey's source brainstorm (2026-07-08)** — judged
