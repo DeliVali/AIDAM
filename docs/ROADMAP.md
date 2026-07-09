@@ -520,6 +520,21 @@ verifier in Spanish.
       still ahead: past 61% with macro-F1 holding.
 - [ ] Temporal handling: volatile vs. stable facts
 - [ ] Active search for contrary evidence (anti-confirmation bias)
+- [ ] **Public statistical databases as certified sources (Jeffrey's idea,
+      2026-07-08)** — the docs-oficiales equivalent for number claims, where
+      web search returns blogspam arguing about the number and the database
+      IS the number. Keyless shortlist by claim genre: WHO Global Health
+      Observatory (health statistics — the biggest misinformation genre);
+      World Bank/Eurostat/UN SDG (economic claims; World Bank measured
+      flaky, silent-fail handles it); USGS earthquakes + NOAA/NASA climate
+      (disaster and record claims against the instrument record); Interpol
+      public notices ("X is wanted" viral defamation); GLEIF LEI (company
+      existence). **The real engineering problem is query translation, not
+      API access**: a claim says "unemployment doubled", the API wants
+      indicator SL.UEM.TOTL.ZS + country + years. Design: router flags
+      statistical claims, the existing LLM question-generator translates
+      free text → structured lookup (same pattern as sub-question
+      generation), result enters as docs-oficiales-tier evidence.
 - [ ] **Time-dimension and unconventional sources (2026-07-08).** Everything
       in the current registry answers "what do sources say NOW"; these add
       axes nothing else covers. In value order:
