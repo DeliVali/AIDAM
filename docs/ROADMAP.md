@@ -520,6 +520,23 @@ verifier in Spanish.
       still ahead: past 61% with macro-F1 holding.
 - [ ] Temporal handling: volatile vs. stable facts
 - [ ] Active search for contrary evidence (anti-confirmation bias)
+- [ ] **Community sources — Reddit as index, not testimony (Jeffrey's idea,
+      2026-07-08).** Moderated communities (r/AskHistorians, r/science,
+      r/OutOfTheLoop) are often the fastest aggregators of PRIMARY sources
+      for emerging viral claims — tracing a manipulated image or fabricated
+      quote hours before fact-checkers publish. Design: search threads about
+      the claim, extract URLs cited in top comments, fetch THOSE as evidence
+      under their own domains' priors (Reddit-as-index); any direct Reddit
+      text enters at a deliberately sub-1.0 prior (~0.3–0.5x, new tier below
+      PESO_BASE). Existing safeguards already bound the risk: one-domain-one-
+      voice caps all of reddit.com at a single vote, and tie-breaking
+      requires a reliable voice, so weak sources add signal but can never
+      overturn a fact-checker. Explicitly REJECTED in the same analysis:
+      article/YouTube comments — unmoderated, trivially manipulable
+      (bots/brigading), and viral lies are seeded there, so ingesting them
+      imports the disinformation being judged (the echo problem again).
+      Reddit's moderation/threading/vote structure is different in kind.
+      Live-pipeline enrichment only — does not move offline benchmark numbers.
 - [ ] **Video subtitles/transcripts as an evidence family (Jeffrey's idea,
       2026-07-08).** A large share of viral claims are about what someone
       said on camera; transcripts are the PRIMARY source for that genre,
