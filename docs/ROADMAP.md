@@ -553,6 +553,29 @@ verifier in Spanish.
       65.3 vs 66.2) — accepted against a +7.0/+0.051 gain with verified
       causal mechanism. v6 archived at `models/verificador-v0-v6-archivado`.
       Series on the full 500: **44.0% → 55.0% → 62.0%**.
+- [x] **Verifier v9 (temporal-qualification pairs) — REJECTED at full scale
+      despite the mechanism firing (2026-07-09).** Applied v8's proven recipe
+      (fully synthetic three-way shortcut-proofed contrast,
+      `generate_temporal_pairs.py`, 12k pairs) to the biggest remaining error
+      signature: quantities not bound to their time qualifiers ("at
+      independence, 45M" refuted by today's 200M). The pair-level probe
+      verified the mechanism completely — #207's wrong-time passages flipped
+      from confident-REFUTA to neutral (22 no_concluye / 3 refuta), Pogba
+      held, VitaminC even rose (88.35 vs v8's 88.17). **But the full 500
+      measured worse: 60.6%/0.343 vs v8's 62.0%/0.360.** The two-sided
+      trade, quantified: the targeted bucket barely moved (Supported→Refuted
+      73→70 — #207 itself STILL ends Refuted, because neutralizing wrong-time
+      evidence leaves NO supporting evidence rather than producing support;
+      the correct-time figure simply isn't in the store), while genuine
+      refutations weakened everywhere else (Refuted correct 263→258,
+      Refuted→Supported errors 23→29 — many false claims are numeric
+      exaggerations where the mismatch IS the refutation, and softening it
+      loses them). **New methodological lesson, complementing v7's**: v7
+      taught that aggregate gains without a verified mechanism are suspect;
+      v9 teaches that a verified mechanism without aggregate gains is still
+      a rejection — pair-level success only converts to claim-level wins if
+      the corrective evidence actually exists to take over, and here the
+      bottleneck was evidence coverage, not judgment. v8 stays production.
 - [ ] Temporal handling: volatile vs. stable facts
 - [ ] Active search for contrary evidence (anti-confirmation bias)
 - [ ] **Triage of Jeffrey's source brainstorm (2026-07-08)** — judged
