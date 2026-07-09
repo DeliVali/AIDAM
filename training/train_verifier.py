@@ -105,6 +105,14 @@ def main() -> None:
         help="in-domain pairs from the AVeriTeC train split "
         "(training/generate_averitec_pairs.py); never touches dev",
     )
+    parser.add_argument(
+        "--fecha-neutrales",
+        type=Path,
+        default=Path("data/local/date_neutrals.jsonl"),
+        help="same-topic, different-date hard neutrals (training/generate_date_neutrals.py); "
+        "targets the traced failure where a close-but-different date on a related event "
+        "reads as confident contradiction instead of ambiguity",
+    )
     parser.add_argument("--checkpoint", default=CHECKPOINT_BASE)
     parser.add_argument(
         "--salida", type=Path, default=SALIDA,
@@ -170,6 +178,7 @@ def main() -> None:
             (args.neutrales_dificiles, "neutrales-difíciles"),
             (args.sinteticos, "sintéticos-MiMo"),
             (args.averitec, "averitec-train"),
+            (args.fecha_neutrales, "neutrales-fecha"),
         ):
             if ruta.exists():
                 extra = load_dataset("json", data_files=str(ruta), split="train").map(

@@ -493,6 +493,31 @@ verifier in Spanish.
       errors are bugs, some are the genuine hardness of real-world source
       disagreement, and distinguishing the two matters more than forcing a
       fix onto the second kind.
+- [x] **Verifier v7 (date-mismatch hard neutrals) — 62.0% AVeriTeC accuracy,
+      first time past the 61% majority baseline, but NOT promoted
+      (2026-07-08).** Against the advice of the entry above, tried the
+      trainable version of the date-precision fix anyway:
+      `training/generate_date_neutrals.py` mechanically mines VitaminC for
+      same-topic pairs whose only conflict is a nearby-but-different date
+      and labels them NOT ENOUGH INFO (5,000 pairs), teaching "a close date
+      mismatch on a related event is ambiguity, not flat contradiction."
+      v7 = v6's exact recipe + those pairs, 2 epochs. Results, honestly
+      read: **the intended mechanism did not fire** — the Barrett case that
+      motivated the data is still wrong, and per-claim diff vs. the 60.0%
+      run shows 6 of the 7 newly-correct claims are flips TO Refuted (the
+      dataset is 63% Refuted; a stronger refute tendency buys accuracy on
+      this skew without being smarter). Meanwhile every clean,
+      skew-independent metric regressed: VitaminC test 88.52→87.96,
+      AggreFact 66.2→65.8, AVeriTeC macro-F1 0.373→0.305 (NEI predictions
+      collapsed to 1/100). **v6 stays production.** The 62.0% is real and
+      reproducible (`AIDAM_MODELO_VERIFICADOR=models/verificador-v7`,
+      results archived at `averitec_results_v7_62pct.jsonl`) and crossing
+      the majority baseline was one of the project's three original success
+      criteria — but crossing it via class-skew alignment while regressing
+      everywhere else is not the version of that milestone worth keeping,
+      and for real-world use (where claims aren't 63% false) v7's shifted
+      prior is a liability, not a feature. The milestone that counts is
+      still ahead: past 61% with macro-F1 holding.
 - [ ] Temporal handling: volatile vs. stable facts
 - [ ] Active search for contrary evidence (anti-confirmation bias)
 
