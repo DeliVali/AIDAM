@@ -122,6 +122,14 @@ def main() -> None:
         "SciFact dev exposed. Never touches dev/test",
     )
     parser.add_argument(
+        "--fever",
+        type=Path,
+        default=Path("data/local/fever_pairs.jsonl"),
+        help="FEVER-register pairs from FEVER train (training/generate_fever_pairs.py); "
+        "balanced 3-class, targets FEVER headroom and NEI reinforcement. Never touches "
+        "the validation split used for evaluation",
+    )
+    parser.add_argument(
         "--temporales",
         type=Path,
         default=Path("data/local/temporal_pairs.jsonl"),
@@ -204,6 +212,7 @@ def main() -> None:
             (args.averitec, "averitec-train"),
             (args.negaciones, "negaciones"),
             (args.scifact, "scifact"),
+            (args.fever, "fever"),
         ):
             if ruta.exists():
                 extra = load_dataset("json", data_files=str(ruta), split="train").map(
