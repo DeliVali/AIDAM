@@ -130,6 +130,14 @@ def main() -> None:
         "the validation split used for evaluation",
     )
     parser.add_argument(
+        "--longdoc",
+        type=Path,
+        default=Path("data/local/longdoc_pairs.jsonl"),
+        help="D2C long-document pairs (training/generate_longdoc_pairs.py): "
+        "LLM-composed multi-sentence claims over real article chunks -- the "
+        "purpose-built MiniCheck-style register, three-way balanced",
+    )
+    parser.add_argument(
         "--temporales",
         type=Path,
         default=Path("data/local/temporal_pairs.jsonl"),
@@ -227,6 +235,7 @@ def main() -> None:
             (args.scifact, "scifact"),
             (args.fever, "fever"),
             (args.docnli, "docnli"),
+            (args.longdoc, "longdoc-d2c"),
         ):
             if ruta.exists():
                 extra = load_dataset("json", data_files=str(ruta), split="train").map(
