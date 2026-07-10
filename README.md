@@ -80,6 +80,13 @@ gains unless corrective evidence exists in retrieval; and live search engines
 degrade cumulatively within a single evaluation run, so reproducible
 fact-checking evaluation needs frozen evidence.
 
+## Support
+
+AIDAM is developed independently on consumer hardware. Donations via
+[GitHub Sponsors](https://github.com/sponsors/DeliVali) fund the compute for
+training and evaluation — every number in the results table above was
+measured on a single consumer GPU.
+
 ## Contributing
 
 Apache 2.0 license — © 2026 [Jeffrey Romero Del Val](https://github.com/DeliVali).
