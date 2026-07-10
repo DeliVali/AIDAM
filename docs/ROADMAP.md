@@ -782,6 +782,27 @@ class, the hardest in the benchmark.
       but real-world claim noise, 4-class ambiguity, and evidence quality.
       `evaluation/eval_fever.py`.
 
+### Backbone and pipeline ideas from the field (2026-07-09, via Jeffrey)
+
+- [ ] **mmBERT/ModernBERT backbone experiment** — prompted by reviewing
+      halugate-sentinel (a Stage-0 "does this prompt need fact-checking"
+      router on ModernBERT; NOT a verifier — it would sit in front of a
+      system like AIDAM, not replace it). The transferable insight is the
+      backbone: mmBERT (multilingual ModernBERT) has **8,192-token native
+      context** vs mDeBERTa's 512 — our entire long-document weakness
+      (AggreFact-CNN 50.3%, the chunk-and-max hack) is an architectural
+      limit that backbone dissolves: whole documents judged in one pass.
+      Cost: no NLI-pretrained head exists, so the full recipe retrains from
+      a raw encoder — a weekend-scale GPU experiment with real risk.
+      Candidate after the current data-register campaign plateaus.
+- [ ] **Trained Stage-0 verification gate** for the Phase 4 compound agent:
+      most user requests (code/creative/opinion) shouldn't pay the
+      verification tax. Current opinion filter is regex; halugate proves
+      ~100M params and 50k prompts suffice for a 96%+ intent gate. Connects
+      to the ask-don't-guess design principle.
+- [ ] **HaluEval / FaithDial as additional grounding registers** for the
+      AggreFact push — unmined public sources their card lists.
+
 ## Phase 3 — Frontier mode (2–3 months, research)
 
 - [ ] Router: is this evidence-less fact computable, deducible, or only proposable?
