@@ -1,0 +1,5 @@
+# Renders the "Sponsor" button on the repo. Each line activates once the
+# corresponding account exists.
+github: DeliVali          # activates when the GitHub Sponsors profile is approved
+# ko_fi: delivali         # uncomment after creating the Ko-fi page
+# open_collective: aidam  # uncomment if the project joins Open Collective
