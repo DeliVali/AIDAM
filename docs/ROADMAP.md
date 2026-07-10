@@ -750,6 +750,21 @@ class, the hardest in the benchmark.
       (the core transfers — 55% cold on a new domain), and points the next
       training-data lever at scientific-register SUPPORT/CONTRADICT pairs.
       FEVER and a fresh LLM-AggreFact-on-v8 are the remaining cross-checks.
+- [x] **Verifier v10 (scientific-register pairs) PROMOTED — the first
+      verifier to improve two benchmarks at once (2026-07-09).**
+      `generate_scifact_pairs.py` converts SciFact TRAIN's human-annotated
+      rationales into verifier pairs (+ balanced mechanical NEI), v8's
+      shortcut-proofing recipe applied; the rejected v9 temporal pairs were
+      dropped from the mix. Measured everywhere: **SciFact dev 55.0→63.7
+      (+8.7, F1 0.528→0.611)** — the target; **AVeriTeC-500 62.0→62.6,
+      new accuracy best**, with both major classes up (Supported 0.388→0.406,
+      Refuted 0.767→0.769); AggreFact 65.1 (flat); VitaminC 88.14 (flat).
+      Honest cost, documented: the two smallest AVeriTeC classes eroded
+      (NEI 0.143→0.087, Conflicting 0.140→0.100 — macro-F1 0.360→0.341),
+      accepted because the mission is explicitly multi-domain and v10
+      gained an entire scientific register at zero cost to general
+      grounding. v8 archived at `models/verificador-v0-v8-archivado`.
+      Full-500 series: 44.0 → 55.0 → 62.0 → 62.6.
 
 ## Phase 3 — Frontier mode (2–3 months, research)
 
