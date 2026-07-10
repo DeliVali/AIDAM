@@ -766,6 +766,22 @@ class, the hardest in the benchmark.
       grounding. v8 archived at `models/verificador-v0-v8-archivado`.
       Full-500 series: 44.0 → 55.0 → 62.0 → 62.6.
 
+- [x] **FEVER (2026-07-09): 77.7% accuracy, F1 macro 0.773 — the strongest
+      benchmark number yet, and the three-leg generalization map is
+      complete.** Balanced 999-claim sample of FEVER dev, oracle retrieval
+      via copenlu/fever_gold_evidence (inlined gold sentences — no 3 GB wiki
+      dump), production v10. Per-class: SUPPORTS F1 0.864, REFUTES 0.780,
+      NEI 0.676 (weakest — its "gold" evidence comes from a retrieval
+      system, so related-but-non-probative text sometimes reads REFUTA).
+      **The map, honestly read**: FEVER 77.7% (Wikipedia register — the
+      verifier's home domain, VitaminC is built from Wikipedia edits) >
+      SciFact 63.7% (scientific register, learned this campaign) ≈
+      AVeriTeC-500 62.6% (viral/political 4-class, the hard one). The
+      ~15-point FEVER-to-AVeriTeC gap quantifies what AVeriTeC's difficulty
+      actually is: not the verifier's comparative skill (strong at home),
+      but real-world claim noise, 4-class ambiguity, and evidence quality.
+      `evaluation/eval_fever.py`.
+
 ## Phase 3 — Frontier mode (2–3 months, research)
 
 - [ ] Router: is this evidence-less fact computable, deducible, or only proposable?
