@@ -104,6 +104,16 @@ def verificar(
         )
 
         pares = verificador.juzgar(hecho, evidencias) if evidencias else []
+        # Symbolic comparators (Phase 3 seed): different-period quantity
+        # mismatches are not contradictions — judged by rule, not weights.
+        # Measured on the pair cache (2026-07-09): fires rarely (1/200
+        # claims) because it requires explicit time markers on BOTH sides;
+        # kept because it's zero-cost, correct where it fires, and the
+        # growth path is real (ground relative periods via Wikidata dates,
+        # date arithmetic, unit conversion). Honest status: seed, not win.
+        from .comparators import ajustar_pares
+
+        ajustar_pares(pares)
         vh = agregar_hecho(hecho, pares)
 
         # Cherry-picking: a supported claim can still deceive by omission.
