@@ -802,6 +802,26 @@ class, the hardest in the benchmark.
       the mmBERT long-context backbone as the deeper fix for register
       crowding in a 279M-capacity model.
 
+- [x] **Verifier v12 (40k DocNLI long-document pairs @ 512 tokens) —
+      REJECTED: a label-poisoning mechanism found the hard way (2026-07-10).**
+      The long-document thesis was directionally right: AggreFact 65.1→66.0
+      (project best), AggreFact-CNN 50.1→54.1 (+4, no longer coin-flip),
+      SciFact/AVeriTeC-100 held, and the 512-token training fixed a silent
+      train/eval length mismatch. **But FEVER collapsed 77.7→48.1**, and the
+      mechanism is precise: DocNLI is itself built partly FROM FEVER/ANLI,
+      with contradiction pairs relabeled `not_entailment` — our
+      "conservative" not_entailment→NEI mapping therefore taught the model
+      that FEVER-style refutations are NEUTRAL. Anti-refutation training,
+      injected by provenance we didn't audit. MiniCheck-FT5 (74.7) remains
+      unbeaten. **v13 design, from the lesson**: (a) audit mined datasets'
+      provenance before mapping labels — DocNLI rows deriving from
+      contradiction sources must be dropped, not relabeled; (b) the honest
+      long-document negatives are purpose-built D2C synthetic data (local
+      LLM generates multi-sentence-composition claims from real documents,
+      the actual MiniCheck recipe) — hours of generation, now clearly
+      required rather than optional. AggreFact-CNN's +4 from even
+      contaminated long-doc data says the register lever is real.
+
 ### Backbone and pipeline ideas from the field (2026-07-09, via Jeffrey)
 
 - [ ] **mmBERT/ModernBERT backbone experiment** — prompted by reviewing
