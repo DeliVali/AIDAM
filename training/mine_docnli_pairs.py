@@ -35,12 +35,20 @@ def main() -> None:
                         help="only genuinely long premises: the register being added")
     parser.add_argument("--max-chars", type=int, default=6000)
     parser.add_argument("--salida", type=Path, default=SALIDA)
+    parser.add_argument(
+        "--solo-entailment", action="store_true",
+        help="mine ONLY the entailment side (its positives are summaries, "
+        "clean); DocNLI's not_entailment class includes FEVER/ANLI "
+        "contradictions relabeled as non-entailment -- mapping those to NEI "
+        "taught anti-refutation (measured: v12, FEVER 77.7->48.1)",
+    )
     args = parser.parse_args()
 
     from datasets import load_dataset
 
     datos = load_dataset("saattrupdan/doc-nli", split="train")
-    por_clase: dict[str, list[dict]] = {"entailment": [], "not_entailment": []}
+    clases = ["entailment"] if args.solo_entailment else ["entailment", "not_entailment"]
+    por_clase: dict[str, list[dict]] = {c: [] for c in clases}
     objetivo = args.por_etiqueta * 3  # oversample before shuffling down
     for ejemplo in datos:
         etiqueta = ejemplo["label"]
