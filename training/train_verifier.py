@@ -32,7 +32,7 @@ from transformers import (
 CHECKPOINT_BASE = "MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7"
 DATASET = "tals/vitaminc"
 SALIDA = Path(__file__).resolve().parent.parent / "models" / "verificador-v0"
-MAX_LEN = 256
+MAX_LEN = 256  # overridable via --max-len (long-document data needs 512)
 SEMILLA = 42
 
 # VitaminC → labels of the checkpoint's NLI head
@@ -151,6 +151,19 @@ def main() -> None:
         help="output dir (default models/verificador-v0)",
     )
     parser.add_argument(
+        "--max-len", type=int, default=MAX_LEN,
+        help="tokenizer truncation length; 512 for long-document mixes "
+        "(batch auto-halves to fit 12 GB)",
+    )
+    parser.add_argument(
+        "--docnli",
+        type=Path,
+        default=Path("data/local/docnli_pairs.jsonl"),
+        help="long-document pairs mined from DocNLI (training/mine_docnli_pairs.py); "
+        "the register LLM-AggreFact needs. entailment/not-entailment only, "
+        "mapped SUPPORTS/NEI — never REFUTES",
+    )
+    parser.add_argument(
         "--epocas", type=float, default=1.0,
         help="training epochs (v0-v5 all used 1; single-epoch NLI fine-tunes "
         "are typically under-converged)",
@@ -168,7 +181,7 @@ def main() -> None:
     def preparar(lote):
         # Same order as aidam/verify.py: premise=evidence, hypothesis=claim.
         entradas = tokenizer(
-            lote["evidence"], lote["claim"], truncation=True, max_length=MAX_LEN
+            lote["evidence"], lote["claim"], truncation=True, max_length=args.max_len
         )
         entradas["labels"] = [etiqueta_a_id[e] for e in lote["label"]]
         return entradas
@@ -197,7 +210,7 @@ def main() -> None:
 
         def preparar_mnli(lote):
             entradas = tokenizer(
-                lote["premise"], lote["hypothesis"], truncation=True, max_length=MAX_LEN
+                lote["premise"], lote["hypothesis"], truncation=True, max_length=args.max_len
             )
             entradas["labels"] = [ids_mnli[e] for e in lote["label"]]
             return entradas
@@ -213,6 +226,7 @@ def main() -> None:
             (args.negaciones, "negaciones"),
             (args.scifact, "scifact"),
             (args.fever, "fever"),
+            (args.docnli, "docnli"),
         ):
             if ruta.exists():
                 extra = load_dataset("json", data_files=str(ruta), split="train").map(
@@ -233,8 +247,8 @@ def main() -> None:
         # Effective batch 32; DeBERTa-v3 doesn't fit a direct batch of 32 in 12 GB.
         # No gradient checkpointing: its backward showed instability (collapse
         # to one class in the v1 run); batch 8 + accumulation 4 fits without it.
-        per_device_train_batch_size=8,
-        gradient_accumulation_steps=4,
+        per_device_train_batch_size=8 if args.max_len <= 256 else 4,
+        gradient_accumulation_steps=4 if args.max_len <= 256 else 8,
         per_device_eval_batch_size=32,
         learning_rate=1e-5,
         warmup_ratio=0.06,
