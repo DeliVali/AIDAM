@@ -782,6 +782,26 @@ class, the hardest in the benchmark.
       but real-world claim noise, 4-class ambiguity, and evidence quality.
       `evaluation/eval_fever.py`.
 
+- [x] **Verifier v11 (FEVER-register pairs) — FEVER 86.0% (+8.3), but NOT
+      promoted for production: AVeriTeC regressed below the pre-set bar
+      (2026-07-10).** The third straight register-transfer win on its target:
+      FEVER 77.7→86.0 (F1 macro 0.861), with SciFact (64.3), AggreFact
+      (65.7) and VitaminC (88.69, campaign best) all nudging up. But the
+      decisive AVeriTeC-500 landed at **60.2% vs v10's 62.6** — below the
+      promotion rule fixed before the number existed (≥62.0, holding the
+      majority-baseline crossing) — so **v10 stays production** and v11 is
+      archived as the FEVER specialist (`models/verificador-v11`,
+      selectable via `AIDAM_MODELO_VERIFICADOR`). Honest reading —
+      **register interference is now a measured phenomenon**: 30k
+      Wikipedia-register pairs (3.5× the AVeriTeC in-domain set) pulled the
+      model toward encyclopedic style at the viral-claim register's
+      expense; macro-F1 actually rose (0.341→0.352, Supported F1 0.436 =
+      campaign best) while accuracy fell — the mix rebalanced toward
+      minority classes as Refuted recall dropped. Next-session experiment:
+      a smaller FEVER dose (~10k) to find the interference-free ratio, and
+      the mmBERT long-context backbone as the deeper fix for register
+      crowding in a 279M-capacity model.
+
 ### Backbone and pipeline ideas from the field (2026-07-09, via Jeffrey)
 
 - [ ] **mmBERT/ModernBERT backbone experiment** — prompted by reviewing

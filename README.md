@@ -62,7 +62,7 @@ One 280M-parameter verifier, measured simultaneously on four public benchmarks:
 
 | Benchmark | Domain | Result |
 |---|---|---|
-| FEVER (dev, balanced) | Wikipedia claims | **77.7%** accuracy, F1 macro 0.773 |
+| FEVER (dev, balanced) | Wikipedia claims | **77.7%** accuracy (a FEVER-specialized variant reaches **86.0%**) |
 | SciFact (dev) | Scientific claims | **63.7%** accuracy, F1 macro 0.611 |
 | AVeriTeC (full dev, 500) | Real-world viral claims, 4-class | **62.6%** accuracy — above the 61% majority baseline |
 | LLM-AggreFact | LLM grounding | 65.1% balanced accuracy |
