@@ -860,6 +860,25 @@ class, the hardest in the benchmark.
       consecutive times: 66→62.6, 61→60.2, 68→61.0, 63→— vs full-500).
       Promotion arguments must cite the 500 only.
 
+- [x] **Verifier v15 (v14 mix + 10k FEVER small dose) — best generalist of
+      the campaign; the register trade-off is now a LAW of this backbone
+      (2026-07-11).** Three simultaneous project bests: **AggreFact 70.0**
+      (4.7 from MiniCheck-FT5), **FEVER 81.7** unified (+3.0 from a third
+      of v11's interfering dose — the 10k dose works), **SciFact 66.3**;
+      VitaminC 88.40. But AVeriTeC-500: 60.6 — below the 62.0 bar, the
+      third grounding-optimized model in a row to trade viral-claim
+      accuracy for grounding gains (v13 61.0, v14 unmeasured-by-policy,
+      v15 60.6 vs v10's 62.6). **Conclusion: within a 279M fixed-capacity
+      backbone, AVeriTeC-optimal and grounding-optimal are different
+      models. Production stays multi-objective: v10 for AVeriTeC, v15 as
+      generalist. The cascade (route by claim register) reconciles them at
+      the system level; the mmBERT experiment (v16) tests whether a
+      bigger-context backbone dissolves the trade-off at the model level.**
+- [x] Jeffrey's standing order (2026-07-11): do NOT shut down — the goal is
+      now to BEAT the published marks, starting with MiniCheck-FT5 74.7 on
+      AggreFact. v16-mmBERT (8k context, whole-document single-pass) is the
+      designated assault.
+
 ### Backbone and pipeline ideas from the field (2026-07-09, via Jeffrey)
 
 - [ ] **mmBERT/ModernBERT backbone experiment** — prompted by reviewing
