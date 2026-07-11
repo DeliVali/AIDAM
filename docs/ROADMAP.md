@@ -900,6 +900,29 @@ class, the hardest in the benchmark.
       in-distribution.** v15 remains the generalist champion; MiniCheck-FT5
       74.7 still stands, gap 4.7.
 
+- [x] **Verifier v17-mmBERT: PROMOTED to generalist champion — the NLI
+      pre-phase validated end to end (2026-07-11).** Two-phase recipe from
+      the v16 verdict: phase 1 = massive NLI foundation (full MNLI 393k +
+      ANLI 163k + VitaminC 120k @256, new trainer flags --anli
+      --sin-mezcla), phase 2 = the EXACT v16 mix (376,729 examples,
+      @1024, 2 epochs) so every delta is attributable to the pre-phase.
+      Results: **AggreFact 70.3 (new best**, v15 70.0, v16 69.6; gap to
+      MiniCheck-FT5 now 4.4), **FEVER 83.2 (new unified best**, v15 81.7;
+      specialist v11 86.0 still ahead), VitaminC 88.7 (v15 88.4). The
+      phase-1 checkpoint alone hit 88.81 VitaminC — 556k fresh NLI pairs
+      closed the entire base gap to the 2.7M-pair mDeBERTa lineage.
+      Whole-document @4096 improved 67.1 → 69.6: the strong base recovered
+      most of the single-pass deficit, but chunk-and-max (70.3) still wins
+      — the remaining -0.7 is length extrapolation (trained @1024). Open
+      question: **SciFact stuck at 63.0 in BOTH mmBERT versions** (v15:
+      66.3) — the scientific register resists this backbone. Per-subset
+      breakdown points the next lever: AggreFact-CNN 52.8 and ExpertQA
+      57.6 (n=3,702) are the two craters; ExpertQA + SciFact share the
+      expert/technical register that news D2C never covered. **Next: D2C
+      over scientific abstracts (new register = the transfer playbook
+      that won v8/v10/v11), targeting ExpertQA, SciFact and the CNN
+      crater at once.**
+
 ### Backbone and pipeline ideas from the field (2026-07-09, via Jeffrey)
 
 - [ ] **mmBERT/ModernBERT backbone experiment** — prompted by reviewing
