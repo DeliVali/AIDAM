@@ -172,6 +172,11 @@ def main() -> None:
         "mapped SUPPORTS/NEI — never REFUTES",
     )
     parser.add_argument(
+        "--reanudar", action="store_true",
+        help="resume from the last checkpoint in the shared checkpoints dir "
+        "(they save every 500 steps; a GPU watchdog kill needn't cost the run)",
+    )
+    parser.add_argument(
         "--epocas", type=float, default=1.0,
         help="training epochs (v0-v5 all used 1; single-epoch NLI fine-tunes "
         "are typically under-converged)",
@@ -292,7 +297,7 @@ def main() -> None:
 
     if not args.solo_evaluar:
         print(f"[entrenar] entrenando con {len(train)} ejemplos…")
-        trainer.train()
+        trainer.train(resume_from_checkpoint=args.reanudar or None)
         resultados["despues"] = trainer.evaluate()
         print(json.dumps(resultados["despues"], indent=2))
 
