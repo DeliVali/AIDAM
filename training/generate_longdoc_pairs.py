@@ -81,9 +81,12 @@ def main() -> None:
     parser.add_argument("--grupos", type=int, default=1500,
                         help="article chunks to process (3 pairs each)")
     parser.add_argument("--salida", type=Path, default=SALIDA)
-    parser.add_argument("--fuente", default="cnndm", choices=["cnndm", "xsum"],
-                        help="article source: cnndm (CNN/DailyMail) or xsum "
-                        "(BBC — the AggreFact-XSum register)")
+    parser.add_argument("--fuente", default="cnndm",
+                        choices=["cnndm", "xsum", "pubmed"],
+                        help="article source: cnndm (CNN/DailyMail), xsum "
+                        "(BBC — the AggreFact-XSum register) or pubmed "
+                        "(MedRAG abstracts — the expert/technical register "
+                        "ExpertQA and SciFact expose as our weakest)")
     parser.add_argument("--semilla", type=int, default=SEMILLA)
     args = parser.parse_args()
 
@@ -94,9 +97,17 @@ def main() -> None:
                                  streaming=True, trust_remote_code=False)
         articulos = articulos.shuffle(seed=args.semilla, buffer_size=10_000)
         articulos = ({"article": a["document"]} for a in articulos)
+    elif args.fuente == "pubmed":
+        articulos = load_dataset("MedRAG/pubmed", split="train", streaming=True)
+        articulos = articulos.shuffle(seed=args.semilla, buffer_size=10_000)
+        articulos = ({"article": a["content"]} for a in articulos)
     else:
         articulos = load_dataset("abisee/cnn_dailymail", "3.0.0", split="train",
                                  streaming=True).shuffle(seed=args.semilla, buffer_size=10_000)
+    # Abstracts run ~1.3k chars (median): halve the chunk target so the
+    # doc-swap NEI still gets two topically-aligned chunks — same study,
+    # different section, the hardest kind of not-probative pair.
+    objetivo_trozo = 700 if args.fuente == "pubmed" else 1500
     generador = GeneradorPreguntas()
 
     args.salida.parent.mkdir(parents=True, exist_ok=True)
@@ -105,7 +116,7 @@ def main() -> None:
         for articulo in articulos:
             if hechos >= args.grupos:
                 break
-            trozos = _trocear_doc(articulo["article"])
+            trozos = _trocear_doc(articulo["article"], objetivo_trozo)
             if len(trozos) < 2:
                 continue
             doc, doc_otro = trozos[0], trozos[1]

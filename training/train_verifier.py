@@ -172,6 +172,14 @@ def main() -> None:
         "mapped SUPPORTS/NEI — never REFUTES",
     )
     parser.add_argument(
+        "--scidoc",
+        type=Path,
+        default=Path("data/local/scidoc_pairs.jsonl"),
+        help="scientific-abstract D2C pairs (generate_longdoc_pairs.py "
+        "--fuente pubmed); the expert/technical register the v17 breakdown "
+        "named as the biggest crater (ExpertQA 57.6, SciFact 63.0)",
+    )
+    parser.add_argument(
         "--reanudar", action="store_true",
         help="resume from the last checkpoint in the shared checkpoints dir "
         "(they save every 500 steps; a GPU watchdog kill needn't cost the run)",
@@ -271,6 +279,7 @@ def main() -> None:
             (args.fever, "fever"),
             (args.docnli, "docnli"),
             (args.longdoc, "longdoc-d2c"),
+            (args.scidoc, "scidoc-d2c"),
         )):
             if ruta.exists():
                 extra = load_dataset("json", data_files=str(ruta), split="train").map(
