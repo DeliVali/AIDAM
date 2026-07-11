@@ -177,6 +177,17 @@ def main() -> None:
         "(they save every 500 steps; a GPU watchdog kill needn't cost the run)",
     )
     parser.add_argument(
+        "--anli", action="store_true",
+        help="add the full ANLI train set (~163k adversarial NLI pairs, rounds "
+        "r1-r3, same label scheme as MNLI) — for the NLI pre-phase raw "
+        "encoders like mmBERT need before the task mix",
+    )
+    parser.add_argument(
+        "--sin-mezcla", action="store_true",
+        help="skip every local pair file (negations, scifact, fever, longdoc, "
+        "docnli…): pure VitaminC+NLI run, the pre-phase configuration",
+    )
+    parser.add_argument(
         "--epocas", type=float, default=1.0,
         help="training epochs (v0-v5 all used 1; single-epoch NLI fine-tunes "
         "are typically under-converged)",
@@ -242,7 +253,16 @@ def main() -> None:
         partes = [train, nli]
         etiqueta_mezcla = f"VitaminC + {len(nli)} MNLI"
 
-        for ruta, nombre in (
+        if args.anli:
+            anli = concatenate_datasets([
+                load_dataset("facebook/anli", split=f"train_r{r}") for r in (1, 2, 3)
+            ]).shuffle(seed=SEMILLA)
+            # ANLI shares the MNLI label scheme (0/1/2 = ent/neu/con)
+            anli = anli.map(preparar_mnli, batched=True, remove_columns=anli.column_names)
+            partes.append(anli)
+            etiqueta_mezcla += f" + {len(anli)} ANLI"
+
+        for ruta, nombre in (() if args.sin_mezcla else (
             (args.neutrales_dificiles, "neutrales-difíciles"),
             (args.sinteticos, "sintéticos-MiMo"),
             (args.averitec, "averitec-train"),
@@ -251,7 +271,7 @@ def main() -> None:
             (args.fever, "fever"),
             (args.docnli, "docnli"),
             (args.longdoc, "longdoc-d2c"),
-        ):
+        )):
             if ruta.exists():
                 extra = load_dataset("json", data_files=str(ruta), split="train").map(
                     preparar,
