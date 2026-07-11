@@ -845,6 +845,21 @@ class, the hardest in the benchmark.
       **D2C dose-response established: 4.5k pairs → +2.7 AggreFact. v14
       scales the dose (3k more groups: XSum register + fresh CNN/DM).**
 
+- [x] **Verifier v14 (triple D2C dose: 13.5k pairs, XSum + fresh CNN/DM) —
+      new grounding champion, diminishing returns measured (2026-07-11).**
+      AggreFact 68.7→**69.7** (series 65.1→66.0→68.7→69.7 — now 5.0 from
+      MiniCheck-FT5), FEVER 78.7 (best), SciFact 63.7 (back to v10 level),
+      VitaminC 88.28. Strictly dominates v13 everywhere. Dose-response,
+      honestly: first 4.5k D2C pairs bought +2.7; the next 9k bought +1.0 —
+      the flat-dose axis is saturating, and the remaining 5-point gap
+      likely needs the architecture lever (mmBERT 8k-context: whole
+      documents in one pass instead of chunk-and-max). Batch-efficiency
+      decision: instead of a 1.5h AVeriTeC-500 per candidate, ONE decisive
+      500 runs on the best of v15/v16 at the end of this batch.
+- [x] **AVeriTeC-100 screen formally demoted to smoke test** (ran hot four
+      consecutive times: 66→62.6, 61→60.2, 68→61.0, 63→— vs full-500).
+      Promotion arguments must cite the 500 only.
+
 ### Backbone and pipeline ideas from the field (2026-07-09, via Jeffrey)
 
 - [ ] **mmBERT/ModernBERT backbone experiment** — prompted by reviewing
