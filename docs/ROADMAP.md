@@ -822,6 +822,29 @@ class, the hardest in the benchmark.
       required rather than optional. AggreFact-CNN's +4 from even
       contaminated long-doc data says the register lever is real.
 
+- [x] **Verifier v13 (clean long-doc: 20k DocNLI-entailment + 4.5k D2C @512)
+      — the poisoning fix VERIFIED, biggest AggreFact jump yet, but AVeriTeC
+      again below the bar: NOT promoted (2026-07-11).** Scorecard:
+      **AggreFact 65.1→68.7 (+3.6, largest single gain on this benchmark;
+      AggreFact-CNN 50.1→60.4 cumulative)**, FEVER 78.4 (fully recovered
+      from v12's poisoned 48.1 AND above v10's 77.7 — provenance filtering
+      + purpose-built D2C negatives preserve the refute boundary exactly as
+      designed), VitaminC 88.22, SciFact 62.7 (−1, sample noise),
+      AVeriTeC-100 screen 68.0 (best ever) — **but the full 500: 61.0/0.355
+      vs v10's 62.6/0.341**, below the standing ≥62.0 bar. v10 stays
+      production for AVeriTeC; v13 archived as the grounding/long-document
+      champion. Two structural notes: (1) the 100-screen ran hot for the
+      fourth time — it is hereby demoted to a smoke test only, never an
+      argument for promotion; (2) production selection is now genuinely
+      multi-objective — the AVeriTeC-optimal and grounding-optimal models
+      have diverged, which the cascade design (route by claim register)
+      could eventually reconcile. Also this cycle: trainer gained
+      --reanudar (v13's first run died at 80% to a GPU watchdog kill;
+      resume from checkpoint-13000 saved ~75 min; a hot driver update was
+      the likely culprit — nvidia-smi showed version mismatch until reboot).
+      **D2C dose-response established: 4.5k pairs → +2.7 AggreFact. v14
+      scales the dose (3k more groups: XSum register + fresh CNN/DM).**
+
 ### Backbone and pipeline ideas from the field (2026-07-09, via Jeffrey)
 
 - [ ] **mmBERT/ModernBERT backbone experiment** — prompted by reviewing

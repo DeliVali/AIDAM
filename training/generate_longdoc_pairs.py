@@ -81,12 +81,22 @@ def main() -> None:
     parser.add_argument("--grupos", type=int, default=1500,
                         help="article chunks to process (3 pairs each)")
     parser.add_argument("--salida", type=Path, default=SALIDA)
+    parser.add_argument("--fuente", default="cnndm", choices=["cnndm", "xsum"],
+                        help="article source: cnndm (CNN/DailyMail) or xsum "
+                        "(BBC — the AggreFact-XSum register)")
+    parser.add_argument("--semilla", type=int, default=SEMILLA)
     args = parser.parse_args()
 
     from datasets import load_dataset
 
-    articulos = load_dataset("abisee/cnn_dailymail", "3.0.0", split="train",
-                             streaming=True).shuffle(seed=SEMILLA, buffer_size=10_000)
+    if args.fuente == "xsum":
+        articulos = load_dataset("EdinburghNLP/xsum", split="train",
+                                 streaming=True, trust_remote_code=False)
+        articulos = articulos.shuffle(seed=args.semilla, buffer_size=10_000)
+        articulos = ({"article": a["document"]} for a in articulos)
+    else:
+        articulos = load_dataset("abisee/cnn_dailymail", "3.0.0", split="train",
+                                 streaming=True).shuffle(seed=args.semilla, buffer_size=10_000)
     generador = GeneradorPreguntas()
 
     args.salida.parent.mkdir(parents=True, exist_ok=True)
@@ -121,7 +131,7 @@ def main() -> None:
                 {"claim": claim, "evidence": doc_otro, "label": "NOT ENOUGH INFO"},
             ):
                 salida.write(json.dumps(
-                    {**fila, "origen": "d2c-cnndm"}, ensure_ascii=False) + "\n")
+                    {**fila, "origen": f"d2c-{args.fuente}"}, ensure_ascii=False) + "\n")
             salida.flush()
             hechos += 1
             if hechos % 50 == 0:
