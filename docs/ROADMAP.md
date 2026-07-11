@@ -879,6 +879,27 @@ class, the hardest in the benchmark.
       AggreFact. v16-mmBERT (8k context, whole-document single-pass) is the
       designated assault.
 
+- [x] **Verifier v16-mmBERT (backbone experiment, first iteration) — a
+      promising ALMOST, hypothesis corrected by measurement (2026-07-11/12).**
+      mmBERT-base (308M, 8k context) trained from a raw encoder (fresh NLI
+      head, MNLI raised to 150k as partial compensation for the missing
+      2.7M-pair NLI pretraining), 1024-token training. Results vs v15:
+      AggreFact chunked 69.6 (vs 70.0), FEVER 81.3 (vs 81.7), SciFact 63.0
+      (vs 66.3), VitaminC 87.55 (vs 88.40) — behind on everything, but by
+      0.4-3 points while missing millions of NLI pretraining pairs: **per
+      point of NLI base, the backbone outperforms**. The headline negative:
+      **whole-document single-pass @4096 scored 67.1, LOSING to its own
+      chunk-and-max @512 (69.6)** — the 8k-context advantage does not
+      materialize for free. Diagnosis: training data is mostly short pairs
+      and training ran @1024, so 4096-token evaluation is length
+      extrapolation the model never saw; windowed max-pooling meanwhile
+      acts as an evidence locator that single-pass dilutes. **The corrected
+      recipe for iteration two: (1) massive NLI pre-phase first (full MNLI
+      + XNLI + ANLI, ~1M+ pairs) to close the base gap, (2) genuinely long
+      D2C training documents (3-4k chunks) so long-context inference is
+      in-distribution.** v15 remains the generalist champion; MiniCheck-FT5
+      74.7 still stands, gap 4.7.
+
 ### Backbone and pipeline ideas from the field (2026-07-09, via Jeffrey)
 
 - [ ] **mmBERT/ModernBERT backbone experiment** — prompted by reviewing
