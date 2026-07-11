@@ -26,20 +26,25 @@ from aidam.retrieve import _trocear
 from aidam.verify import VerificadorNLI
 
 
+MAX_LEN_EVAL = 512  # overridden by --max-len (long-context backbones: 4096)
+TROCEAR = True
+
+
 def _p_sustenta(verificador, documentos: list[str], afirmaciones: list[str]) -> list[float]:
-    """Maximum p(entailment) over each document's windows."""
+    """Maximum p(entailment) over each document's windows — or the whole
+    document in one pass when --sin-trocear (long-context backbones)."""
     indice_sustenta = next(
         i for i, nombre in verificador.modelo.config.id2label.items()
         if nombre.lower() == "entailment"
     )
     probs: list[float] = []
     for doc, afirmacion in zip(documentos, afirmaciones):
-        ventanas = _trocear(doc, max_chars=1500) or [doc]
+        ventanas = (_trocear(doc, max_chars=1500) or [doc]) if TROCEAR else [doc]
         entradas = verificador.tokenizer(
             ventanas,
             [afirmacion] * len(ventanas),
             truncation=True,
-            max_length=512,
+            max_length=MAX_LEN_EVAL,
             padding=True,
             return_tensors="pt",
         ).to(verificador.device)
@@ -54,7 +59,13 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--umbral", type=float, default=0.5)
     parser.add_argument("--max-ejemplos", type=int, default=0, help="0 = all")
+    parser.add_argument("--max-len", type=int, default=512)
+    parser.add_argument("--sin-trocear", action="store_true",
+                        help="whole document in one pass (8k-context backbones)")
     args = parser.parse_args()
+    global MAX_LEN_EVAL, TROCEAR
+    MAX_LEN_EVAL = args.max_len
+    TROCEAR = not args.sin_trocear
 
     datos = load_dataset("lytang/LLM-AggreFact", split="test")
     if args.max_ejemplos:

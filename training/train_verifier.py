@@ -185,7 +185,17 @@ def main() -> None:
 
     print(f"[entrenar] checkpoint: {args.checkpoint}")
     tokenizer = AutoTokenizer.from_pretrained(args.checkpoint)
-    modelo = AutoModelForSequenceClassification.from_pretrained(args.checkpoint)
+    # Raw encoders (mmBERT/ModernBERT) ship without an NLI head: create a
+    # fresh 3-class head with our label scheme. NLI-pretrained checkpoints
+    # (the mDeBERTa 2mil7 base) keep theirs.
+    config_previa = AutoModelForSequenceClassification.from_pretrained(
+        args.checkpoint, num_labels=3,
+        id2label={0: "entailment", 1: "neutral", 2: "contradiction"},
+        label2id={"entailment": 0, "neutral": 1, "contradiction": 2},
+    ) if "entailment" not in str(
+        __import__("transformers").AutoConfig.from_pretrained(args.checkpoint).id2label
+    ).lower() else None
+    modelo = config_previa or AutoModelForSequenceClassification.from_pretrained(args.checkpoint)
     etiqueta_a_id = _resolver_ids(modelo)
     print(f"[entrenar] mapa de etiquetas: {etiqueta_a_id}")
 
