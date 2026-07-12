@@ -16,7 +16,9 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
 from collections import defaultdict
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -62,6 +64,10 @@ def main() -> None:
     parser.add_argument("--max-len", type=int, default=512)
     parser.add_argument("--sin-trocear", action="store_true",
                         help="whole document in one pass (8k-context backbones)")
+    parser.add_argument("--guardar", type=Path, default=None,
+                        help="dump one jsonl row per example (dataset, label, "
+                        "p_sustenta) — the raw material for calibration and "
+                        "cascade-router analysis without re-running the model")
     args = parser.parse_args()
     global MAX_LEN_EVAL, TROCEAR
     MAX_LEN_EVAL = args.max_len
@@ -75,13 +81,21 @@ def main() -> None:
     verificador = VerificadorNLI()
     lote = 256
     por_dataset: dict[str, list[tuple[int, int]]] = defaultdict(list)
+    salida_filas = args.guardar.open("w") if args.guardar else None
     for inicio in range(0, len(datos), lote):
         parte = datos.select(range(inicio, min(inicio + lote, len(datos))))
         probs = _p_sustenta(verificador, list(parte["doc"]), list(parte["claim"]))
         for nombre, etiqueta, p in zip(parte["dataset"], parte["label"], probs):
             por_dataset[nombre].append((int(etiqueta), int(p >= args.umbral)))
+            if salida_filas:
+                salida_filas.write(json.dumps(
+                    {"dataset": nombre, "label": int(etiqueta),
+                     "p_sustenta": round(p, 4)}) + "\n")
         if inicio % (lote * 10) == 0:
             print(f"[aggrefact] {inicio}/{len(datos)}")
+    if salida_filas:
+        salida_filas.close()
+        print(f"[aggrefact] confianzas → {args.guardar}")
 
     baccs = []
     for nombre in sorted(por_dataset):
