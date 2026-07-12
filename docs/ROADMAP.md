@@ -942,6 +942,25 @@ class, the hardest in the benchmark.
       poison; if AggreFact drops too, the whole scidoc batch was one
       credulity lesson.**
 
+### Declared goal (2026-07-11, Jeffrey): 80 general — frontier level on
+consumer hardware. "General" = the average over the four certified
+benchmarks (AggreFact + FEVER + SciFact + AVeriTeC-500), currently 71.4.
+Honest bounds, stated before the chase: 80 average violates no ceiling but
+no open consumer-hardware system has it; 90 average is beyond the
+benchmarks themselves (AggreFact's annotation noise caps ~85-88), so the
+85+ stretch runs through auditing and publishing evidence-certified clean
+subsets — a scientific contribution in its own right (the v12 DocNLI
+provenance audit, scaled up). The staged program, each stage gated on a
+measured number: (1) close the 0.3B campaign (v19 ablation, CNN/ExpertQA
+craters, FEVER dose) → ~73.5 avg; (2) small-model cascade: confidence
+router + a second 0.3B trained on the hard distribution (0.6B total)
+→ ~75, taking MiniCheck-FT5's 74.7; (3) distillation from the local 8B
+(teacher never ships) → ~76-77; (4) claim decomposition into atomic facts
+→ ~78-80, taking Bespoke-7B's 77.4; (5) certified benchmarks → where
+85-90 becomes measurable for real. The architectural guarantee holds at
+every stage: the verdict always comes from the small NLI core +
+aggregation; LLMs are factory tools, never the judge.
+
 ### Backbone and pipeline ideas from the field (2026-07-09, via Jeffrey)
 
 - [ ] **mmBERT/ModernBERT backbone experiment** — prompted by reviewing
