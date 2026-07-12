@@ -923,6 +923,25 @@ class, the hardest in the benchmark.
       that won v8/v10/v11), targeting ExpertQA, SciFact and the CNN
       crater at once.**
 
+- [x] **Verifier v18: AggreFact RECORD 70.8 (gap to MiniCheck-FT5: 3.9) —
+      but the scientific D2C lever landed sideways, mechanism verified
+      (2026-07-11).** v17 recipe + 4,500 PubMed-abstract D2C pairs (same
+      pre-NLI checkpoint, controlled addition). The target register barely
+      moved (ExpertQA 57.6→58.1) while the gains leaked elsewhere:
+      AggreFact-CNN 52.8→57.1 (+4.3, the crater), Lfqa +2.2, Reveal +2.3,
+      ClaimVerify +2.0. **SciFact fell 63.0→59.0 and the confusion matrix
+      names the mechanism — credulity, not NEI over-prediction** (first
+      hypothesis was wrong and is corrected here): gold-NEI→sustenta rose
+      50→57, gold-NEI→nei fell 40→33. The same-abstract-halves NEI recipe
+      did not teach abstention; topically-dense scientific SUPPORTS pairs
+      taught "close scientific text → supports". FEVER dipped 83.2→81.9.
+      Verdict: v18 = AggreFact champion (the Phase-1 criterion), v17
+      remains the balanced generalist. **Next (single-variable ablation,
+      v19): same run with the scidoc NEI third stripped (S/R only) — if
+      SciFact recovers while AggreFact holds, the NEI third was the
+      poison; if AggreFact drops too, the whole scidoc batch was one
+      credulity lesson.**
+
 ### Backbone and pipeline ideas from the field (2026-07-09, via Jeffrey)
 
 - [ ] **mmBERT/ModernBERT backbone experiment** — prompted by reviewing
