@@ -47,6 +47,15 @@ _PROMPT_CORRUPT = (
     "Keep every other word identical. Reply with ONLY the rewritten claim.\n"
     "Excerpt:\n{doc}\nClaim: {claim}"
 )
+# Summary-shaped claims: AggreFact-CNN judges 3-4 sentence model summaries
+# where ONE fact is subtly wrong — a task shape single-sentence D2C never
+# taught (the crater sat at 52.8-57.1 across v17-v19 while single-sentence
+# subsets cleared 70).
+_PROMPT_CLAIM_MULTI = (
+    "Read the article excerpt below. Write a factual 3-sentence summary of "
+    "it (max 70 words total) where every statement is fully supported by "
+    "the excerpt. Reply with ONLY the summary.\nExcerpt:\n{doc}"
+)
 
 
 def _trocear_doc(texto: str, objetivo: int = 1500) -> list[str]:
@@ -88,6 +97,10 @@ def main() -> None:
                         "(MedRAG abstracts — the expert/technical register "
                         "ExpertQA and SciFact expose as our weakest)")
     parser.add_argument("--semilla", type=int, default=SEMILLA)
+    parser.add_argument("--multifrase", action="store_true",
+                        help="summary-shaped claims (3 sentences, one subtle "
+                        "corruption) instead of single-sentence claims — the "
+                        "AggreFact-CNN task shape")
     args = parser.parse_args()
 
     from datasets import load_dataset
@@ -121,19 +134,38 @@ def main() -> None:
                 continue
             doc, doc_otro = trozos[0], trozos[1]
 
-            crudo = generador._responder(
-                _PROMPT_CLAIM.format(doc=doc[:1800]), max_tokens=80, temperature=0.4
-            )
-            claim = _limpiar(crudo.strip().splitlines()[0]) if crudo.strip() else ""
-            if not (30 < len(claim) < 260) or not _usa_varias_frases(claim, doc):
-                continue
+            if args.multifrase:
+                crudo = generador._responder(
+                    _PROMPT_CLAIM_MULTI.format(doc=doc[:1800]),
+                    max_tokens=140, temperature=0.4,
+                )
+                claim = _limpiar(" ".join(crudo.split())) if crudo.strip() else ""
+                # summary shape: at least 3 sentences, plus the composition QC
+                if (not (80 < len(claim) < 600)
+                        or len(re.split(r"(?<=[.!?])\s+", claim)) < 3
+                        or not _usa_varias_frases(claim, doc)):
+                    continue
+            else:
+                crudo = generador._responder(
+                    _PROMPT_CLAIM.format(doc=doc[:1800]), max_tokens=80, temperature=0.4
+                )
+                claim = _limpiar(crudo.strip().splitlines()[0]) if crudo.strip() else ""
+                if not (30 < len(claim) < 260) or not _usa_varias_frases(claim, doc):
+                    continue
 
             crudo = generador._responder(
                 _PROMPT_CORRUPT.format(doc=doc[:1800], claim=claim),
-                max_tokens=80, temperature=0.4,
+                max_tokens=140 if args.multifrase else 80, temperature=0.4,
             )
-            corrupta = _limpiar(crudo.strip().splitlines()[0]) if crudo.strip() else ""
+            if args.multifrase:
+                corrupta = _limpiar(" ".join(crudo.split())) if crudo.strip() else ""
+            else:
+                corrupta = _limpiar(crudo.strip().splitlines()[0]) if crudo.strip() else ""
             if not _edicion_minima(claim, corrupta):
+                continue
+            # Jaccard alone lets long-claim DELETIONS through (a trimmed
+            # summary isn't a refuted one): a minimal edit must keep length.
+            if args.multifrase and not 0.85 < len(corrupta) / len(claim) < 1.15:
                 continue
 
             for fila in (
@@ -141,8 +173,9 @@ def main() -> None:
                 {"claim": corrupta, "evidence": doc, "label": "REFUTES"},
                 {"claim": claim, "evidence": doc_otro, "label": "NOT ENOUGH INFO"},
             ):
+                origen = f"d2c-{args.fuente}-multi" if args.multifrase else f"d2c-{args.fuente}"
                 salida.write(json.dumps(
-                    {**fila, "origen": f"d2c-{args.fuente}"}, ensure_ascii=False) + "\n")
+                    {**fila, "origen": origen}, ensure_ascii=False) + "\n")
             salida.flush()
             hechos += 1
             if hechos % 50 == 0:

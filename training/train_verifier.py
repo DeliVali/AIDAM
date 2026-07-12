@@ -180,6 +180,14 @@ def main() -> None:
         "named as the biggest crater (ExpertQA 57.6, SciFact 63.0)",
     )
     parser.add_argument(
+        "--multisent",
+        type=Path,
+        default=Path("data/local/multisent_pairs.jsonl"),
+        help="summary-shaped D2C pairs (generate_longdoc_pairs.py "
+        "--multifrase): 3-sentence claims with one subtle corruption — the "
+        "AggreFact-CNN task shape single-sentence claims never taught",
+    )
+    parser.add_argument(
         "--reanudar", action="store_true",
         help="resume from the last checkpoint in the shared checkpoints dir "
         "(they save every 500 steps; a GPU watchdog kill needn't cost the run)",
@@ -280,6 +288,7 @@ def main() -> None:
             (args.docnli, "docnli"),
             (args.longdoc, "longdoc-d2c"),
             (args.scidoc, "scidoc-d2c"),
+            (args.multisent, "multisent-d2c"),
         )):
             if ruta.exists():
                 extra = load_dataset("json", data_files=str(ruta), split="train").map(
