@@ -942,6 +942,19 @@ class, the hardest in the benchmark.
       poison; if AggreFact drops too, the whole scidoc batch was one
       credulity lesson.**
 
+- [x] **Verifier v19 (scidoc S/R-only ablation): REJECTED on both pre-set
+      gates (2026-07-12).** Stripping the scidoc NEI third: AggreFact
+      70.8→70.1 (failed the ≥70.8 hold — the NEI pairs were carrying real
+      signal for grounding), SciFact 59.0→61.0 (failed the ≥63 recovery —
+      the credulity damage is mostly in the S/R pairs themselves, not the
+      NEI third). FEVER 82.7. Subset swings of ±3-4 in both directions
+      (XSum +3.1, ClaimVerify -4.1) flag training stochasticity as a real
+      component at this granularity. Verdict: the PubMed-halves D2C
+      construction is retired as-is; v18 keeps the AggreFact record
+      (70.8), v17 stays the balanced generalist. The expert-register
+      crater (ExpertQA 57.6-58.1 across three builds) needs a different
+      construction, not a different dose.
+
 ### Declared goal (2026-07-11, Jeffrey): 80 general — frontier level on
 consumer hardware. "General" = the average over the four certified
 benchmarks (AggreFact + FEVER + SciFact + AVeriTeC-500), currently 71.4.
