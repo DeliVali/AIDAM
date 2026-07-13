@@ -955,6 +955,25 @@ class, the hardest in the benchmark.
       crater (ExpertQA 57.6-58.1 across three builds) needs a different
       construction, not a different dose.
 
+- [x] **Verifier v20 (summary-shaped D2C): PROMOTED — AggreFact RECORD
+      71.0 (gap to MiniCheck-FT5: 3.7) and strict dominance over v18
+      (2026-07-12).** v18 recipe + 4,500 multi-sentence D2C pairs
+      (3-sentence summaries, one corrupted fact, length-ratio QC).
+      Gate results: average ≥70.8 PASSED (71.0); CNN ≥65 FAILED — 57.1,
+      unchanged, fourth build stuck in 52.8-57.1. The mechanism was real
+      but found a different target: the long-form answer registers (also
+      multi-sentence claims) — Wice +2.0, RAGTruth +1.5, Lfqa +1.2,
+      ClaimVerify +0.9. SciFact partially recovered (59.0→61.7), FEVER
+      82.3, VitaminC 88.94 (best base of the lineage). v20 replaces v18
+      as grounding champion; v17 keeps a slim edge on FEVER/SciFact
+      balance. **AggreFact-CNN now resists every register lever thrown at
+      it; the named suspicion is annotation noise (the FactCC/Frank-era
+      labels are documented as noisy) — next step is the stage-5 audit
+      brought forward: the local 8B judges all 558 CNN items
+      independently; items where strong models unanimously contradict
+      gold quantify the noise ceiling. Audit informs interpretation and
+      the certified-subset program ONLY — it never feeds training.**
+
 ### Declared goal (2026-07-11, Jeffrey): 80 general — frontier level on
 consumer hardware. "General" = the average over the four certified
 benchmarks (AggreFact + FEVER + SciFact + AVeriTeC-500), currently 71.4.
