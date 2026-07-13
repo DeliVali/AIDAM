@@ -974,6 +974,21 @@ class, the hardest in the benchmark.
       gold quantify the noise ceiling. Audit informs interpretation and
       the certified-subset program ONLY — it never feeds training.**
 
+- [x] **CNN label audit: INCONCLUSIVE for noise — but it produced the
+      session's most strategic negative result (2026-07-12).** The local
+      8B judging the 558 CNN items zero-shot scored BAcc 53.4 (yes on
+      97.6% of gold-supported, catches only 9.3% of gold-unsupported) —
+      WORSE than our 0.3B specialist (56.8). 38/40 unanimous
+      disagreements are both models saying "supports" against a gold
+      "no": shared credulity, not certified noise, so the naive
+      noise-corrected ceiling (85.5) is self-deception and is NOT
+      claimed. Two consequences: (a) the CNN noise question stays open
+      pending a scaffolded judge; (b) **stage-3 distillation from the 8B
+      as-is would teach credulity — the teacher needs the decomposition
+      scaffold FIRST. Stage 4's mechanism (claim → atomic facts →
+      per-fact verification → aggregate) is therefore brought forward as
+      a training-free prototype on the hardest subset.**
+
 ### Declared goal (2026-07-11, Jeffrey): 80 general — frontier level on
 consumer hardware. "General" = the average over the four certified
 benchmarks (AggreFact + FEVER + SciFact + AVeriTeC-500), currently 71.4.
