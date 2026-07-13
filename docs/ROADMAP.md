@@ -1003,6 +1003,19 @@ class, the hardest in the benchmark.
       hybrid integration design (when to pay the decomposition cost) and
       the scaffolded teacher for stage-3 distillation.
 
+- [x] **Decomposition is DIRECTIONAL — the ExpertQA generalization run
+      failed and named the law (2026-07-12).** ExpertQA: whole-claim 58.4
+      → decomposed+min 55.0 (-3.4). The class profile explains it:
+      ExpertQA's failure shape is the OPPOSITE of CNN's — the verifier is
+      skeptical there (40.7% on gold-supported, 76.1% on unsupported),
+      and min-aggregation deepens skepticism (23.5% on supported).
+      **Measured law: decomposition+min fixes credulity-shaped failure
+      (CNN +11.2), worsens skepticism-shaped failure (ExpertQA -3.4).
+      Deployment must be direction-aware** — e.g. a veto-hybrid that only
+      lets decomposition OVERRIDE confident-yes verdicts. Per-item joint
+      dumps (p_entera, p_min) added to verify_decomposed.py --guardar;
+      any hybrid threshold is tuned OFF-test on D2C pairs, then frozen.
+
 ### Declared goal (2026-07-11, Jeffrey): 80 general — frontier level on
 consumer hardware. "General" = the average over the four certified
 benchmarks (AggreFact + FEVER + SciFact + AVeriTeC-500), currently 71.4.

@@ -27,6 +27,10 @@ def main() -> None:
     parser.add_argument("--decomp", type=Path,
                         default=Path("data/local/decomp_cnn.jsonl"))
     parser.add_argument("--umbral", type=float, default=0.5)
+    parser.add_argument("--guardar", type=Path, default=None,
+                        help="dump per-item {idx, label, p_entera, p_min} — "
+                        "the joint distribution hybrid designs need; any "
+                        "threshold tuning happens OFF-test (D2C pairs)")
     args = parser.parse_args()
 
     filas = [json.loads(l) for l in args.decomp.open()]
@@ -34,6 +38,7 @@ def main() -> None:
     verificador = VerificadorNLI()
 
     oro, p_min, p_entera = [], [], []
+    salida = args.guardar.open("w") if args.guardar else None
     for n, f in enumerate(filas):
         doc = datos[f["idx"]]["doc"]
         claim = datos[f["idx"]]["claim"]
@@ -42,8 +47,17 @@ def main() -> None:
         p_min.append(min(probs))
         p_entera.append(_p_sustenta(verificador, [doc], [claim])[0])
         oro.append(f["label"])
+        if salida:
+            salida.write(json.dumps({
+                "idx": f["idx"], "label": f["label"],
+                "p_entera": round(p_entera[-1], 4),
+                "p_min": round(p_min[-1], 4),
+            }) + "\n")
         if (n + 1) % 50 == 0:
             print(f"[verif] {n + 1}/{len(filas)}")
+    if salida:
+        salida.close()
+        print(f"[verif] volcado → {args.guardar}")
 
     oro = np.array(oro)
 
