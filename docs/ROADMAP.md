@@ -989,6 +989,20 @@ class, the hardest in the benchmark.
       per-fact verification → aggregate) is therefore brought forward as
       a training-free prototype on the hardest subset.**
 
+- [x] **STAGE 4 VALIDATED — decomposition prototype, the largest single
+      mechanism win of the campaign, zero training (2026-07-12).** On
+      AggreFact-CNN (the subset that resisted four register levers):
+      whole-claim baseline 57.1 → decomposed+min **68.3 BAcc (+11.2)**,
+      same items, same verifier (v20). Detection of unsupported claims
+      24.6% → 73.7% — the credulity failure solved by construction: one
+      unsupported atomic fact sinks the whole summary. Visible cost:
+      sensitivity 89.6 → 62.9 (min-aggregation punishes decomposition
+      artifacts), so aggregation calibration has headroom — and MUST be
+      tuned off-test (on D2C pairs), never on the benchmark. Next:
+      generalization run on ExpertQA (n=3,702, the other crater), then
+      hybrid integration design (when to pay the decomposition cost) and
+      the scaffolded teacher for stage-3 distillation.
+
 ### Declared goal (2026-07-11, Jeffrey): 80 general — frontier level on
 consumer hardware. "General" = the average over the four certified
 benchmarks (AggreFact + FEVER + SciFact + AVeriTeC-500), currently 71.4.
