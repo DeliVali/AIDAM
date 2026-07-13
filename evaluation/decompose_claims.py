@@ -60,7 +60,10 @@ def main() -> None:
         indices = [i for i, _ in filas_local]
     else:
         datos = load_dataset("lytang/LLM-AggreFact", split="test")
-        indices = [i for i, d in enumerate(datos["dataset"]) if d == args.subconjunto]
+        if args.subconjunto == "TODOS":
+            indices = list(range(len(datos)))
+        else:
+            indices = [i for i, d in enumerate(datos["dataset"]) if d == args.subconjunto]
         print(f"[decomp] {len(indices)} claims de {args.subconjunto}")
 
     generador = GeneradorPreguntas()

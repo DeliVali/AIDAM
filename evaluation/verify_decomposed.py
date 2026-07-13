@@ -60,17 +60,27 @@ def main() -> None:
         print(f"[verif] volcado → {args.guardar}")
 
     oro = np.array(oro)
+    subconjuntos = np.array([datos[f["idx"]]["dataset"] for f in filas[:len(oro)]])
 
-    def bacc(p):
+    def bacc(o, p):
         pred = (np.array(p) >= args.umbral).astype(int)
-        tpr = (pred[oro == 1] == 1).mean()
-        tnr = (pred[oro == 0] == 0).mean()
+        tpr = (pred[o == 1] == 1).mean() if (o == 1).any() else 0.0
+        tnr = (pred[o == 0] == 0).mean() if (o == 0).any() else 0.0
         return (tpr + tnr) / 2, tpr, tnr
 
     for nombre, p in (("claim entero (línea base)", p_entera),
                       ("descompuesto + min", p_min)):
-        b, tpr, tnr = bacc(p)
-        print(f"[verif] {nombre}: BAcc {b:.1%}  (label=1: {tpr:.1%}, label=0: {tnr:.1%})")
+        p = np.array(p)
+        por_sub = []
+        for sub in sorted(set(subconjuntos)):
+            m = subconjuntos == sub
+            b, _, _ = bacc(oro[m], p[m])
+            por_sub.append(b)
+            if len(set(subconjuntos)) > 1:
+                print(f"[verif]   {sub:24s} BAcc {b:.1%}  (n={m.sum()})")
+        b, tpr, tnr = bacc(oro, p)
+        print(f"[verif] {nombre}: BAcc {b:.1%}  (label=1: {tpr:.1%}, label=0: {tnr:.1%})"
+              + (f"  | PROMEDIO macro: {np.mean(por_sub):.1%}" if len(por_sub) > 1 else ""))
 
 
 if __name__ == "__main__":

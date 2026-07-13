@@ -1016,6 +1016,26 @@ class, the hardest in the benchmark.
       dumps (p_entera, p_min) added to verify_decomposed.py --guardar;
       any hybrid threshold is tuned OFF-test on D2C pairs, then frozen.
 
+- [x] **Veto-hybrid: REJECTED by the off-test discipline — and that is
+      the discipline working (2026-07-13).** On a fresh never-trained D2C
+      dev (1,000 pairs, join bug found via n=667 and fixed with a shared
+      index convention + label assertion), EVERY veto threshold lowers
+      dev BAcc monotonically (71.0 → 61.3); the frozen minimum (0.05)
+      gives CNN +0.7 and ExpertQA -2.8. Mechanistic reading: our D2C
+      corruptions are single-fact edits — the distribution v20 trained
+      on, so the whole-claim verdict already dominates there; AggreFact-
+      CNN's real negatives are old-summarizer hallucinations our
+      generator does not imitate. Without a dev that reproduces that
+      failure mode, no threshold is legitimate, and the +11.2 stays
+      unclaimable by post-hoc subset selection.
+      **PRE-REGISTERED next experiment (declared before any numbers):
+      uniform decomposed+min over the FULL benchmark, one rule for all
+      11 subsets. The deliverable is the macro-average vs 71.0; the
+      per-subset dumps are for interpretation and teacher design only.
+      Known risks stated upfront: the directional law predicts losses on
+      skepticism-shaped subsets (ExpertQA -3.4 measured) against CNN's
+      +11.2; the uniform number decides.**
+
 ### Declared goal (2026-07-11, Jeffrey): 80 general — frontier level on
 consumer hardware. "General" = the average over the four certified
 benchmarks (AggreFact + FEVER + SciFact + AVeriTeC-500), currently 71.4.

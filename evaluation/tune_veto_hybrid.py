@@ -54,16 +54,24 @@ def main() -> None:
                         "frozen threshold (read-only)")
     args = parser.parse_args()
 
-    filas = [json.loads(l) for l in args.pares.open()]
-    filas = [f for f in filas if f["label"] in ("SUPPORTS", "REFUTES")]
-    descomp = {d["idx"]: d["hechos"] for d in map(json.loads, args.decomp.open())}
+    todas = [json.loads(l) for l in args.pares.open()]
+    # SAME index convention as decompose_claims --pares: enumerate BEFORE
+    # filtering, so idx always means "row in the pairs file". The first
+    # version re-enumerated after filtering and silently joined each
+    # claim's facts to a different pair's evidence (dev min-BAcc 49.9 =
+    # pure noise) — hence the label assertion below.
+    filas = [(i, f) for i, f in enumerate(todas)
+             if f["label"] in ("SUPPORTS", "REFUTES")]
+    descomp = {d["idx"]: d for d in map(json.loads, args.decomp.open())}
 
     verificador = VerificadorNLI()
     oro, p_entera, p_min = [], [], []
-    for i, f in enumerate(filas):
+    for i, f in filas:
         if i not in descomp:
             continue
-        hechos = descomp[i] or [f["claim"]]
+        assert descomp[i]["label"] == int(f["label"] == "SUPPORTS"), \
+            f"join desalineado en idx {i}"
+        hechos = descomp[i]["hechos"] or [f["claim"]]
         probs = _p_sustenta(verificador, [f["evidence"]] * len(hechos), hechos)
         p_min.append(min(probs))
         p_entera.append(_p_sustenta(verificador, [f["evidence"]], [f["claim"]])[0])
