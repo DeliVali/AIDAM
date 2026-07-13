@@ -39,11 +39,29 @@ def main() -> None:
     parser.add_argument("--subconjunto", default="AggreFact-CNN")
     parser.add_argument("--salida", type=Path,
                         default=Path("data/local/decomp_cnn.jsonl"))
+    parser.add_argument("--pares", type=Path, default=None,
+                        help="local pairs jsonl {claim, evidence, label} "
+                        "instead of the benchmark — the OFF-test dev set "
+                        "where hybrid thresholds get tuned before freezing")
     args = parser.parse_args()
 
-    datos = load_dataset("lytang/LLM-AggreFact", split="test")
-    indices = [i for i, d in enumerate(datos["dataset"]) if d == args.subconjunto]
-    print(f"[decomp] {len(indices)} claims de {args.subconjunto}")
+    if args.pares:
+        import itertools
+        filas_local = [json.loads(l) for l in args.pares.open()]
+        # SUPPORTS/REFUTES only: the veto-hybrid decides the binary
+        # support question, same shape as LLM-AggreFact
+        filas_local = [
+            (i, f) for i, f in enumerate(filas_local)
+            if f["label"] in ("SUPPORTS", "REFUTES")
+        ]
+        print(f"[decomp] {len(filas_local)} pares locales de {args.pares}")
+        datos = {i: {"claim": f["claim"], "label": int(f["label"] == "SUPPORTS")}
+                 for i, f in filas_local}
+        indices = [i for i, _ in filas_local]
+    else:
+        datos = load_dataset("lytang/LLM-AggreFact", split="test")
+        indices = [i for i, d in enumerate(datos["dataset"]) if d == args.subconjunto]
+        print(f"[decomp] {len(indices)} claims de {args.subconjunto}")
 
     generador = GeneradorPreguntas()
     args.salida.parent.mkdir(parents=True, exist_ok=True)
