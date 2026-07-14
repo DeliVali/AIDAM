@@ -43,6 +43,9 @@ def main() -> None:
                         help="local pairs jsonl {claim, evidence, label} "
                         "instead of the benchmark — the OFF-test dev set "
                         "where hybrid thresholds get tuned before freezing")
+    parser.add_argument("--reanudar", action="store_true",
+                        help="skip indices already in --salida and append — "
+                        "long runs survive reboots (rows flush per claim)")
     args = parser.parse_args()
 
     if args.pares:
@@ -66,9 +69,15 @@ def main() -> None:
             indices = [i for i, d in enumerate(datos["dataset"]) if d == args.subconjunto]
         print(f"[decomp] {len(indices)} claims de {args.subconjunto}")
 
+    hechos_previos: set[int] = set()
+    if args.reanudar and args.salida.exists():
+        hechos_previos = {json.loads(l)["idx"] for l in args.salida.open()}
+        print(f"[decomp] reanudando: {len(hechos_previos)} ya en disco")
+    indices = [i for i in indices if i not in hechos_previos]
+
     generador = GeneradorPreguntas()
     args.salida.parent.mkdir(parents=True, exist_ok=True)
-    with args.salida.open("w") as salida:
+    with args.salida.open("a" if args.reanudar else "w") as salida:
         for n, idx in enumerate(indices):
             fila = datos[idx]
             crudo = generador._responder(
