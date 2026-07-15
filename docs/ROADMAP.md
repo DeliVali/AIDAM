@@ -1053,6 +1053,20 @@ class, the hardest in the benchmark.
       against its measured whole-claim credulity — to license the
       distillation harvest.**
 
+- [x] **Scaffolded teacher: GATE FAILED — stage-3 distillation is blocked
+      pending a better teacher (2026-07-13).** On the held-out D2C dev
+      (983 pairs, pre-registered gate BAcc ≥ 80): whole-claim 8B judge
+      64.5 (credulous: 91.3/37.6), scaffolded fact-by-fact 58.6 — the
+      scaffold OVERCORRECTS into skepticism (31.8/85.5), sunk by
+      decomposition artifacts under a strict per-fact bar. Closing
+      analysis: the agreement filter (label only when both modes concur)
+      reaches 76.1 BAcc at 45% coverage — the best teacher signal found,
+      still under the gate. Verdict: the local 8B is not a licensed
+      distillation teacher under any protocol tried; stage 3 waits for a
+      better judge (evidence-quoting CoT, majority voting, or a stronger
+      open model). The 0.3B specialist (v20, 71.0) outperforms every 8B
+      judge mode measured today — the specialist approach keeps winning.
+
 ### Declared goal (2026-07-11, Jeffrey): 80 general — frontier level on
 consumer hardware. "General" = the average over the four certified
 benchmarks (AggreFact + FEVER + SciFact + AVeriTeC-500), currently 71.4.
