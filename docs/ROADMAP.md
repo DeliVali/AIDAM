@@ -1036,6 +1036,23 @@ class, the hardest in the benchmark.
       skepticism-shaped subsets (ExpertQA -3.4 measured) against CNN's
       +11.2; the uniform number decides.**
 
+- [x] **Uniform decomposition: REJECTED as pre-registered — 66.0 vs 71.0
+      macro (2026-07-13).** The full-benchmark run (29,320 claims, all 11
+      subsets, one rule) reproduced CNN's +11.2 exactly and lost
+      everywhere else (Lfqa -15.4, RAGTruth -9.9, ClaimVerify -9.4, Wice
+      -8.7…; whole-claim baseline macro reproduced 71.0 exactly). The
+      directional law generalizes: v20 is credulity-dominated ONLY on
+      CNN; elsewhere min-aggregation over imperfect atomic facts sinks
+      true claims (label=1 recall 65.1→39.6 while unsupported detection
+      rises 81.7→88.2). **Inference-time decomposition is PARKED: no
+      legitimate off-test selector exists. The mechanism's second life is
+      the stage-3 scaffolded TEACHER, where the contamination boundary
+      does not apply (training pools, not test). Pre-registered teacher
+      gate, declared before the numbers: on the held-out D2C dev, the 8B
+      judging fact-by-fact (min over facts) must reach BAcc ≥ 80 —
+      against its measured whole-claim credulity — to license the
+      distillation harvest.**
+
 ### Declared goal (2026-07-11, Jeffrey): 80 general — frontier level on
 consumer hardware. "General" = the average over the four certified
 benchmarks (AggreFact + FEVER + SciFact + AVeriTeC-500), currently 71.4.
