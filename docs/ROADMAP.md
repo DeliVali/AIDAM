@@ -1067,6 +1067,19 @@ class, the hardest in the benchmark.
       open model). The 0.3B specialist (v20, 71.0) outperforms every 8B
       judge mode measured today — the specialist approach keeps winning.
 
+- [x] **Verifier v21 (FEVER dose 20k): NOT promoted — 2 of 3 pre-set
+      gates failed, dose curve mapped (2026-07-13).** FEVER 83.9 (gate
+      ≥84 missed by 0.1; real +1.6 over v20's 82.3), AggreFact 71.2
+      (record, gate passed), SciFact 60.0 (gate ≥61 failed; v20 61.7 —
+      register interference surfaces at 20k, right where v11's law
+      predicted). The unified-model FEVER path shows diminishing slope
+      (10k→+1.6, 20k→+2.1 more but breaks registers at 30k): more dose
+      is not the road to high FEVER in the generalist. v20 remains
+      grounding champion by the gate discipline; v21 archived. The
+      general-average terms that matter next: AVeriTeC (62.6, weakest)
+      and SciFact (66.3) — AVeriTeC-500 of the mmBERT lineage launched
+      (never measured before).
+
 ### Goal RAISED (2026-07-13, Jeffrey): 90 general — "ya no será 80 general
 sino 90% general". Recorded with the honest operationalization already
 established: the benchmarks as published cap at ~85-88 (annotation
