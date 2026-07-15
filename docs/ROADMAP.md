@@ -1067,6 +1067,20 @@ class, the hardest in the benchmark.
       open model). The 0.3B specialist (v20, 71.0) outperforms every 8B
       judge mode measured today — the specialist approach keeps winning.
 
+### Goal RAISED (2026-07-13, Jeffrey): 90 general — "ya no será 80 general
+sino 90% general". Recorded with the honest operationalization already
+established: the benchmarks as published cap at ~85-88 (annotation
+noise), so 90 general decomposes into (a) pushing every benchmark to its
+TRUE ceiling — FEVER is the one where 90 exists as published reality —
+and (b) the stage-5 certified subsets, where labels are re-adjudicated
+against evidence and 90 becomes a measurable number instead of a wish.
+Both tracks stay under the standing discipline: pre-set gates, measured
+mechanisms, rejected experiments documented. Resumed levers, in order of
+expected yield on the 4-benchmark average (71.5): FEVER dose to the
+generalist (v11 = 86.0 exists; v20 sits at 82.3), AVeriTeC-500 of the
+mmBERT lineage (never measured; v10's 62.6 is the weakest average term),
+SciFact register, better distillation judge.
+
 ### Declared goal (2026-07-11, Jeffrey): 80 general — frontier level on
 consumer hardware. "General" = the average over the four certified
 benchmarks (AggreFact + FEVER + SciFact + AVeriTeC-500), currently 71.4.
