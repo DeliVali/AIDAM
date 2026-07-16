@@ -1,0 +1,392 @@
+"""Local web server for the graphical interface: `aidam interfaz`.
+
+Serves the static UI in `aidam/interfaz/` and exposes the pipeline over a
+WebSocket. Two execution modes, chosen per verification by the client:
+
+- `auto`: the whole pipeline runs unattended (like the CLI).
+- `permisos`: every action that reaches the network — evidence retrieval per
+  fact, each LLM-generated follow-up search — pauses and asks the user first.
+  Denying skips that one action; the pipeline continues with less evidence.
+
+The permission seam needs NO changes to the pipeline: `pipeline.verificar()`
+already accepts injectable `recuperador` / `buscador_preguntas` callables
+(the same seam the offline AVeriTeC evaluation uses), so this module wraps
+them with an ask-the-user gate.
+
+WebSocket protocol (JSON messages, documented in docs/INTERFAZ.md):
+
+  client → server
+    {"tipo": "verificar", "afirmacion": str, "lang": str, "max_idiomas": int,
+     "preguntas": bool, "modo": "auto" | "permisos"}
+    {"tipo": "permiso_respuesta", "id": int, "aprobado": bool, "todo": bool}
+    {"tipo": "cancelar"}
+
+  server → client
+    {"tipo": "progreso", "mensaje": str}
+    {"tipo": "permiso", "id": int, "accion": str, "detalle": str}
+    {"tipo": "memoria", "previas": [{"veredicto", "confianza", "fecha"}, …]}
+    {"tipo": "informe", "informe": {…}}      # models.informe_a_dict shape
+    {"tipo": "cancelado"}
+    {"tipo": "error", "mensaje": str}
+
+The client may add "memoria": false to a `verificar` message to skip both
+the history lookup and the save (the CLI's --sin-memoria).
+"""
+
+from __future__ import annotations
+
+import asyncio
+import importlib.util
+import io
+import itertools
+import json
+import os
+import threading
+import webbrowser
+from functools import lru_cache
+from pathlib import Path
+from typing import Callable
+
+from fastapi import FastAPI, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
+
+from . import __version__
+from .models import Informe, informe_a_dict
+
+RUTA_INTERFAZ = Path(__file__).parent / "interfaz"
+
+_FALTA_IMAGEN = (
+    "Reconocimiento de imágenes no instalado. "
+    "Instálalo con: uv pip install -e '.[imagen]'"
+)
+_FALTA_VOZ = (
+    "Reconocimiento de voz local no instalado. "
+    "Instálalo con: uv pip install -e '.[voz]'"
+)
+
+
+class _Cancelado(Exception):
+    """Raised inside the worker thread when the user cancels the run."""
+
+
+@lru_cache(maxsize=1)
+def _verificador_cacheado():
+    """Loads the NLI verifier ONCE per server process (same rationale as the
+    question generator in pipeline.py: reloading leaks memory)."""
+    from .verify import crear_verificador
+
+    return crear_verificador()
+
+
+def _verificar_por_defecto(afirmacion: str, *, progreso, **kwargs) -> Informe:
+    from .pipeline import verificar
+
+    if _verificador_cacheado.cache_info().currsize == 0:
+        progreso("Cargando el núcleo verificador…")
+    return verificar(
+        afirmacion, progreso=progreso, verificador=_verificador_cacheado(), **kwargs
+    )
+
+
+class _Sesion:
+    """One WebSocket connection: at most one verification at a time.
+
+    The blocking pipeline runs in a worker thread (`asyncio.to_thread`); events
+    flow back to the client via `run_coroutine_threadsafe`, which preserves
+    ordering. A permission request blocks the worker on a `threading.Event`
+    until the user answers, cancels, or disconnects.
+    """
+
+    def __init__(
+        self,
+        ws: WebSocket,
+        verificar_fn: Callable[..., Informe],
+        obtener_memoria: Callable[[], object | None] = lambda: None,
+    ):
+        self.ws = ws
+        self.verificar_fn = verificar_fn
+        self.obtener_memoria = obtener_memoria
+        self.loop = asyncio.get_running_loop()
+        self.modo = "auto"
+        self.tarea: asyncio.Task | None = None
+        self.cancelado = threading.Event()
+        self._permisos: dict[int, tuple[threading.Event, dict]] = {}
+        self._ids = itertools.count(1)
+
+    # -- sending (async side and worker thread) ------------------------------
+
+    async def _enviar_async(self, evento: dict) -> None:
+        try:
+            await self.ws.send_text(json.dumps(evento, ensure_ascii=False))
+        except Exception:
+            pass  # client gone; the run is being cancelled anyway
+
+    def _enviar(self, evento: dict) -> None:
+        """Thread-safe fire-and-forget send from the worker thread."""
+        asyncio.run_coroutine_threadsafe(self._enviar_async(evento), self.loop)
+
+    # -- permissions ----------------------------------------------------------
+
+    def pedir_permiso(self, accion: str, detalle: str) -> bool:
+        """Blocks the worker thread until the user answers. `auto` mode always
+        grants; cancellation or disconnect raises instead of leaking the wait."""
+        if self.cancelado.is_set():
+            raise _Cancelado()
+        if self.modo != "permisos":
+            return True
+        id_permiso = next(self._ids)
+        listo = threading.Event()
+        respuesta = {"aprobado": False}
+        self._permisos[id_permiso] = (listo, respuesta)
+        self._enviar(
+            {"tipo": "permiso", "id": id_permiso, "accion": accion, "detalle": detalle}
+        )
+        listo.wait()
+        self._permisos.pop(id_permiso, None)
+        if self.cancelado.is_set():
+            raise _Cancelado()
+        return respuesta["aprobado"]
+
+    def responder_permiso(self, id_permiso, aprobado, todo=False) -> None:
+        if todo and aprobado:
+            self.modo = "auto"  # «permitir todo»: the rest of this run is automatic
+        par = self._permisos.get(id_permiso)
+        if par is not None:
+            par[1]["aprobado"] = bool(aprobado)
+            par[0].set()
+
+    def cancelar(self) -> None:
+        self.cancelado.set()
+        for listo, _respuesta in list(self._permisos.values()):
+            listo.set()
+
+    # -- gated pipeline seams --------------------------------------------------
+
+    def _recuperador(self, hecho, lang="es", max_idiomas=5, categoria=None):
+        if self.cancelado.is_set():
+            raise _Cancelado()
+        permitido = self.pedir_permiso(
+            "buscar_evidencia",
+            f"Buscar evidencia sobre «{hecho.texto}» "
+            f"(fuentes de la categoría: {categoria or 'todas'})",
+        )
+        if not permitido:
+            self._enviar(
+                {"tipo": "progreso", "mensaje": "Búsqueda omitida por decisión del usuario"}
+            )
+            return []
+        from .retrieve import recuperar
+
+        return recuperar(hecho, lang=lang, max_idiomas=max_idiomas, categoria=categoria)
+
+    def _buscador_preguntas(self, lang: str):
+        def buscar(pregunta: str):
+            if self.cancelado.is_set():
+                raise _Cancelado()
+            if not self.pedir_permiso(
+                "buscar_pregunta", f"Buscar en la web: «{pregunta}»"
+            ):
+                self._enviar(
+                    {"tipo": "progreso", "mensaje": "Pregunta omitida por decisión del usuario"}
+                )
+                return []
+            from .retrieve import buscar_web
+
+            # Same defaults pipeline.verificar uses when nothing is injected.
+            return buscar_web(pregunta, max_resultados=4, lang=lang, paginas_completas=1)
+
+        return buscar
+
+    # -- run -------------------------------------------------------------------
+
+    def _verificar_bloqueante(
+        self, afirmacion: str, lang: str, max_idiomas: int, preguntas: bool
+    ) -> Informe:
+        def progreso(mensaje: str) -> None:
+            # The pipeline reports progress often, so this doubles as the
+            # cancellation check between stages.
+            if self.cancelado.is_set():
+                raise _Cancelado()
+            self._enviar({"tipo": "progreso", "mensaje": mensaje})
+
+        return self.verificar_fn(
+            afirmacion,
+            lang=lang,
+            max_idiomas=max_idiomas,
+            preguntas=preguntas,
+            progreso=progreso,
+            recuperador=self._recuperador,
+            buscador_preguntas=self._buscador_preguntas(lang),
+        )
+
+    async def ejecutar(self, peticion: dict) -> None:
+        afirmacion = (peticion.get("afirmacion") or "").strip()
+        if not afirmacion:
+            await self._enviar_async(
+                {"tipo": "error", "mensaje": "La afirmación está vacía."}
+            )
+            return
+        self.cancelado.clear()
+        self.modo = peticion.get("modo", "auto")
+
+        # Remembered verdicts are CONTEXT for the user, never a shortcut:
+        # the claim is re-verified below regardless (same rule as the CLI).
+        memoria = (
+            self.obtener_memoria() if bool(peticion.get("memoria", True)) else None
+        )
+        if memoria is not None:
+            try:
+                previas = [
+                    {k: p[k] for k in ("veredicto", "confianza", "fecha")}
+                    for p in memoria.buscar(afirmacion)
+                ]
+            except Exception:
+                previas = []
+            if previas:
+                await self._enviar_async({"tipo": "memoria", "previas": previas})
+
+        try:
+            informe = await asyncio.to_thread(
+                self._verificar_bloqueante,
+                afirmacion,
+                peticion.get("lang", "es"),
+                int(peticion.get("max_idiomas", 5)),
+                bool(peticion.get("preguntas", False)),
+            )
+            if memoria is not None:
+                try:
+                    memoria.guardar(informe)
+                except Exception:
+                    pass  # a memory failure must never eat the verdict
+            await self._enviar_async(
+                {"tipo": "informe", "informe": informe_a_dict(informe)}
+            )
+        except _Cancelado:
+            await self._enviar_async({"tipo": "cancelado"})
+        except Exception as exc:  # surface the failure instead of a dead socket
+            await self._enviar_async(
+                {"tipo": "error", "mensaje": f"La verificación falló: {exc}"}
+            )
+
+
+# -- optional capabilities: OCR and local voice --------------------------------
+
+
+@lru_cache(maxsize=1)
+def _motor_ocr():
+    from rapidocr_onnxruntime import RapidOCR
+
+    return RapidOCR()
+
+
+def _extraer_texto_imagen(datos: bytes) -> str:
+    resultado, _tiempos = _motor_ocr()(datos)
+    return "\n".join(linea[1] for linea in resultado or [])
+
+
+@lru_cache(maxsize=1)
+def _modelo_voz():
+    from faster_whisper import WhisperModel
+
+    # int8 on CPU: reliable everywhere; the GPU stays free for the verifier.
+    nombre = os.environ.get("AIDAM_MODELO_VOZ", "small")
+    return WhisperModel(nombre, device="cpu", compute_type="int8")
+
+
+def _transcribir(datos: bytes, lang: str) -> str:
+    segmentos, _info = _modelo_voz().transcribe(
+        io.BytesIO(datos), language=lang or None
+    )
+    return " ".join(s.text.strip() for s in segmentos).strip()
+
+
+# -- app ------------------------------------------------------------------------
+
+
+def crear_app(verificar_fn: Callable[..., Informe] | None = None) -> FastAPI:
+    """Builds the FastAPI app. `verificar_fn` accepts the same contract as
+    `pipeline.verificar` — tests inject a fake to exercise the protocol
+    without models or network."""
+    verificar_fn = verificar_fn or _verificar_por_defecto
+    app = FastAPI(title="AIDAM", version=__version__)
+
+    @app.get("/api/capacidades")
+    def capacidades():
+        return {
+            "version": __version__,
+            "voz": importlib.util.find_spec("faster_whisper") is not None,
+            "imagen": importlib.util.find_spec("rapidocr_onnxruntime") is not None,
+        }
+
+    @app.post("/api/imagen")
+    async def api_imagen(archivo: UploadFile):
+        if importlib.util.find_spec("rapidocr_onnxruntime") is None:
+            return JSONResponse(status_code=501, content={"error": _FALTA_IMAGEN})
+        datos = await archivo.read()
+        texto = await asyncio.to_thread(_extraer_texto_imagen, datos)
+        return {"texto": texto}
+
+    @app.post("/api/voz")
+    async def api_voz(archivo: UploadFile, lang: str = "es"):
+        if importlib.util.find_spec("faster_whisper") is None:
+            return JSONResponse(status_code=501, content={"error": _FALTA_VOZ})
+        datos = await archivo.read()
+        texto = await asyncio.to_thread(_transcribir, datos, lang)
+        return {"texto": texto}
+
+    @app.websocket("/ws")
+    async def ws_verificar(ws: WebSocket):
+        await ws.accept()
+        sesion = _Sesion(ws, verificar_fn)
+        try:
+            while True:
+                try:
+                    mensaje = json.loads(await ws.receive_text())
+                except json.JSONDecodeError:
+                    await sesion._enviar_async(
+                        {"tipo": "error", "mensaje": "Mensaje malformado (no es JSON)."}
+                    )
+                    continue
+                tipo = mensaje.get("tipo")
+                if tipo == "verificar":
+                    if sesion.tarea is not None and not sesion.tarea.done():
+                        await sesion._enviar_async(
+                            {
+                                "tipo": "error",
+                                "mensaje": "Ya hay una verificación en curso.",
+                            }
+                        )
+                    else:
+                        sesion.tarea = asyncio.create_task(sesion.ejecutar(mensaje))
+                elif tipo == "permiso_respuesta":
+                    sesion.responder_permiso(
+                        mensaje.get("id"),
+                        mensaje.get("aprobado", False),
+                        mensaje.get("todo", False),
+                    )
+                elif tipo == "cancelar":
+                    sesion.cancelar()
+                else:
+                    await sesion._enviar_async(
+                        {"tipo": "error", "mensaje": f"Tipo desconocido: {tipo!r}"}
+                    )
+        except WebSocketDisconnect:
+            pass
+        finally:
+            sesion.cancelar()  # unblocks any worker waiting on a permission
+
+    # Mounted last so /api/* and /ws win; html=True serves index.html at «/».
+    app.mount("/", StaticFiles(directory=RUTA_INTERFAZ, html=True), name="interfaz")
+    return app
+
+
+def servir(host: str = "127.0.0.1", puerto: int = 8236, abrir: bool = True) -> None:
+    """Starts the local server and (optionally) opens the browser."""
+    import uvicorn
+
+    if abrir:
+        threading.Timer(
+            1.0, webbrowser.open, args=(f"http://{host}:{puerto}",)
+        ).start()
+    uvicorn.run(crear_app(), host=host, port=puerto, log_level="warning")

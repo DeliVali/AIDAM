@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import argparse
-import dataclasses
 import json
 import sys
 
 from . import __version__
-from .models import Informe, Veredicto
+from .models import Informe, Veredicto, informe_a_dict
 
 _ESTILO = {
     Veredicto.SUSTENTADO: ("green", "✓ SUSTENTADO"),
@@ -50,16 +49,7 @@ def _imprimir(informe: Informe) -> None:
 
 
 def _a_json(informe: Informe) -> str:
-    def limpiar(obj):
-        if dataclasses.is_dataclass(obj):
-            return {k: limpiar(v) for k, v in dataclasses.asdict(obj).items()}
-        if isinstance(obj, list):
-            return [limpiar(x) for x in obj]
-        if hasattr(obj, "value"):
-            return obj.value
-        return obj
-
-    return json.dumps(limpiar(informe), ensure_ascii=False, indent=2)
+    return json.dumps(informe_a_dict(informe), ensure_ascii=False, indent=2)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -88,10 +78,31 @@ def main(argv: list[str] | None = None) -> int:
         "en models/mimo/",
     )
     p_verificar.add_argument("--json", action="store_true", help="salida en JSON")
+    p_verificar.add_argument(
+        "--sin-memoria",
+        action="store_true",
+        help="no guardar esta verificación ni consultar el historial "
+        "(la memoria vive en ~/.aidam/memoria.db o $AIDAM_MEMORIA)",
+    )
 
     sub.add_parser("fuentes", help="listar las fuentes de evidencia registradas")
 
+    p_historial = sub.add_parser(
+        "historial", help="últimas verificaciones guardadas en la memoria del agente"
+    )
+    p_historial.add_argument("--limite", type=int, default=20)
+
     args = parser.parse_args(argv)
+
+    if args.comando == "historial":
+        from .memoria import MemoriaAgente
+
+        memoria = MemoriaAgente()
+        for fila in memoria.historial(args.limite):
+            print(f"{fila['fecha']}  {fila['veredicto']:22s} "
+                  f"({fila['confianza']:.2f})  {fila['afirmacion']}")
+        memoria.cerrar()
+        return 0
 
     if args.comando == "fuentes":
         from .retrieve import FUENTES
@@ -103,6 +114,20 @@ def main(argv: list[str] | None = None) -> int:
 
     from .pipeline import verificar
 
+    memoria = None
+    if not args.sin_memoria:
+        from .memoria import MemoriaAgente
+
+        memoria = MemoriaAgente()
+        # Remembered verdicts are CONTEXT for the user, never a shortcut:
+        # the claim is re-verified below regardless (facts change).
+        for previa in memoria.buscar(args.afirmacion):
+            print(
+                f"[aidam] memoria: verificada el {previa['fecha']} → "
+                f"{previa['veredicto']} ({previa['confianza']:.2f})",
+                file=sys.stderr,
+            )
+
     progreso = None if args.json else lambda m: print(f"[aidam] {m}", file=sys.stderr)
     informe = verificar(
         args.afirmacion,
@@ -111,6 +136,10 @@ def main(argv: list[str] | None = None) -> int:
         preguntas=args.preguntas,
         progreso=progreso,
     )
+
+    if memoria is not None:
+        memoria.guardar(informe)
+        memoria.cerrar()
 
     if args.json:
         print(_a_json(informe))

@@ -1093,6 +1093,21 @@ class, the hardest in the benchmark.
       miss nearly all 73/500 such claims; detecting them is the next
       declared lever for the weakest general-average term.
 
+- [x] **Agent memory shipped: sessions + verification history in SQLite
+      (2026-07-13, Jeffrey's design request).** aidam/memoria.py — a
+      single-file store (~/.aidam/memoria.db or $AIDAM_MEMORIA) holding
+      every verification with its date, verdict, confidence and full
+      evidence report as JSON; model-independent by construction. SQLite
+      over Docker+Mongo deliberately: no daemon, ships with Python, runs
+      wherever AIDAM runs (the accessibility principle). CLI: remembered
+      verdicts print as dated CONTEXT on re-verification (never a silent
+      shortcut — facts change), `aidam historial` lists recent work,
+      `--sin-memoria` opts out. Runtime-verified end to end. Phase 2 on
+      the roadmap: evidence embedding cache + vector search (compute the
+      machine-native representation once, retrieve by meaning) — the
+      measured precedent is pares_cache turning hour-long sweeps into
+      seconds.
+
 ### Goal RAISED (2026-07-13, Jeffrey): 90 general — "ya no será 80 general
 sino 90% general". Recorded with the honest operationalization already
 established: the benchmarks as published cap at ~85-88 (annotation

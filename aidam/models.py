@@ -72,3 +72,25 @@ class Informe:
     veredicto: Veredicto
     confianza: float
     hechos: list[VeredictoHecho] = field(default_factory=list)
+
+
+def informe_a_dict(informe: Informe) -> dict:
+    """Serializes a report to JSON-ready primitives.
+
+    Shared by the CLI (`--json`) and the web interface (WebSocket protocol),
+    so both always emit the same shape.
+    """
+    import dataclasses
+
+    def limpiar(obj):
+        if dataclasses.is_dataclass(obj):
+            obj = dataclasses.asdict(obj)
+        if isinstance(obj, dict):
+            return {k: limpiar(v) for k, v in obj.items()}
+        if isinstance(obj, list):
+            return [limpiar(x) for x in obj]
+        if isinstance(obj, Enum):
+            return obj.value
+        return obj
+
+    return limpiar(informe)
