@@ -1155,6 +1155,18 @@ class, the hardest in the benchmark.
       Retrieval across sources was already parallel; judging already
       batched (verified before touching anything).
 
+- [x] **Honest AVeriTeC recalibration for v20: 56.0 → 58.0 in-cache
+      (2026-07-16) — the chimera's +5.4 was really +2.0.** The clean
+      500-claim v20 cache (per-model keying) puts recalibrated v20 at
+      58.0 (DOMINANCIA 1.5, UMBRAL_SENAL 0.55, PESO_DESMENTIDO 0.15);
+      v10's 62.6 stands unchallenged. The blind-class program starts:
+      UMBRAL_INSUFICIENTE and PROB_CONFLICTO are now sweepable gates in
+      the aggregator (defaults reproduce historical behavior exactly);
+      --barrer-clases sweeps them with per-class F1 over fresh caches of
+      BOTH lineages. Target: the 73/500 NEI+Conflicting claims both
+      lineages miss (F1 0.07-0.13) — the buried headroom of the weakest
+      general-average term.
+
 ### Goal RAISED (2026-07-13, Jeffrey): 90 general — "ya no será 80 general
 sino 90% general". Recorded with the honest operationalization already
 established: the benchmarks as published cap at ~85-88 (annotation

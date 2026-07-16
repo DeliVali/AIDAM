@@ -107,15 +107,17 @@ def evaluar_config(indices: list[int], **params) -> dict:
             aciertos += prediccion == datos["oro"]
             confusion[(datos["oro"], prediccion)] = confusion.get((datos["oro"], prediccion), 0) + 1
         clases = set(A_AVERITEC.values())
-        f1s = []
+        f1_por_clase = {}
         for clase in clases:
             tp = confusion.get((clase, clase), 0)
             fp = sum(v for (o, p), v in confusion.items() if p == clase and o != clase)
             fn = sum(v for (o, p), v in confusion.items() if o == clase and p != clase)
             prec = tp / (tp + fp) if tp + fp else 0.0
             rec = tp / (tp + fn) if tp + fn else 0.0
-            f1s.append(2 * prec * rec / (prec + rec) if prec + rec else 0.0)
-        return {"exactitud": aciertos / max(total, 1), "f1_macro": sum(f1s) / len(f1s), "n": total}
+            f1_por_clase[clase] = 2 * prec * rec / (prec + rec) if prec + rec else 0.0
+        f1s = list(f1_por_clase.values())
+        return {"exactitud": aciertos / max(total, 1), "f1_macro": sum(f1s) / len(f1s),
+                "n": total, "f1_clases": f1_por_clase}
     finally:
         for k, v in originales.items():
             setattr(aggregate, k, v)
@@ -141,10 +143,43 @@ def barrer(desde: int, hasta: int) -> None:
         print(f"  {exactitud:.3f} · F1 {f1:.3f} · {params}")
 
 
+def barrer_clases(desde: int, hasta: int) -> None:
+    """Sweep the NEI/conflicting gates — the two classes both lineages miss.
+
+    Reports accuracy AND the per-class F1s that motivated this (Conflicting
+    0.07-0.10, NEI 0.09-0.13 across v10/v20): the buried headroom of the
+    weakest general-average benchmark lives in these 73/500 claims.
+    """
+    indices = list(range(desde, hasta))
+    base = evaluar_config(indices)
+    print(f"base: exactitud {base['exactitud']:.3f} · F1 {base['f1_macro']:.3f}"
+          f" · NEI {base['f1_clases'].get('Not Enough Evidence', 0):.2f}"
+          f" · Confl {base['f1_clases'].get('Conflicting Evidence/Cherrypicking', 0):.2f}")
+    rejilla = {
+        "UMBRAL_INSUFICIENTE": [0.0, 0.6, 1.0, 1.6, 2.4],
+        "PROB_CONFLICTO": [1.1, 0.97, 0.93, 0.88],
+        "DOMINANCIA": [1.5, 2.0],
+    }
+    mejores = []
+    for valores in itertools.product(*rejilla.values()):
+        params = dict(zip(rejilla.keys(), valores))
+        r = evaluar_config(indices, **params)
+        mejores.append((r["exactitud"], r["f1_macro"], r["f1_clases"], params))
+    mejores.sort(key=lambda t: (t[0], t[1]), reverse=True)
+    print("top 10 por exactitud (con F1 de las clases ciegas):")
+    for exactitud, f1, clases, params in mejores[:10]:
+        print(f"  {exactitud:.3f} · F1 {f1:.3f}"
+              f" · NEI {clases.get('Not Enough Evidence', 0):.2f}"
+              f" · Confl {clases.get('Conflicting Evidence/Cherrypicking', 0):.2f}"
+              f" · {params}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cachear", action="store_true")
     parser.add_argument("--barrer", action="store_true")
+    parser.add_argument("--barrer-clases", action="store_true",
+                        help="sweep the NEI/conflicting gates with per-class F1")
     parser.add_argument("--desde", type=int, default=100)
     parser.add_argument("--hasta", type=int, default=300)
     args = parser.parse_args()
@@ -152,6 +187,8 @@ def main() -> None:
         cachear(args.desde, args.hasta)
     if args.barrer:
         barrer(args.desde, args.hasta)
+    if args.barrer_clases:
+        barrer_clases(args.desde, args.hasta)
 
 
 if __name__ == "__main__":

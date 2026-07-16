@@ -39,6 +39,17 @@ UMBRAL_SENAL = 0.60
 DOMINANCIA = 2.0
 # Independent sources required for full confidence.
 FUENTES_PLENAS = 3
+# Both lineages miss nearly all NEI/Conflicting claims (73/500 on the
+# AVeriTeC dev; F1 0.07-0.13) because these two rules were binary and
+# blind. Sweepable now; the defaults reproduce the historical behavior
+# EXACTLY until a measured sweep promotes better values.
+# Weighted signal at or below this → NOT ENOUGH EVIDENCE (0.0 = only
+# when there is no signal at all, the historical rule).
+UMBRAL_INSUFICIENTE = 0.0
+# Alternative conflict gate: both sides' top voice at or above this
+# probability (within the dominance tie zone) → CONFLICTING even without
+# reliable sources on both sides (1.1 = impossible = off, historical).
+PROB_CONFLICTO = 1.1
 
 # ── Reliability priors (transparent and debatable in the repo) ──
 # Professional fact-checkers (IFCN network members/affiliates).
@@ -183,7 +194,7 @@ def agregar_hecho(hecho: HechoAtomico, pares: list[VeredictoPar]) -> VeredictoHe
     total = senal_favor + senal_contra
     cobertura = min(1.0, len(voces) / FUENTES_PLENAS)
 
-    if total == 0:
+    if total <= UMBRAL_INSUFICIENTE:
         veredicto, confianza = Veredicto.INSUFICIENTE, 0.0
     elif senal_favor > 0 and senal_contra > 0 and (
         max(senal_favor, senal_contra) < DOMINANCIA * min(senal_favor, senal_contra)
@@ -194,7 +205,10 @@ def agregar_hecho(hecho: HechoAtomico, pares: list[VeredictoPar]) -> VeredictoHe
         # "conflicting" were actually refuted through that pattern).
         fiable_favor = _hay_voz_fiable(a_favor)
         fiable_contra = _hay_voz_fiable(en_contra)
-        if fiable_favor and fiable_contra:
+        conflicto_por_prob = (
+            a_favor[0].prob >= PROB_CONFLICTO and en_contra[0].prob >= PROB_CONFLICTO
+        )
+        if (fiable_favor and fiable_contra) or conflicto_por_prob:
             veredicto, confianza = Veredicto.CONTRADICTORIO, cobertura
         elif fiable_favor:
             veredicto = Veredicto.SUSTENTADO
