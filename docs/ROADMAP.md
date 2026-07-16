@@ -1127,6 +1127,19 @@ class, the hardest in the benchmark.
       found the right passages at 0.87 cosine. Compute-once, reuse-forever:
       the same measured principle as pares_cache.
 
+- [x] **Code path shipped: implementations are MEASURED, never opined
+      (2026-07-16, Jeffrey's directive).** aidam/agente/codigo.py + `aidam
+      codigo`: every candidate runs the same timing harness inside the
+      bubblewrap sandbox (no network, read-only fs, timeout); correctness
+      is checked FIRST via result fingerprints — the fastest wrong answer
+      is disqualified, not crowned. Measurements become Evidencia rows
+      (fuente="medicion-local") so performance claims get verified
+      against data the agent produced itself: the generate→verify→select
+      loop applied to code. Runtime-proven: sorted() 0.075 ms beat bubble
+      sort 73.4 ms (974×), and a broken fast candidate was disqualified
+      by fingerprint. Next iteration: the local LLM proposes candidates
+      from a task description; the harness stays the judge.
+
 ### Goal RAISED (2026-07-13, Jeffrey): 90 general — "ya no será 80 general
 sino 90% general". Recorded with the honest operationalization already
 established: the benchmarks as published cap at ~85-88 (annotation

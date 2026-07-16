@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="dark light">
+  <meta name="color-scheme" content="light dark">
   <title>AIDAM — verificación abierta de información</title>
   <link rel="stylesheet" href="estilo.css">
   <link rel="icon" type="image/svg+xml" href="icono.svg">
@@ -12,31 +12,57 @@
 
 <header class="cabecera">
   <div class="marca">
-    <img class="marca-icono" src="icono.svg" alt="">
+    <span class="marca-halo"><img class="marca-icono" src="icono.svg" alt=""></span>
     <span class="marca-logo">AIdam</span>
     <span class="marca-lema">verificación abierta de información</span>
   </div>
   <div class="cabecera-acciones">
-    <button id="boton-historial" class="boton-fantasma" title="Historial de verificaciones">☰ Historial</button>
     <span id="estado-conexion" class="estado-conexion" title="Estado de la conexión">
       <span class="punto"></span><span id="estado-texto">conectando…</span>
     </span>
+    <button id="boton-lateral" class="boton-fantasma" title="Información: historial, fuentes, acerca de">☰ Información</button>
   </div>
 </header>
 
-<aside id="panel-historial" class="panel-historial oculto" aria-label="Historial">
-  <div class="panel-historial-titulo">
-    <strong>Historial</strong>
-    <button id="cerrar-historial" class="boton-fantasma">✕</button>
+<aside id="barra-lateral" class="barra-lateral oculto" aria-label="Información">
+  <div class="lateral-titulo">
+    <strong>Información</strong>
+    <button id="cerrar-lateral" class="boton-fantasma" title="Cerrar">✕</button>
   </div>
-  <ul id="lista-historial" class="lista-historial">
-    <li class="historial-vacio">Sin verificaciones guardadas todavía.</li>
-  </ul>
+
+  <details class="lateral-seccion" open>
+    <summary>Historial de verificaciones</summary>
+    <ul id="lista-historial" class="lista-historial">
+      <li class="historial-vacio">Sin verificaciones guardadas todavía.</li>
+    </ul>
+  </details>
+
+  <details class="lateral-seccion">
+    <summary>Fuentes de evidencia</summary>
+    <p class="lateral-nota">Familias de fuentes que el agente consulta según el tema de cada hecho.</p>
+    <ul id="lista-fuentes" class="lista-fuentes"></ul>
+  </details>
+
+  <details class="lateral-seccion">
+    <summary>Acerca de AIDAM</summary>
+    <p class="lateral-nota">
+      Agente abierto de verificación: descompone la afirmación, busca evidencia
+      en fuentes independientes, la juzga con un modelo especializado y cita
+      todo lo que concluye.
+    </p>
+    <p class="lateral-nota">
+      versión <span id="acerca-version">—</span> ·
+      <a href="https://github.com/DeliVali/AIDAM" target="_blank" rel="noopener">GitHub</a> ·
+      <a href="https://huggingface.co/DeliVali/aidam-verificador" target="_blank" rel="noopener">HuggingFace</a>
+      · Apache-2.0
+    </p>
+  </details>
 </aside>
 
 <main id="conversacion" class="conversacion">
   <section class="bienvenida" id="bienvenida">
-    <h1>¿Qué afirmación verificamos?</h1>
+    <img class="bienvenida-icono" src="icono.svg" alt="">
+    <h1>¿Qué verificamos hoy?</h1>
     <p>
       AIDAM descompone la afirmación, busca evidencia en fuentes independientes
       (Wikipedia, prensa, literatura académica, registros oficiales…), la juzga con
@@ -54,34 +80,41 @@
   <div id="aviso-adjunto" class="aviso-adjunto oculto"></div>
 
   <div class="caja-entrada">
-    <textarea id="entrada" rows="1" placeholder="Escribe (o dicta, o pega una captura con) la afirmación a verificar…"
+    <textarea id="entrada" rows="1" placeholder="Escribe la afirmación a verificar, o adjunta un documento…"
       autocomplete="off" spellcheck="true"></textarea>
     <div class="botones-entrada">
-      <input type="file" id="selector-imagen" accept="image/*" hidden>
-      <button id="boton-imagen" class="boton-icono" title="Extraer la afirmación de una imagen (OCR local)">📷</button>
-      <button id="boton-voz" class="boton-icono" title="Dictar la afirmación">🎤</button>
+      <input type="file" id="selector-archivo" hidden>
+      <div class="adjuntar">
+        <button id="boton-adjuntar" class="boton-icono" title="Subir un documento">📎</button>
+        <div id="menu-adjuntar" class="menu-adjuntar oculto" role="menu">
+          <div class="menu-titulo">¿Qué documento subes?</div>
+          <button class="menu-opcion" data-tipo="imagen" data-accept="image/*">🖼 Imagen o captura</button>
+          <button class="menu-opcion" data-tipo="pdf" data-accept=".pdf">📄 PDF</button>
+          <button class="menu-opcion" data-tipo="texto" data-accept=".txt,.md,.csv">📃 Texto (.txt, .md)</button>
+        </div>
+      </div>
       <button id="boton-enviar" class="boton-enviar" title="Verificar (Enter)">➤</button>
     </div>
   </div>
 
   <div class="controles">
-    <div class="control modo" role="group" aria-label="Modo de ejecución">
-      <button id="modo-auto" class="segmento activo" title="Ejecuta todo el pipeline sin preguntar">⚡ Automático</button>
-      <button id="modo-permisos" class="segmento" title="Pide permiso antes de cada búsqueda en la red">🔒 Pedir permiso</button>
-    </div>
+    <label class="control" title="Automático ejecuta todo el pipeline; Pedir permiso pausa antes de cada búsqueda en la red">
+      modo
+      <select id="modo">
+        <option value="auto" selected>⚡ Automático</option>
+        <option value="permisos">🔒 Pedir permiso</option>
+      </select>
+    </label>
     <label class="control" title="Idioma de la afirmación">
       idioma
       <select id="idioma">
-        <option value="es" selected>es</option>
-        <option value="en">en</option>
-        <option value="fr">fr</option>
-        <option value="de">de</option>
-        <option value="pt">pt</option>
-        <option value="it">it</option>
+        <option value="es" selected>español</option>
+        <option value="en">english</option>
+        <option value="fr">français</option>
+        <option value="de">deutsch</option>
+        <option value="pt">português</option>
+        <option value="it">italiano</option>
       </select>
-    </label>
-    <label class="control" title="Generar preguntas de búsqueda con el LLM local (requiere el modelo en models/)">
-      <input type="checkbox" id="opcion-preguntas"> preguntas LLM
     </label>
     <label class="control" title="Guardar en la memoria del agente y avisar si ya se verificó antes">
       <input type="checkbox" id="opcion-memoria" checked> memoria

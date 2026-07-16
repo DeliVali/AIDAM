@@ -1,6 +1,8 @@
 /* AIDAM — lógica de la interfaz. Vanilla JS, sin dependencias.
  *
  * Protocolo WebSocket documentado en aidam/servidor.py y docs/INTERFAZ.md.
+ * Sin voz por diseño (decisión de producto para la app de escritorio); la
+ * entrada es texto y documentos (imagen OCR, PDF, texto plano).
  */
 
 "use strict";
@@ -14,22 +16,22 @@ const ui = {
   bienvenida: $("bienvenida"),
   entrada: $("entrada"),
   enviar: $("boton-enviar"),
-  voz: $("boton-voz"),
-  imagen: $("boton-imagen"),
-  selectorImagen: $("selector-imagen"),
+  adjuntar: $("boton-adjuntar"),
+  menuAdjuntar: $("menu-adjuntar"),
+  selectorArchivo: $("selector-archivo"),
   avisoAdjunto: $("aviso-adjunto"),
-  modoAuto: $("modo-auto"),
-  modoPermisos: $("modo-permisos"),
+  modo: $("modo"),
   idioma: $("idioma"),
-  preguntas: $("opcion-preguntas"),
   memoria: $("opcion-memoria"),
   estadoConexion: $("estado-conexion"),
   estadoTexto: $("estado-texto"),
   avisos: $("avisos"),
-  botonHistorial: $("boton-historial"),
-  panelHistorial: $("panel-historial"),
-  cerrarHistorial: $("cerrar-historial"),
+  botonLateral: $("boton-lateral"),
+  barraLateral: $("barra-lateral"),
+  cerrarLateral: $("cerrar-lateral"),
   listaHistorial: $("lista-historial"),
+  listaFuentes: $("lista-fuentes"),
+  acercaVersion: $("acerca-version"),
 };
 
 const estado = {
@@ -38,9 +40,8 @@ const estado = {
   intentoReconexion: 0,
   enCurso: false,     // hay una verificación corriendo
   turno: null,        // elementos DOM del turno activo
-  capacidades: { voz: false, imagen: false },
-  grabadora: null,    // MediaRecorder activo
-  reconocedor: null,  // SpeechRecognition del navegador activo
+  capacidades: { imagen: false, pdf: false },
+  tipoAdjunto: null,  // "imagen" | "pdf" | "texto" elegido en el menú
 };
 
 const VEREDICTOS = {
@@ -49,6 +50,8 @@ const VEREDICTOS = {
   evidencia_contradictoria: { clase: "contradictorio", icono: "⚡", titulo: "Evidencia contradictoria" },
   evidencia_insuficiente: { clase: "insuficiente", icono: "?", titulo: "Evidencia insuficiente" },
 };
+
+const MAX_TEXTO_DOCUMENTO = 4000; // lo que se vuelca al cuadro de entrada
 
 // ------------------------------------------------------------ utilidades ----
 
@@ -85,30 +88,21 @@ function fechaCorta(iso) {
 function cargarPreferencias() {
   let prefs = {};
   try { prefs = JSON.parse(localStorage.getItem("aidam.prefs") || "{}"); } catch {}
-  if (prefs.modo === "permisos") activarModo("permisos");
+  if (prefs.modo === "permisos") ui.modo.value = "permisos";
   if (prefs.idioma) ui.idioma.value = prefs.idioma;
-  ui.preguntas.checked = Boolean(prefs.preguntas);
   ui.memoria.checked = prefs.memoria !== false;
 }
 
 function guardarPreferencias() {
   localStorage.setItem("aidam.prefs", JSON.stringify({
-    modo: ui.modoPermisos.classList.contains("activo") ? "permisos" : "auto",
+    modo: ui.modo.value,
     idioma: ui.idioma.value,
-    preguntas: ui.preguntas.checked,
     memoria: ui.memoria.checked,
   }));
 }
 
-function activarModo(modo) {
-  ui.modoAuto.classList.toggle("activo", modo === "auto");
-  ui.modoPermisos.classList.toggle("activo", modo === "permisos");
-}
-
-ui.modoAuto.addEventListener("click", () => { activarModo("auto"); guardarPreferencias(); });
-ui.modoPermisos.addEventListener("click", () => { activarModo("permisos"); guardarPreferencias(); });
+ui.modo.addEventListener("change", guardarPreferencias);
 ui.idioma.addEventListener("change", guardarPreferencias);
-ui.preguntas.addEventListener("change", guardarPreferencias);
 ui.memoria.addEventListener("change", guardarPreferencias);
 
 // -------------------------------------------------------------- websocket ----
@@ -159,18 +153,19 @@ function enviarVerificacion() {
   if (!afirmacion || !estado.conectado) return;
   if (estado.enCurso) return;
 
-  const modo = ui.modoPermisos.classList.contains("activo") ? "permisos" : "auto";
+  // Nota: no se envía "preguntas": la búsqueda guiada por LLM es una
+  // capacidad del agente — el servidor la activa si el modelo local existe.
   estado.ws.send(JSON.stringify({
     tipo: "verificar",
     afirmacion,
     lang: ui.idioma.value,
-    preguntas: ui.preguntas.checked,
     memoria: ui.memoria.checked,
-    modo,
+    modo: ui.modo.value,
   }));
 
   ui.bienvenida?.remove();
   ui.bienvenida = null;
+  mostrarAdjunto("");
 
   const turno = crear("div", "turno");
   turno.appendChild(crear("div", "burbuja-usuario", afirmacion));
@@ -264,7 +259,7 @@ function mostrarMemoria(previas) {
   const v = VEREDICTOS[ultima.veredicto] || { titulo: ultima.veredicto };
   const chip = crear(
     "div", "chip-memoria",
-    `🧠 ya verificada el ${fechaCorta(ultima.fecha)}: ${v.titulo.toLowerCase()} ` +
+    `🕊 ya verificada el ${fechaCorta(ultima.fecha)}: ${v.titulo.toLowerCase()} ` +
     `(confianza ${Math.round(ultima.confianza * 100)}%) — se vuelve a verificar igualmente`
   );
   t.contenedor.insertBefore(chip, t.registro);
@@ -279,8 +274,8 @@ function mostrarInforme(informe) {
   const contenedor = t.contenedor;
   terminarTurno();
 
-  // Una pregunta no se "refuta": el modo respuesta muestra el texto con
-  // sus fuentes y NUNCA una etiqueta de veredicto (fallo medido 2026-07-16).
+  // Una pregunta no se "refuta": el modo respuesta muestra el texto con sus
+  // citas y NUNCA una etiqueta de veredicto (fallo medido 2026-07-16).
   if (informe.tipo === "pregunta") {
     const tarjeta = crear("div", "tarjeta-veredicto veredicto-respuesta");
     const titulo = crear("div", "veredicto-titulo");
@@ -288,8 +283,12 @@ function mostrarInforme(informe) {
     titulo.appendChild(crear("span", null, "RESPUESTA"));
     tarjeta.appendChild(titulo);
     tarjeta.appendChild(crear("div", "respuesta-texto", informe.respuesta || ""));
+    for (const hecho of informe.hechos || []) {
+      tarjeta.appendChild(renderHecho(hecho, { sinVeredicto: true }));
+    }
     contenedor.appendChild(tarjeta);
     bajarConversacion();
+    cargarHistorial();
     return;
   }
 
@@ -316,18 +315,20 @@ function mostrarInforme(informe) {
 
   contenedor.appendChild(tarjeta);
   bajarConversacion();
-  cargarHistorial(); // refresca el panel con la verificación recién guardada
+  cargarHistorial(); // refresca la barra lateral con la verificación recién guardada
 }
 
-function renderHecho(vh) {
+function renderHecho(vh, opciones = {}) {
   const nodo = crear("div", "hecho");
   nodo.appendChild(crear("div", "hecho-texto", vh.hecho.texto));
 
-  const v = VEREDICTOS[vh.veredicto] || VEREDICTOS.evidencia_insuficiente;
-  const linea = crear("div", `hecho-veredicto ${v.clase}`);
-  linea.appendChild(crear("span", "veredicto-titulo", `${v.icono} ${v.titulo}`));
-  linea.appendChild(crear("span", "confianza-texto", ` · confianza ${Math.round(vh.confianza * 100)}%`));
-  nodo.appendChild(linea);
+  if (!opciones.sinVeredicto) {
+    const v = VEREDICTOS[vh.veredicto] || VEREDICTOS.evidencia_insuficiente;
+    const linea = crear("div", `hecho-veredicto ${v.clase}`);
+    linea.appendChild(crear("span", "veredicto-titulo", `${v.icono} ${v.titulo}`));
+    linea.appendChild(crear("span", "confianza-texto", ` · confianza ${Math.round(vh.confianza * 100)}%`));
+    nodo.appendChild(linea);
+  }
 
   const evidencias = [
     ...(vh.a_favor || []).map((p) => ({ p, lado: "a-favor", etiqueta: "A favor" })),
@@ -339,22 +340,23 @@ function renderHecho(vh) {
     return nodo;
   }
 
-  const lista = crear("ul", "evidencias");
-  const visibles = evidencias.slice(0, 3);
-  const resto = evidencias.slice(3);
-  for (const e of visibles) lista.appendChild(renderEvidencia(e));
-  nodo.appendChild(lista);
+  // Las citas van plegadas por defecto en un desplegable.
+  const aFavor = (vh.a_favor || []).length;
+  const enContra = (vh.en_contra || []).length;
+  const partes = [];
+  if (aFavor) partes.push(`${aFavor} a favor`);
+  if (enContra) partes.push(`${enContra} en contra`);
 
-  if (resto.length) {
-    const mas = document.createElement("details");
-    const resumen = crear("summary", "confianza-texto", `ver ${resto.length} evidencia(s) más`);
-    resumen.style.cursor = "pointer";
-    mas.appendChild(resumen);
-    const listaResto = crear("ul", "evidencias");
-    for (const e of resto) listaResto.appendChild(renderEvidencia(e));
-    mas.appendChild(listaResto);
-    nodo.appendChild(mas);
-  }
+  const citas = document.createElement("details");
+  citas.className = "citas";
+  citas.appendChild(crear(
+    "summary", null,
+    `${evidencias.length} cita${evidencias.length === 1 ? "" : "s"} · ${partes.join(" · ")}`
+  ));
+  const lista = crear("ul", "evidencias");
+  for (const e of evidencias) lista.appendChild(renderEvidencia(e));
+  citas.appendChild(lista);
+  nodo.appendChild(citas);
   return nodo;
 }
 
@@ -400,109 +402,61 @@ function mostrarError(mensaje) {
   }
 }
 
-// ------------------------------------------------------------------- voz ----
+// -------------------------------------------------------------- documentos ----
 
-const IDIOMAS_NAVEGADOR = { es: "es-ES", en: "en-US", fr: "fr-FR", de: "de-DE", pt: "pt-BR", it: "it-IT" };
-
-async function alternarVoz() {
-  if (estado.grabadora) return detenerGrabacion();
-  if (estado.reconocedor) { estado.reconocedor.stop(); return; }
-
-  if (estado.capacidades.voz) return iniciarGrabacionLocal();
-
-  const Reconocimiento = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (Reconocimiento) return iniciarReconocimientoNavegador(Reconocimiento);
-
-  avisar("Sin reconocimiento de voz: instala «uv pip install -e '.[voz]'» para " +
-         "transcripción local privada, o usa un navegador compatible.", true);
+function alternarMenuAdjuntar() {
+  ui.menuAdjuntar.classList.toggle("oculto");
 }
 
-async function iniciarGrabacionLocal() {
-  let flujo;
-  try {
-    flujo = await navigator.mediaDevices.getUserMedia({ audio: true });
-  } catch {
-    avisar("No se pudo acceder al micrófono.", true);
+function elegirTipoAdjunto(boton) {
+  const tipo = boton.dataset.tipo;
+  if (tipo === "imagen" && !estado.capacidades.imagen) {
+    avisar("OCR de imágenes no instalado en el servidor: " +
+           "«uv pip install -e '.[imagen]'» y reinicia AIDAM.", true);
     return;
   }
-  const tipo = ["audio/webm", "audio/mp4", "audio/ogg"].find((t) => MediaRecorder.isTypeSupported(t)) || "";
-  const grabadora = new MediaRecorder(flujo, tipo ? { mimeType: tipo } : undefined);
-  const trozos = [];
-  grabadora.ondataavailable = (e) => e.data.size && trozos.push(e.data);
-  grabadora.onstop = async () => {
-    flujo.getTracks().forEach((pista) => pista.stop());
-    ui.voz.classList.remove("grabando");
-    estado.grabadora = null;
-    const audio = new Blob(trozos, { type: tipo || "audio/webm" });
-    if (!audio.size) return;
-    mostrarAdjunto("🎤 transcribiendo localmente…");
-    try {
-      const datos = new FormData();
-      datos.append("archivo", audio, "dictado.webm");
-      const respuesta = await fetch(`/api/voz?lang=${encodeURIComponent(ui.idioma.value)}`, {
-        method: "POST", body: datos,
-      });
-      const cuerpo = await respuesta.json();
-      if (!respuesta.ok) throw new Error(cuerpo.error || respuesta.statusText);
-      insertarTexto(cuerpo.texto);
-      mostrarAdjunto(cuerpo.texto ? "🎤 dictado transcrito" : "🎤 no se reconoció voz en el audio");
-    } catch (err) {
-      mostrarAdjunto("");
-      avisar(`Transcripción fallida: ${err.message}`, true);
-    }
-  };
-  grabadora.start();
-  estado.grabadora = grabadora;
-  ui.voz.classList.add("grabando");
-  ui.voz.title = "Detener el dictado";
+  if (tipo === "pdf" && !estado.capacidades.pdf) {
+    avisar("Lectura de PDF no instalada: «uv pip install -e '.[interfaz]'» " +
+           "y reinicia AIDAM.", true);
+    return;
+  }
+  estado.tipoAdjunto = tipo;
+  ui.selectorArchivo.accept = boton.dataset.accept;
+  ui.menuAdjuntar.classList.add("oculto");
+  ui.selectorArchivo.click();
 }
 
-function detenerGrabacion() {
-  estado.grabadora?.stop();
-  ui.voz.title = "Dictar la afirmación";
-}
-
-function iniciarReconocimientoNavegador(Reconocimiento) {
-  const rec = new Reconocimiento();
-  rec.lang = IDIOMAS_NAVEGADOR[ui.idioma.value] || ui.idioma.value;
-  rec.interimResults = false;
-  rec.continuous = false;
-  rec.onresult = (e) => insertarTexto(Array.from(e.results).map((r) => r[0].transcript).join(" "));
-  rec.onerror = (e) => { if (e.error !== "aborted") avisar(`Reconocimiento de voz: ${e.error}`, true); };
-  rec.onend = () => {
-    ui.voz.classList.remove("grabando");
-    estado.reconocedor = null;
-  };
-  rec.start();
-  estado.reconocedor = rec;
-  ui.voz.classList.add("grabando");
-}
-
-// ---------------------------------------------------------------- imágenes ----
-
-async function procesarImagen(archivo) {
+async function procesarArchivo(archivo, tipo) {
   if (!archivo) return;
-  if (!estado.capacidades.imagen) {
-    avisar("Reconocimiento de imágenes no instalado en el servidor: " +
-           "«uv pip install -e '.[imagen]'» y reinicia «aidam interfaz».", true);
-    return;
-  }
-  mostrarAdjunto(`🖼 extrayendo texto de ${archivo.name || "la imagen"}…`);
+  tipo = tipo || estado.tipoAdjunto || (archivo.type.startsWith("image/") ? "imagen" : "texto");
+  const esImagen = tipo === "imagen";
+  const url = esImagen ? "/api/imagen" : "/api/documento";
+  const nombre = archivo.name || (esImagen ? "imagen.png" : "documento");
+
+  mostrarAdjunto(`${esImagen ? "🖼" : "📄"} extrayendo texto de ${nombre}…`);
   try {
     const datos = new FormData();
-    datos.append("archivo", archivo, archivo.name || "imagen.png");
-    const respuesta = await fetch("/api/imagen", { method: "POST", body: datos });
+    datos.append("archivo", archivo, nombre);
+    const respuesta = await fetch(url, { method: "POST", body: datos });
     const cuerpo = await respuesta.json();
     if (!respuesta.ok) throw new Error(cuerpo.error || respuesta.statusText);
-    if (cuerpo.texto) {
-      insertarTexto(cuerpo.texto);
-      mostrarAdjunto(`🖼 texto extraído de ${archivo.name || "la imagen"} — revísalo antes de verificar`);
-    } else {
-      mostrarAdjunto("🖼 la imagen no contiene texto legible");
+    if (!cuerpo.texto) {
+      mostrarAdjunto(`${esImagen ? "🖼" : "📄"} ${nombre} no contiene texto legible`);
+      return;
     }
+    let texto = cuerpo.texto;
+    let recorte = "";
+    if (texto.length > MAX_TEXTO_DOCUMENTO) {
+      texto = texto.slice(0, MAX_TEXTO_DOCUMENTO);
+      recorte = ` (recortado a ${MAX_TEXTO_DOCUMENTO} caracteres)`;
+    }
+    insertarTexto(texto);
+    mostrarAdjunto(`${esImagen ? "🖼" : "📄"} texto extraído de ${nombre}${recorte} — revísalo antes de verificar`);
   } catch (err) {
     mostrarAdjunto("");
-    avisar(`OCR fallido: ${err.message}`, true);
+    avisar(`No se pudo leer ${nombre}: ${err.message}`, true);
+  } finally {
+    estado.tipoAdjunto = null;
   }
 }
 
@@ -519,7 +473,7 @@ function insertarTexto(texto) {
   ui.entrada.focus();
 }
 
-// --------------------------------------------------------------- historial ----
+// ------------------------------------------------------------ barra lateral ----
 
 async function cargarHistorial() {
   try {
@@ -532,7 +486,7 @@ async function cargarHistorial() {
     }
     for (const fila of historial) {
       const item = crear("li");
-      const v = VEREDICTOS[fila.veredicto] || { icono: "?", titulo: fila.veredicto, clase: "insuficiente" };
+      const v = VEREDICTOS[fila.veredicto] || { icono: "?", titulo: fila.veredicto };
       item.appendChild(crear("span", "historial-afirmacion", `${v.icono} ${fila.afirmacion}`));
       item.appendChild(crear("span", "historial-meta",
         `${v.titulo.toLowerCase()} · ${Math.round(fila.confianza * 100)}% · ${fechaCorta(fila.fecha)}`));
@@ -540,21 +494,42 @@ async function cargarHistorial() {
       item.onclick = () => {
         ui.entrada.value = fila.afirmacion;
         ajustarAltura();
-        ui.panelHistorial.classList.add("oculto");
+        ui.barraLateral.classList.add("oculto");
         ui.entrada.focus();
       };
       ui.listaHistorial.appendChild(item);
     }
   } catch {
-    /* la memoria es opcional: sin ella el panel simplemente queda vacío */
+    /* la memoria es opcional: sin ella la lista simplemente queda vacía */
   }
 }
 
-ui.botonHistorial.addEventListener("click", () => {
-  ui.panelHistorial.classList.toggle("oculto");
-  if (!ui.panelHistorial.classList.contains("oculto")) cargarHistorial();
+async function cargarFuentes() {
+  if (ui.listaFuentes.childElementCount) return; // el registro no cambia en caliente
+  try {
+    const respuesta = await fetch("/api/fuentes");
+    const { fuentes } = await respuesta.json();
+    for (const fuente of fuentes) {
+      const item = crear("li");
+      item.appendChild(crear("span", "fuente-nombre", fuente.nombre));
+      const ambito = fuente.categorias.length ? fuente.categorias.join(", ") : "todas las categorías";
+      item.appendChild(crear("span", "fuente-descripcion", `${fuente.descripcion} [${ambito}]`));
+      ui.listaFuentes.appendChild(item);
+    }
+  } catch {
+    /* sin backend no hay lista; el resto de la barra sigue siendo útil */
+  }
+}
+
+ui.botonLateral.addEventListener("click", () => {
+  const abrir = ui.barraLateral.classList.contains("oculto");
+  ui.barraLateral.classList.toggle("oculto");
+  if (abrir) {
+    cargarHistorial();
+    cargarFuentes();
+  }
 });
-ui.cerrarHistorial.addEventListener("click", () => ui.panelHistorial.classList.add("oculto"));
+ui.cerrarLateral.addEventListener("click", () => ui.barraLateral.classList.add("oculto"));
 
 // ---------------------------------------------------------------- entrada ----
 
@@ -576,7 +551,7 @@ ui.entrada.addEventListener("paste", (e) => {
   const imagen = Array.from(e.clipboardData?.items || []).find((i) => i.type.startsWith("image/"));
   if (imagen) {
     e.preventDefault();
-    procesarImagen(imagen.getAsFile());
+    procesarArchivo(imagen.getAsFile(), "imagen");
   }
 });
 
@@ -584,7 +559,10 @@ document.addEventListener("dragover", (e) => e.preventDefault());
 document.addEventListener("drop", (e) => {
   e.preventDefault();
   const archivo = e.dataTransfer?.files?.[0];
-  if (archivo?.type.startsWith("image/")) procesarImagen(archivo);
+  if (!archivo) return;
+  if (archivo.type.startsWith("image/")) procesarArchivo(archivo, "imagen");
+  else if (archivo.name?.toLowerCase().endsWith(".pdf")) procesarArchivo(archivo, "pdf");
+  else procesarArchivo(archivo, "texto");
 });
 
 ui.enviar.addEventListener("click", () => {
@@ -592,11 +570,24 @@ ui.enviar.addEventListener("click", () => {
   else enviarVerificacion();
 });
 
-ui.voz.addEventListener("click", alternarVoz);
-ui.imagen.addEventListener("click", () => ui.selectorImagen.click());
-ui.selectorImagen.addEventListener("change", () => {
-  procesarImagen(ui.selectorImagen.files?.[0]);
-  ui.selectorImagen.value = "";
+ui.adjuntar.addEventListener("click", (e) => {
+  e.stopPropagation();
+  alternarMenuAdjuntar();
+});
+
+ui.menuAdjuntar.querySelectorAll(".menu-opcion").forEach((boton) => {
+  boton.addEventListener("click", () => elegirTipoAdjunto(boton));
+});
+
+document.addEventListener("click", (e) => {
+  if (!ui.menuAdjuntar.classList.contains("oculto") && !ui.menuAdjuntar.contains(e.target)) {
+    ui.menuAdjuntar.classList.add("oculto");
+  }
+});
+
+ui.selectorArchivo.addEventListener("change", () => {
+  procesarArchivo(ui.selectorArchivo.files?.[0]);
+  ui.selectorArchivo.value = "";
 });
 
 document.querySelectorAll(".ejemplo").forEach((boton) => {
@@ -616,6 +607,7 @@ async function iniciar() {
   try {
     const respuesta = await fetch("/api/capacidades");
     estado.capacidades = await respuesta.json();
+    ui.acercaVersion.textContent = estado.capacidades.version || "—";
   } catch {
     /* sin capacidades opcionales; los botones lo explican al usarse */
   }

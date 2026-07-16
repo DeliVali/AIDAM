@@ -169,6 +169,26 @@ def main(argv: list[str] | None = None) -> int:
     p_imagen.add_argument("--lang", default="es", help="idioma esperado del texto")
     p_imagen.add_argument("--json", action="store_true", help="salida en JSON")
 
+    p_codigo = sub.add_parser(
+        "codigo",
+        help="comparar implementaciones MIDIENDO su rendimiento en el sandbox "
+        "(el ganador sale de datos, no de opiniones)",
+    )
+    p_codigo.add_argument(
+        "archivos", nargs="+",
+        help="dos o más .py candidatos que definen la misma función",
+    )
+    p_codigo.add_argument(
+        "--llamada", required=True,
+        help="expresión a medir, p. ej. \"ordenar(datos)\"",
+    )
+    p_codigo.add_argument(
+        "--preparacion", default="",
+        help="código de preparación común (crear datos de prueba, imports)",
+    )
+    p_codigo.add_argument("--repeticiones", type=int, default=7)
+    p_codigo.add_argument("--json", action="store_true", help="salida en JSON")
+
     sub.add_parser("permisos", help="mostrar las reglas de permisos vigentes del agente")
 
     p_interfaz = sub.add_parser(
@@ -274,6 +294,34 @@ def main(argv: list[str] | None = None) -> int:
         for tipo in ("denegar", "preguntar", "permitir"):
             for regla in (motor.reglas.get(tipo) or []):
                 print(f"  {tipo:10s} {regla}")
+        return 0
+
+    if args.comando == "codigo":
+        import dataclasses as _dc
+        from pathlib import Path as _Path
+
+        from .agente.codigo import comparar_candidatos
+
+        candidatos = {}
+        for ruta in args.archivos:
+            p = _Path(ruta)
+            candidatos[p.stem] = p.read_text()
+        resultado = comparar_candidatos(
+            candidatos, args.llamada,
+            preparacion=args.preparacion, repeticiones=args.repeticiones,
+        )
+        if args.json:
+            print(json.dumps(_dc.asdict(resultado), ensure_ascii=False, indent=2, default=str))
+        else:
+            from rich.console import Console
+            from rich.panel import Panel
+
+            for m in resultado.mediciones:
+                estado_m = (f"{m.mediana_ms:.3f} ms" if m.ok
+                            else f"FALLÓ: {m.error.splitlines()[-1] if m.error else '?'}")
+                print(f"  {m.nombre:20s} {estado_m}")
+            Console().print(Panel(resultado.respuesta, title="Medición (sandbox, sin red)",
+                                  border_style="cyan"))
         return 0
 
     if args.comando == "historial":
