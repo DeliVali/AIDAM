@@ -1167,6 +1167,22 @@ class, the hardest in the benchmark.
       lineages miss (F1 0.07-0.13) — the buried headroom of the weakest
       general-average term.
 
+- [x] **Blind-class sweep: NEGATIVE with a law, plus one cross-lineage
+      nugget (2026-07-16).** Sweeping the new NEI/conflicting gates over
+      fresh per-model caches of BOTH lineages moved neither blind class
+      one point: NEI pinned at 0.14 (v10) / 0.08 (v20) across every
+      configuration, and relaxing the conflict gate only manufactures
+      false conflicts (v10 Confl 0.18 → 0.13-0.15). **Measured law: the
+      blind classes are REPRESENTATION failures, not aggregation
+      failures** — the pair-level NLI output does not carry "this
+      evidence does not address the claim", so no downstream threshold
+      can recover it. The fix lives in the model or the scaffold
+      (NEI-aware training signal, abstention calibration), not in knobs.
+      The nugget: DOMINANCIA 1.5 gains accuracy on BOTH lineages
+      (v10 62.2→63.0, v20 56.0→57.2 in-cache) — cross-model regularity;
+      real-eval confirmation run launched for v10 (promotion bar:
+      beat 62.6 on the true 500).
+
 ### Goal RAISED (2026-07-13, Jeffrey): 90 general — "ya no será 80 general
 sino 90% general". Recorded with the honest operationalization already
 established: the benchmarks as published cap at ~85-88 (annotation

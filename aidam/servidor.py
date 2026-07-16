@@ -408,6 +408,22 @@ def crear_app(
         except Exception:
             return {"historial": []}
 
+    @app.get("/api/verificacion/{id_verificacion}")
+    async def api_verificacion(id_verificacion: int):
+        """Stored report by id: the interface reopens past conversations."""
+        memoria = obtener_memoria()
+        guardada = None
+        if memoria is not None:
+            try:
+                guardada = memoria.informe_por_id(id_verificacion)
+            except Exception:
+                guardada = None
+        if guardada is None:
+            return JSONResponse(
+                status_code=404, content={"error": "Verificación no encontrada."}
+            )
+        return guardada
+
     @app.post("/api/imagen")
     async def api_imagen(archivo: UploadFile):
         if importlib.util.find_spec("rapidocr_onnxruntime") is None:

@@ -3,70 +3,105 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="light dark">
+  <meta name="color-scheme" content="dark">
   <title>AIDAM — verificación abierta de información</title>
+  <link rel="stylesheet" href="fuentes/fuentes.css">
   <link rel="stylesheet" href="estilo.css">
   <link rel="icon" type="image/svg+xml" href="icono.svg">
 </head>
 <body>
 
-<header class="cabecera">
-  <div class="marca">
-    <span class="marca-halo"><img class="marca-icono" src="icono.svg" alt=""></span>
-    <span class="marca-logo">AIdam</span>
-    <span class="marca-lema">verificación abierta de información</span>
-  </div>
-  <div class="cabecera-acciones">
-    <span id="estado-conexion" class="estado-conexion" title="Estado de la conexión">
-      <span class="punto"></span><span id="estado-texto">conectando…</span>
-    </span>
-    <button id="boton-lateral" class="boton-fantasma" title="Información: historial, fuentes, acerca de">☰ Información</button>
-  </div>
-</header>
+<canvas id="fondo" aria-hidden="true"></canvas>
 
-<aside id="barra-lateral" class="barra-lateral oculto" aria-label="Información">
-  <div class="lateral-titulo">
-    <strong>Información</strong>
-    <button id="cerrar-lateral" class="boton-fantasma" title="Cerrar">✕</button>
-  </div>
+<div class="aplicacion">
 
-  <details class="lateral-seccion" open>
-    <summary>Historial de verificaciones</summary>
+  <aside class="lateral">
+    <div class="lateral-marca">
+      <span class="marca-halo"><img class="marca-icono" src="icono.svg" alt=""></span>
+      <div class="marca-textos">
+        <span class="marca-logo">AIdam</span>
+        <span class="marca-lema">verificación abierta</span>
+      </div>
+    </div>
+
+    <button id="nueva-verificacion" class="boton-nueva">＋ Nueva verificación</button>
+
+    <div class="lateral-etiqueta">Historial</div>
     <ul id="lista-historial" class="lista-historial">
-      <li class="historial-vacio">Sin verificaciones guardadas todavía.</li>
+      <li class="historial-vacio">Sin verificaciones todavía.</li>
     </ul>
-  </details>
 
-  <details class="lateral-seccion">
-    <summary>Fuentes de evidencia</summary>
-    <p class="lateral-nota">Familias de fuentes que el agente consulta según el tema de cada hecho.</p>
-    <ul id="lista-fuentes" class="lista-fuentes"></ul>
-  </details>
+    <div class="lateral-pie">
+      <span id="estado-conexion" class="estado-conexion" title="Estado de la conexión">
+        <span class="punto"></span><span id="estado-texto">conectando…</span>
+      </span>
+      <span class="lateral-version">
+        v<span id="acerca-version">—</span> ·
+        <a href="https://github.com/DeliVali/AIDAM" target="_blank" rel="noopener">GitHub</a>
+      </span>
+    </div>
+  </aside>
 
-  <details class="lateral-seccion">
-    <summary>Acerca de AIDAM</summary>
-    <p class="lateral-nota">
-      Agente abierto de verificación: descompone la afirmación, busca evidencia
-      en fuentes independientes, la juzga con un modelo especializado y cita
-      todo lo que concluye.
-    </p>
-    <p class="lateral-nota">
-      versión <span id="acerca-version">—</span> ·
-      <a href="https://github.com/DeliVali/AIDAM" target="_blank" rel="noopener">GitHub</a> ·
-      <a href="https://huggingface.co/DeliVali/aidam-verificador" target="_blank" rel="noopener">HuggingFace</a>
-      · Apache-2.0
-    </p>
-  </details>
-</aside>
+  <div class="principal">
+    <main id="conversacion" class="conversacion"></main>
 
-<main id="conversacion" class="conversacion">
-  <section class="bienvenida" id="bienvenida">
+    <footer class="pie">
+      <div id="aviso-adjunto" class="aviso-adjunto oculto"></div>
+
+      <div class="caja-entrada">
+        <textarea id="entrada" rows="1"
+          placeholder="Escribe una afirmación para verificar, o adjunta un documento…"
+          autocomplete="off" spellcheck="true"></textarea>
+        <div class="botones-entrada">
+          <input type="file" id="selector-archivo" hidden>
+          <div class="adjuntar">
+            <button id="boton-adjuntar" class="boton-icono" title="Subir un documento">📎</button>
+            <div id="menu-adjuntar" class="menu-adjuntar oculto" role="menu">
+              <div class="menu-titulo">¿Qué documento subes?</div>
+              <button class="menu-opcion" data-tipo="imagen" data-accept="image/*">🖼 Imagen o captura</button>
+              <button class="menu-opcion" data-tipo="pdf" data-accept=".pdf">📄 PDF</button>
+              <button class="menu-opcion" data-tipo="texto" data-accept=".txt,.md,.csv">📃 Texto (.txt, .md)</button>
+            </div>
+          </div>
+          <button id="boton-enviar" class="boton-enviar" title="Verificar (Enter)">➤</button>
+        </div>
+      </div>
+
+      <div class="controles">
+        <label class="control" title="Automático ejecuta todo el pipeline; Pedir permiso pausa antes de cada búsqueda en la red">
+          modo
+          <select id="modo">
+            <option value="auto" selected>⚡ Automático</option>
+            <option value="permisos">🔒 Pedir permiso</option>
+          </select>
+        </label>
+        <label class="control" title="Idioma de la afirmación">
+          idioma
+          <select id="idioma">
+            <option value="es" selected>español</option>
+            <option value="en">english</option>
+            <option value="fr">français</option>
+            <option value="de">deutsch</option>
+            <option value="pt">português</option>
+            <option value="it">italiano</option>
+          </select>
+        </label>
+        <label class="control" title="Guardar en la memoria del agente y avisar si ya se verificó antes">
+          <input type="checkbox" id="opcion-memoria" checked> memoria
+        </label>
+      </div>
+    </footer>
+  </div>
+
+</div>
+
+<template id="plantilla-bienvenida">
+  <section class="bienvenida">
     <img class="bienvenida-icono" src="icono.svg" alt="">
     <h1>¿Qué verificamos hoy?</h1>
     <p>
-      AIDAM descompone la afirmación, busca evidencia en fuentes independientes
-      (Wikipedia, prensa, literatura académica, registros oficiales…), la juzga con
-      un modelo especializado y devuelve un veredicto <em>con sus citas</em>.
+      AIDAM descompone la afirmación, busca evidencia en fuentes independientes,
+      la juzga con un modelo especializado y responde <em>con sus citas</em>.
     </p>
     <div class="ejemplos">
       <button class="ejemplo">La Torre Eiffel está en París</button>
@@ -74,56 +109,11 @@
       <button class="ejemplo">The Great Wall of China is visible from space</button>
     </div>
   </section>
-</main>
-
-<footer class="pie">
-  <div id="aviso-adjunto" class="aviso-adjunto oculto"></div>
-
-  <div class="caja-entrada">
-    <textarea id="entrada" rows="1" placeholder="Escribe la afirmación a verificar, o adjunta un documento…"
-      autocomplete="off" spellcheck="true"></textarea>
-    <div class="botones-entrada">
-      <input type="file" id="selector-archivo" hidden>
-      <div class="adjuntar">
-        <button id="boton-adjuntar" class="boton-icono" title="Subir un documento">📎</button>
-        <div id="menu-adjuntar" class="menu-adjuntar oculto" role="menu">
-          <div class="menu-titulo">¿Qué documento subes?</div>
-          <button class="menu-opcion" data-tipo="imagen" data-accept="image/*">🖼 Imagen o captura</button>
-          <button class="menu-opcion" data-tipo="pdf" data-accept=".pdf">📄 PDF</button>
-          <button class="menu-opcion" data-tipo="texto" data-accept=".txt,.md,.csv">📃 Texto (.txt, .md)</button>
-        </div>
-      </div>
-      <button id="boton-enviar" class="boton-enviar" title="Verificar (Enter)">➤</button>
-    </div>
-  </div>
-
-  <div class="controles">
-    <label class="control" title="Automático ejecuta todo el pipeline; Pedir permiso pausa antes de cada búsqueda en la red">
-      modo
-      <select id="modo">
-        <option value="auto" selected>⚡ Automático</option>
-        <option value="permisos">🔒 Pedir permiso</option>
-      </select>
-    </label>
-    <label class="control" title="Idioma de la afirmación">
-      idioma
-      <select id="idioma">
-        <option value="es" selected>español</option>
-        <option value="en">english</option>
-        <option value="fr">français</option>
-        <option value="de">deutsch</option>
-        <option value="pt">português</option>
-        <option value="it">italiano</option>
-      </select>
-    </label>
-    <label class="control" title="Guardar en la memoria del agente y avisar si ya se verificó antes">
-      <input type="checkbox" id="opcion-memoria" checked> memoria
-    </label>
-  </div>
-</footer>
+</template>
 
 <div id="avisos" class="avisos" aria-live="polite"></div>
 
+<script src="fondo.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

@@ -134,14 +134,26 @@ class MemoriaAgente:
     def historial(self, limite: int = 20) -> list[dict]:
         """Most recent verifications across all sessions."""
         filas = self._db.execute(
-            "SELECT afirmacion, veredicto, confianza, fecha"
+            "SELECT id, afirmacion, veredicto, confianza, fecha"
             " FROM verificaciones ORDER BY fecha DESC LIMIT ?",
             (limite,),
         ).fetchall()
         return [
-            {"afirmacion": a, "veredicto": v, "confianza": c, "fecha": f}
-            for a, v, c, f in filas
+            {"id": i, "afirmacion": a, "veredicto": v, "confianza": c, "fecha": f}
+            for i, a, v, c, f in filas
         ]
+
+    def informe_por_id(self, id_verificacion: int) -> dict | None:
+        """Full stored report for one verification (reopens a past
+        conversation in the interface); None if the id doesn't exist."""
+        fila = self._db.execute(
+            "SELECT afirmacion, fecha, informe_json"
+            " FROM verificaciones WHERE id = ?",
+            (id_verificacion,),
+        ).fetchone()
+        if fila is None:
+            return None
+        return {"afirmacion": fila[0], "fecha": fila[1], "informe": json.loads(fila[2])}
 
     def cerrar(self) -> None:
         self._db.close()
