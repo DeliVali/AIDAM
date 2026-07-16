@@ -156,12 +156,17 @@ def investigar(
     hechos = descomponer(afirmacion)
     avisar(f"Afirmación descompuesta en {len(hechos)} hecho(s) atómico(s)")
 
-    pares_por_hecho: list[list[VeredictoPar]] = []
-    vistas_por_hecho: list[set[tuple[str, str]]] = []
-    veredictos = []
-    for hecho in hechos:
-        categoria = clasificar(hecho.texto, verificador)
+    # Dynamic instances (2026-07-16): retrieval is network-bound, so the
+    # facts of a claim hunt for evidence SIMULTANEOUSLY (each fact already
+    # fans out one thread per source inside `recuperar`). Judging stays
+    # sequential on purpose: one resident verifier judging in batches is
+    # the GPU-honest form of parallelism (see docs/AGENT.md doctrine).
+    categorias = [clasificar(h.texto, verificador) for h in hechos]
+    for hecho, categoria in zip(hechos, categorias):
         avisar(f"nivel 0 [{categoria}]: «{hecho.texto[:70]}»")
+
+    def _evidencia_hecho(par_hc) -> list:
+        hecho, categoria = par_hc
         evidencias = _recuperar(hecho, lang, max_idiomas, categoria)
         if memoria_evidencia:
             # Remembered passages join tier-0 for free (computed-once
@@ -170,6 +175,20 @@ def investigar(
             if recordadas:
                 avisar(f"  memoria: {len(recordadas)} pasaje(s) recordado(s)")
                 evidencias = evidencias + recordadas
+        return evidencias
+
+    if len(hechos) > 1:
+        from concurrent.futures import ThreadPoolExecutor
+
+        with ThreadPoolExecutor(max_workers=min(len(hechos), 4)) as pool:
+            evidencias_por_hecho = list(pool.map(_evidencia_hecho, zip(hechos, categorias)))
+    else:
+        evidencias_por_hecho = [_evidencia_hecho((hechos[0], categorias[0]))] if hechos else []
+
+    pares_por_hecho: list[list[VeredictoPar]] = []
+    vistas_por_hecho: list[set[tuple[str, str]]] = []
+    veredictos = []
+    for hecho, evidencias in zip(hechos, evidencias_por_hecho):
         pares = verificador.juzgar(hecho, evidencias) if evidencias else []
         ajustar_pares(pares)
         pares_por_hecho.append(pares)

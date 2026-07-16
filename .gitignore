@@ -2,12 +2,15 @@
 __pycache__/
 *.py[cod]
 *.egg-info/
-dist/
-build/
+# anchored to the repo root: escritorio/build (packaging icon) and
+# escritorio/dist (release artifacts) have their own rules below
+/dist/
+/build/
 
 # Environments
 .venv/
 venv/
+.env
 
 # Tools
 .pytest_cache/
@@ -18,9 +21,22 @@ venv/
 .vscode/
 .idea/
 
-# Local data / experiment artifacts
+# Local data / experiment artifacts — models ship via HuggingFace, never git
 data/local/
 models/
 training/checkpoints/
 *.log
 data/local/scifact/data.tar.gz
+
+# Agent runtime state (per-machine; the audit log or a stray DB is never public)
+auditoria.jsonl
+
+# Desktop app (escritorio/): SOURCE is tracked (main.js, package.json, READMEs,
+# icons). Build artifacts go to GitHub RELEASES; runtime data stays local.
+escritorio/node_modules/
+escritorio/dist/
+escritorio/data/
+escritorio/backend/*
+!escritorio/backend/README.md
+*.AppImage
+*.deb

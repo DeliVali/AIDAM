@@ -2,9 +2,20 @@
 
 `aidam interfaz` starts a local server and opens the browser. Same pipeline
 as the CLI, same verdicts, same citations — plus live progress, an execution
-permission system, the agent's memory, and optional voice and image input.
-No build step, no Node: the UI is three static files (`aidam/interfaz/`)
-served by FastAPI, so `pip install` is the whole frontend toolchain.
+permission system, the agent's memory, a collapsible information sidebar
+(history, evidence-source registry, about) and document input (image OCR,
+PDF, plain text). Celestial palette: sky blues, cloud whites and golden halo
+accents, with an indigo night variant for dark mode; the circular mark
+derives from `assets/aidamlogo.svg`. No build step, no Node: the UI is three
+static files (`aidam/interfaz/`) served by FastAPI.
+
+Deliberate omissions in the UI: **no voice input** (product decision for the
+desktop app; the CLI agent keeps its own voice path via `aidam[voz]`), and
+**no "LLM questions" toggle** — LLM-guided search is an agent capability,
+enabled automatically whenever the local question model is present.
+Citations are collapsed into per-fact dropdowns by default. Questions (as
+opposed to claims) render an evidence-grounded answer and never a verdict
+label (`Informe.tipo == "pregunta"`).
 
 ```bash
 uv pip install -e ".[verificador,interfaz]"
@@ -36,20 +47,20 @@ verified before, the UI shows when and with what verdict — and re-verifies it
 anyway: a remembered verdict is context, never a substitute (facts change).
 Uncheck **memoria** to skip both the lookup and the save for one run.
 
-## Voice and images (optional extras)
+## Documents (📎)
 
-- **🎤 Voice** — with `aidam[voz]` installed, dictation is transcribed
-  **locally** with faster-whisper (`/api/voz`; model via `AIDAM_MODELO_VOZ`,
-  default `small`, int8 on CPU so the GPU stays free for the verifier). The
-  audio never leaves the machine. Without the extra, the UI falls back to the
-  browser's speech API where available (Chromium sends audio to Google —
-  the local path exists precisely to avoid that).
-- **📷 Images** — with `aidam[imagen]` installed, attach / paste / drop a
-  screenshot and the claim text is extracted with RapidOCR (ONNX, local,
-  `/api/imagen`) into the input box for review before verifying.
+The attach button opens a list of document types; extraction is always local
+and the text lands in the input box for review before verifying:
 
-Both endpoints answer `501` with the install command when the extra is
-missing, and `/api/capacidades` tells the UI what is available.
+- **🖼 Image / screenshot** — RapidOCR (ONNX) via `/api/imagen`; requires
+  `aidam[imagen]`.
+- **📄 PDF** — pypdf via `/api/documento`; ships with `aidam[interfaz]`.
+- **📃 Plain text** (.txt, .md, .csv) — `/api/documento`, no extra needed.
+
+Paste and drag-and-drop route by file type automatically. Endpoints answer
+`501` with the install command when a dependency is missing;
+`/api/capacidades` tells the UI what is available. (`/api/voz` still exists
+server-side for other consumers, but the UI does not use it.)
 
 ## WebSocket protocol
 
@@ -58,7 +69,9 @@ One connection per tab, one verification at a time. JSON messages:
 ```
 client → server
   {"tipo": "verificar", "afirmacion": str, "lang": "es", "max_idiomas": 5,
-   "preguntas": false, "memoria": true, "modo": "auto" | "permisos"}
+   "memoria": true, "modo": "auto" | "permisos"}
+  # "preguntas" (bool) accepted but optional: absent → the agent decides
+  # (LLM-guided search runs whenever the local model is present)
   {"tipo": "permiso_respuesta", "id": int, "aprobado": bool, "todo": bool}
   {"tipo": "cancelar"}
 

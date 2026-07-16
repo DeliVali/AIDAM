@@ -116,7 +116,50 @@ def test_capacidades(cliente):
     datos = cliente.get("/api/capacidades").json()
     assert isinstance(datos["voz"], bool)
     assert isinstance(datos["imagen"], bool)
+    assert isinstance(datos["pdf"], bool)
     assert datos["version"]
+
+
+def test_fuentes_lista_el_registro(cliente):
+    fuentes = cliente.get("/api/fuentes").json()["fuentes"]
+    assert len(fuentes) >= 10
+    assert all({"nombre", "descripcion", "categorias"} <= set(f) for f in fuentes)
+
+
+def test_documento_texto_plano(cliente):
+    respuesta = cliente.post(
+        "/api/documento",
+        files={"archivo": ("nota.txt", "La Torre Eiffel está en París".encode(), "text/plain")},
+    )
+    assert respuesta.status_code == 200
+    assert "Eiffel" in respuesta.json()["texto"]
+
+
+def test_documento_pdf_en_blanco(cliente):
+    pypdf = pytest.importorskip("pypdf")
+    import io as _io
+
+    escritor = pypdf.PdfWriter()
+    escritor.add_blank_page(width=200, height=200)
+    tampon = _io.BytesIO()
+    escritor.write(tampon)
+    respuesta = cliente.post(
+        "/api/documento",
+        files={"archivo": ("doc.pdf", tampon.getvalue(), "application/pdf")},
+    )
+    assert respuesta.status_code == 200
+    assert respuesta.json()["texto"] == ""  # página en blanco: sin texto, sin error
+
+
+def test_documento_pdf_sin_dependencia_da_501(cliente, monkeypatch):
+    import aidam.servidor as servidor
+
+    monkeypatch.setattr(servidor.importlib.util, "find_spec", lambda _n: None)
+    respuesta = cliente.post(
+        "/api/documento", files={"archivo": ("doc.pdf", b"%PDF-1.4", "application/pdf")}
+    )
+    assert respuesta.status_code == 501
+    assert "PDF" in respuesta.json()["error"]
 
 
 def test_index_sirve_la_interfaz(cliente):

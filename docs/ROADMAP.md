@@ -1140,6 +1140,21 @@ class, the hardest in the benchmark.
       by fingerprint. Next iteration: the local LLM proposes candidates
       from a task description; the harness stays the judge.
 
+- [x] **Dynamic instances, resource-aware (2026-07-16, Jeffrey's
+      directive).** Code path: the correctness smoke now runs ALL
+      candidates concurrently (one sandbox instance each, pool sized to
+      the installed CPU) and only fingerprint-agreeing survivors get the
+      serial timing phase — pinned to a single core via taskset (kernel
+      scheduler affinity) so measurements stay comparable on a busy
+      machine; parallel where honest, serial where honesty requires it.
+      Wall-clock for the 3-candidate demo: ~0.9 s end to end.
+      Investigator: the facts of a claim now hunt for evidence
+      SIMULTANEOUSLY (each fact already fans out one thread per source),
+      while judging stays sequential-batched on the one resident
+      verifier — the GPU-honest parallelism from the AGENT.md doctrine.
+      Retrieval across sources was already parallel; judging already
+      batched (verified before touching anything).
+
 ### Goal RAISED (2026-07-13, Jeffrey): 90 general — "ya no será 80 general
 sino 90% general". Recorded with the honest operationalization already
 established: the benchmarks as published cap at ~85-88 (annotation

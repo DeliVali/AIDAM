@@ -17,13 +17,25 @@ stopwatch.
 from __future__ import annotations
 
 import json
+import os
+import shutil
 import statistics
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from ..models import Evidencia
 from .sandbox import ejecutar_confinado, hay_bwrap
+
+# Dynamic instances (Jeffrey, 2026-07-16): the CORRECTNESS phase runs all
+# candidates concurrently — one sandbox each, pool sized to the installed
+# CPU — because correctness doesn't care about contention. The TIMING
+# phase is the opposite: measurements lie under contention, so survivors
+# run one at a time, pinned to a single core (taskset — kernel-level CPU
+# affinity) for stable numbers. Parallel where honest, serial where
+# honesty requires it.
+_NUCLEOS = os.cpu_count() or 2
 
 _PLANTILLA_ARNES = """
 import json, statistics, timeit, traceback
@@ -77,8 +89,14 @@ class ComparacionCodigo:
 
 
 def medir_candidato(nombre: str, codigo: str, llamada: str, preparacion: str = "",
-                    repeticiones: int = 7, timeout: float = 60.0) -> MedicionCandidato:
-    """Runs one candidate in the sandbox and returns its measurement."""
+                    repeticiones: int = 7, timeout: float = 60.0,
+                    nucleo: int | None = None) -> MedicionCandidato:
+    """Runs one candidate in the sandbox and returns its measurement.
+
+    `nucleo` pins the run to one CPU core via taskset (kernel scheduler
+    affinity): the pinned process never migrates cores mid-measurement,
+    which is what makes serial timings comparable on a busy machine.
+    """
     if not hay_bwrap():
         raise RuntimeError("bubblewrap no está instalado (pacman -S bubblewrap)")
     with tempfile.TemporaryDirectory(prefix="aidam-codigo-") as raiz:
@@ -89,9 +107,10 @@ def medir_candidato(nombre: str, codigo: str, llamada: str, preparacion: str = "
             llamada=llamada, preparacion=preparacion, repeticiones=repeticiones,
         )
         (raiz_p / "arnes.py").write_text(arnes)
-        resultado = ejecutar_confinado(
-            ["python3", str(raiz_p / "arnes.py")], raiz_p, timeout=timeout,
-        )
+        comando = ["python3", str(raiz_p / "arnes.py")]
+        if nucleo is not None and shutil.which("taskset"):
+            comando = ["taskset", "-c", str(nucleo)] + comando
+        resultado = ejecutar_confinado(comando, raiz_p, timeout=timeout)
     if resultado.agotado:
         return MedicionCandidato(nombre=nombre, ok=False,
                                  error=f"tiempo agotado ({timeout:.0f}s)")
@@ -115,11 +134,34 @@ def comparar_candidatos(candidatos: dict[str, str], llamada: str,
     Winner = fastest median among candidates that ran correctly AND agree
     on the result fingerprint with the majority (a fast wrong answer is
     not an optimization). Disagreement is reported, never hidden.
+
+    Two phases: concurrent correctness smoke (one sandbox instance per
+    candidate, pool sized to the CPU), then serial core-pinned timing of
+    the survivors only — broken candidates never cost timing budget.
     """
-    mediciones = [
-        medir_candidato(nombre, codigo, llamada, preparacion, repeticiones)
-        for nombre, codigo in candidatos.items()
-    ]
+    nombres = list(candidatos)
+    with ThreadPoolExecutor(max_workers=min(len(nombres), max(1, _NUCLEOS - 1))) as pool:
+        humo = dict(zip(nombres, pool.map(
+            lambda n: medir_candidato(n, candidatos[n], llamada, preparacion,
+                                      repeticiones=1, timeout=30.0),
+            nombres,
+        )))
+
+    vivas = [n for n in nombres if humo[n].ok]
+    huellas_humo = [humo[n].huella for n in vivas]
+    moda_humo = max(set(huellas_humo), key=huellas_humo.count) if huellas_humo else ""
+    finalistas = [n for n in vivas if humo[n].huella == moda_humo]
+
+    nucleo_fijo = _NUCLEOS - 1  # last core: pinned, serial, comparable
+    mediciones = []
+    for nombre in nombres:
+        if nombre in finalistas:
+            mediciones.append(medir_candidato(
+                nombre, candidatos[nombre], llamada, preparacion,
+                repeticiones, nucleo=nucleo_fijo,
+            ))
+        else:
+            mediciones.append(humo[nombre])
     correctas = [m for m in mediciones if m.ok]
     comparacion = ComparacionCodigo(llamada=llamada, mediciones=mediciones)
 
