@@ -1080,6 +1080,19 @@ class, the hardest in the benchmark.
       and SciFact (66.3) — AVeriTeC-500 of the mmBERT lineage launched
       (never measured before).
 
+- [x] **AVeriTeC-500 of the mmBERT lineage: 54.2 raw → 59.6 recalibrated —
+      v10 keeps production (2026-07-13).** First AVeriTeC measurement of
+      the new backbone: v20 scored 54.2 under constants swept for
+      mDeBERTa probabilities; re-sweeping aggregation for v20 (cached
+      pairs, DOMINANCIA 1.5 / UMBRAL_SENAL 0.6 / PESO_DESMENTIDO 0.25)
+      recovered +5.4 to 59.6, still under v10's 62.6 and the 62.0 bar.
+      Verdict: calibration was half the story; the backbone trade-off
+      law holds across lineages and multi-objective production stands.
+      The measurement also localized AVeriTeC's biggest buried headroom:
+      Conflicting Evidence (F1 0.067) and NEI (F1 0.125) — both models
+      miss nearly all 73/500 such claims; detecting them is the next
+      declared lever for the weakest general-average term.
+
 ### Goal RAISED (2026-07-13, Jeffrey): 90 general — "ya no será 80 general
 sino 90% general". Recorded with the honest operationalization already
 established: the benchmarks as published cap at ~85-88 (annotation
