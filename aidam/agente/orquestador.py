@@ -91,6 +91,7 @@ def investigar(
     verificador=None,
     progreso: Callable[[str], None] | None = None,
     sintetizar_final: bool = False,
+    memoria_evidencia: bool = True,
 ) -> InformeInvestigacion:
     """Cascaded verification: tier-0 pass, then measured escalation by angles.
 
@@ -136,6 +137,13 @@ def investigar(
         categoria = clasificar(hecho.texto, verificador)
         avisar(f"nivel 0 [{categoria}]: «{hecho.texto[:70]}»")
         evidencias = _recuperar(hecho, lang, max_idiomas, categoria)
+        if memoria_evidencia:
+            # Remembered passages join tier-0 for free (computed-once
+            # vectors, original provenance kept so weights stay honest).
+            recordadas = _desde_memoria(hecho, {(e.dominio, e.texto[:120]) for e in evidencias})
+            if recordadas:
+                avisar(f"  memoria: {len(recordadas)} pasaje(s) recordado(s)")
+                evidencias = evidencias + recordadas
         pares = verificador.juzgar(hecho, evidencias) if evidencias else []
         ajustar_pares(pares)
         pares_por_hecho.append(pares)
@@ -219,6 +227,36 @@ def investigar(
 
 
 # ───────── recuperación (indirection kept lazy and monkeypatch-friendly) ─────────
+
+def _desde_memoria(hecho: HechoAtomico, vistas: set[tuple[str, str]]) -> list:
+    """Tier-0 evidence from the semantic memory (agent path only — the
+    eval seams inject their own retrievers and never come through here).
+
+    Passages keep their ORIGINAL url/domain/source, so the aggregator's
+    reliability priors apply unchanged; memory is a cache of documents,
+    never of verdicts. Best effort: without the embedder or with an empty
+    index this contributes nothing and costs nothing.
+    """
+    try:
+        from ..memoria import RUTA_DEFECTO
+        from ..models import Evidencia
+        from ..vectores import IndiceEvidencia
+
+        indice = IndiceEvidencia(RUTA_DEFECTO)
+        try:
+            filas = indice.buscar(hecho.texto, limite=4)
+        finally:
+            indice.cerrar()
+    except Exception:
+        return []
+    _UMBRAL_MEMORIA = 0.85  # e5 cosine: clearly-relevant passages only
+    return [
+        Evidencia(texto=f["texto"], url=f["url"], titulo="",
+                  dominio=f["dominio"], fuente=f["fuente"], idioma=f["idioma"])
+        for f in filas
+        if f["puntaje"] >= _UMBRAL_MEMORIA and (f["dominio"], f["texto"][:120]) not in vistas
+    ]
+
 
 def _recuperar(hecho: HechoAtomico, lang: str, max_idiomas: int, categoria: str | None):
     from .. import retrieve

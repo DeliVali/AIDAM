@@ -131,6 +131,11 @@ def main(argv: list[str] | None = None) -> int:
         "requiere --preguntas (usa el mismo modelo)",
     )
     p_investigar.add_argument("--json", action="store_true", help="salida en JSON")
+    p_investigar.add_argument(
+        "--sin-memoria",
+        action="store_true",
+        help="no usar la evidencia recordada como fuente del nivel 0",
+    )
 
     p_agente = sub.add_parser(
         "agente", help="REPL interactivo del agente (permisos, herramientas, voz opcional)"
@@ -205,6 +210,7 @@ def main(argv: list[str] | None = None) -> int:
             preguntas=args.preguntas,
             progreso=progreso,
             sintetizar_final=args.sintesis,
+            memoria_evidencia=not args.sin_memoria,
         )
         if args.json:
             salida = informe_a_dict(resultado.informe)
