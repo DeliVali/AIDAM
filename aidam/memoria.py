@@ -78,6 +78,7 @@ class MemoriaAgente:
         self._db.commit()
 
     def guardar(self, informe: Informe) -> None:
+        fecha = _ahora()
         self._db.execute(
             "INSERT INTO verificaciones (sesion_id, afirmacion,"
             " afirmacion_normal, veredicto, confianza, fecha, informe_json)"
@@ -88,11 +89,29 @@ class MemoriaAgente:
                 _normalizar(informe.afirmacion),
                 informe.veredicto.value,
                 informe.confianza,
-                _ahora(),
+                fecha,
                 json.dumps(asdict(informe), ensure_ascii=False, default=str),
             ),
         )
         self._db.commit()
+        self._indexar_evidencia(informe, fecha)
+
+    def _indexar_evidencia(self, informe: Informe, fecha: str) -> None:
+        """Phase 2: every passage embedded once, searchable by meaning.
+
+        Best effort on purpose: the semantic index needs the embedder
+        (transformers+torch); when unavailable, plain memory still works.
+        """
+        try:
+            from .vectores import IndiceEvidencia
+
+            indice = IndiceEvidencia(self.ruta)
+            pares = [
+                p for h in informe.hechos for p in (h.a_favor + h.en_contra)
+            ]
+            indice.indexar([p.evidencia for p in pares], fecha)
+        except Exception:
+            pass
 
     def buscar(self, afirmacion: str, limite: int = 3) -> list[dict]:
         """Past reports for this exact claim (normalized), newest first.

@@ -38,6 +38,15 @@ uv pip install -e ".[verificador]"
 .venv/bin/aidam verificar "The Eiffel Tower is in Paris" --lang en
 ```
 
+Or in the browser — a local graphical interface with live progress, per-search
+permission prompts (or full-auto mode), verification history, and optional
+local voice dictation and image OCR (see [docs/INTERFAZ.md](docs/INTERFAZ.md)):
+
+```bash
+uv pip install -e ".[verificador,interfaz]"
+.venv/bin/aidam interfaz
+```
+
 Runs on GPU, on CPU without PyTorch (`aidam[verificador-cpu]`, ONNX Runtime),
 or on low-RAM machines (319 MB quantized model, `AIDAM_BACKEND=onnx-mini`).
 The model is published on

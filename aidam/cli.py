@@ -92,7 +92,174 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_historial.add_argument("--limite", type=int, default=20)
 
+    p_recordar = sub.add_parser(
+        "recordar",
+        help="buscar por significado en la evidencia recordada "
+        "(vectores calculados una sola vez, sin re-procesar texto)",
+    )
+    p_recordar.add_argument("consulta", help="qué buscar en la evidencia guardada")
+    p_recordar.add_argument("--limite", type=int, default=5)
+
+    p_investigar = sub.add_parser(
+        "investigar",
+        help="verificación en cascada: escala la investigación según señales medidas",
+    )
+    p_investigar.add_argument("afirmacion", help="texto de la afirmación a investigar")
+    p_investigar.add_argument("--lang", default="es", help="idioma de la afirmación (es, en, …)")
+    p_investigar.add_argument(
+        "--max-idiomas",
+        type=int,
+        default=5,
+        help="Wikipedias adicionales a consultar vía enlaces interlingüísticos",
+    )
+    p_investigar.add_argument(
+        "--nivel",
+        type=int,
+        choices=(0, 1, 2),
+        default=None,
+        help="forzar el nivel de investigación (por defecto: automático por señales medidas)",
+    )
+    p_investigar.add_argument(
+        "--preguntas",
+        action="store_true",
+        help="usar el LLM local para reformular consultas en los ángulos de escalado",
+    )
+    p_investigar.add_argument(
+        "--sintesis",
+        action="store_true",
+        help="redactar una síntesis con el LLM local — nunca cambia el veredicto; "
+        "requiere --preguntas (usa el mismo modelo)",
+    )
+    p_investigar.add_argument("--json", action="store_true", help="salida en JSON")
+
+    p_agente = sub.add_parser(
+        "agente", help="REPL interactivo del agente (permisos, herramientas, voz opcional)"
+    )
+    p_agente.add_argument(
+        "--modo",
+        choices=("plan", "preguntar", "aceptar-ediciones", "lote"),
+        default="preguntar",
+        help="modo de permisos (plan = solo lectura; lote = deniega lo no listado)",
+    )
+    p_agente.add_argument("--lang", default="es", help="idioma de trabajo")
+    p_agente.add_argument(
+        "--voz", action="store_true", help="entrada/salida de voz local (requiere aidam[voz])"
+    )
+    p_agente.add_argument(
+        "--preguntas", action="store_true", help="activar el LLM local para ángulos y síntesis"
+    )
+    p_agente.add_argument("--nivel", type=int, choices=(0, 1, 2), default=None)
+
+    p_imagen = sub.add_parser(
+        "imagen", help="verificar el texto extraído de una imagen (OCR local)"
+    )
+    p_imagen.add_argument("ruta", help="ruta de la imagen")
+    p_imagen.add_argument("--lang", default="es", help="idioma esperado del texto")
+    p_imagen.add_argument("--json", action="store_true", help="salida en JSON")
+
+    sub.add_parser("permisos", help="mostrar las reglas de permisos vigentes del agente")
+
+    p_interfaz = sub.add_parser(
+        "interfaz", help="interfaz gráfica en el navegador (servidor local)"
+    )
+    p_interfaz.add_argument("--host", default="127.0.0.1", help="dirección de escucha")
+    p_interfaz.add_argument("--puerto", type=int, default=8236, help="puerto de escucha")
+    p_interfaz.add_argument(
+        "--sin-navegador",
+        action="store_true",
+        help="no abrir el navegador automáticamente",
+    )
+
     args = parser.parse_args(argv)
+
+    if args.comando == "interfaz":
+        try:
+            from .servidor import servir
+        except ImportError:
+            print(
+                "[aidam] la interfaz gráfica necesita dependencias extra: "
+                "uv pip install -e '.[interfaz]'",
+                file=sys.stderr,
+            )
+            return 1
+        print(
+            f"[aidam] interfaz en http://{args.host}:{args.puerto} (Ctrl+C para salir)",
+            file=sys.stderr,
+        )
+        servir(host=args.host, puerto=args.puerto, abrir=not args.sin_navegador)
+        return 0
+
+    if args.comando == "investigar":
+        import dataclasses as _dc
+
+        from .agente.orquestador import investigar
+
+        if args.sintesis and not args.preguntas:
+            print("[aidam] --sintesis requiere --preguntas; sigo sin síntesis", file=sys.stderr)
+        progreso = None if args.json else lambda m: print(f"[aidam] {m}", file=sys.stderr)
+        resultado = investigar(
+            args.afirmacion,
+            nivel=args.nivel,
+            lang=args.lang,
+            max_idiomas=args.max_idiomas,
+            preguntas=args.preguntas,
+            progreso=progreso,
+            sintetizar_final=args.sintesis,
+        )
+        if args.json:
+            salida = informe_a_dict(resultado.informe)
+            salida["investigacion"] = {
+                "nivel": resultado.nivel,
+                "senales": _dc.asdict(resultado.senales),
+                "angulos": [_dc.asdict(a) for a in resultado.angulos],
+                "sintesis": resultado.sintesis,
+            }
+            print(json.dumps(salida, ensure_ascii=False, indent=2))
+        else:
+            _imprimir(resultado.informe)
+            print(
+                f"\n[aidam] nivel de investigación: {resultado.nivel}"
+                f" · ángulos: {len(resultado.angulos)}",
+                file=sys.stderr,
+            )
+            if resultado.sintesis:
+                from rich.console import Console
+                from rich.panel import Panel
+
+                Console().print(Panel(resultado.sintesis, title="Síntesis (LLM, no juez)"))
+        return 0
+
+    if args.comando == "agente":
+        from .agente.bucle import bucle_agente
+
+        return bucle_agente(
+            modo=args.modo.replace("-", "_"),
+            lang=args.lang,
+            voz=args.voz,
+            nivel=args.nivel,
+            preguntas=args.preguntas,
+        )
+
+    if args.comando == "imagen":
+        from .agente.vision import verificar_imagen
+
+        progreso = None if args.json else lambda m: print(f"[aidam] {m}", file=sys.stderr)
+        informe = verificar_imagen(args.ruta, lang=args.lang, progreso=progreso)
+        if args.json:
+            print(_a_json(informe))
+        else:
+            _imprimir(informe)
+        return 0
+
+    if args.comando == "permisos":
+        from .agente.permisos import cargar_motor
+
+        motor = cargar_motor()
+        print(f"modo: {motor.modo.value}")
+        for tipo in ("denegar", "preguntar", "permitir"):
+            for regla in (motor.reglas.get(tipo) or []):
+                print(f"  {tipo:10s} {regla}")
+        return 0
 
     if args.comando == "historial":
         from .memoria import MemoriaAgente
@@ -102,6 +269,20 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{fila['fecha']}  {fila['veredicto']:22s} "
                   f"({fila['confianza']:.2f})  {fila['afirmacion']}")
         memoria.cerrar()
+        return 0
+
+    if args.comando == "recordar":
+        from .memoria import RUTA_DEFECTO
+        from .vectores import IndiceEvidencia
+
+        indice = IndiceEvidencia(RUTA_DEFECTO)
+        resultados = indice.buscar(args.consulta, args.limite)
+        if not resultados:
+            print("[aidam] la memoria de evidencia está vacía todavía", file=sys.stderr)
+        for r in resultados:
+            print(f"({r['puntaje']:.2f}) {r['dominio']} · {r['fecha'][:10]}\n"
+                  f"  «{r['texto'][:180]}…»\n  {r['url']}")
+        indice.cerrar()
         return 0
 
     if args.comando == "fuentes":

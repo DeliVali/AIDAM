@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>AIDAM — verificación abierta de información</title>
+  <link rel="stylesheet" href="estilo.css">
+  <link rel="icon" href="data:image/svg+xml,&lt;svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'&gt;&lt;text y='.9em' font-size='90'&gt;✓&lt;/text&gt;&lt;/svg&gt;">
+</head>
+<body>
+
+<header class="cabecera">
+  <div class="marca">
+    <span class="marca-logo">AIDAM</span>
+    <span class="marca-lema">verificación abierta de información</span>
+  </div>
+  <div class="cabecera-acciones">
+    <button id="boton-historial" class="boton-fantasma" title="Historial de verificaciones">☰ Historial</button>
+    <span id="estado-conexion" class="estado-conexion" title="Estado de la conexión">
+      <span class="punto"></span><span id="estado-texto">conectando…</span>
+    </span>
+  </div>
+</header>
+
+<aside id="panel-historial" class="panel-historial oculto" aria-label="Historial">
+  <div class="panel-historial-titulo">
+    <strong>Historial</strong>
+    <button id="cerrar-historial" class="boton-fantasma">✕</button>
+  </div>
+  <ul id="lista-historial" class="lista-historial">
+    <li class="historial-vacio">Sin verificaciones guardadas todavía.</li>
+  </ul>
+</aside>
+
+<main id="conversacion" class="conversacion">
+  <section class="bienvenida" id="bienvenida">
+    <h1>¿Qué afirmación verificamos?</h1>
+    <p>
+      AIDAM descompone la afirmación, busca evidencia en fuentes independientes
+      (Wikipedia, prensa, literatura académica, registros oficiales…), la juzga con
+      un modelo especializado y devuelve un veredicto <em>con sus citas</em>.
+    </p>
+    <div class="ejemplos">
+      <button class="ejemplo">La Torre Eiffel está en París</button>
+      <button class="ejemplo">El aluminio de las vacunas causa autismo</button>
+      <button class="ejemplo">The Great Wall of China is visible from space</button>
+    </div>
+  </section>
+</main>
+
+<footer class="pie">
+  <div id="aviso-adjunto" class="aviso-adjunto oculto"></div>
+
+  <div class="caja-entrada">
+    <textarea id="entrada" rows="1" placeholder="Escribe (o dicta, o pega una captura con) la afirmación a verificar…"
+      autocomplete="off" spellcheck="true"></textarea>
+    <div class="botones-entrada">
+      <input type="file" id="selector-imagen" accept="image/*" hidden>
+      <button id="boton-imagen" class="boton-icono" title="Extraer la afirmación de una imagen (OCR local)">📷</button>
+      <button id="boton-voz" class="boton-icono" title="Dictar la afirmación">🎤</button>
+      <button id="boton-enviar" class="boton-enviar" title="Verificar (Enter)">➤</button>
+    </div>
+  </div>
+
+  <div class="controles">
+    <div class="control modo" role="group" aria-label="Modo de ejecución">
+      <button id="modo-auto" class="segmento activo" title="Ejecuta todo el pipeline sin preguntar">⚡ Automático</button>
+      <button id="modo-permisos" class="segmento" title="Pide permiso antes de cada búsqueda en la red">🔒 Pedir permiso</button>
+    </div>
+    <label class="control" title="Idioma de la afirmación">
+      idioma
+      <select id="idioma">
+        <option value="es" selected>es</option>
+        <option value="en">en</option>
+        <option value="fr">fr</option>
+        <option value="de">de</option>
+        <option value="pt">pt</option>
+        <option value="it">it</option>
+      </select>
+    </label>
+    <label class="control" title="Generar preguntas de búsqueda con el LLM local (requiere el modelo en models/)">
+      <input type="checkbox" id="opcion-preguntas"> preguntas LLM
+    </label>
+    <label class="control" title="Guardar en la memoria del agente y avisar si ya se verificó antes">
+      <input type="checkbox" id="opcion-memoria" checked> memoria
+    </label>
+  </div>
+</footer>
+
+<div id="avisos" class="avisos" aria-live="polite"></div>
+
+<script src="app.js"></script>
+</body>
+</html>

@@ -23,7 +23,20 @@ import json
 import pickle
 from pathlib import Path
 
-RUTA_CACHE = Path("data/local/pares_cache")
+def _ruta_cache() -> Path:
+    """Cache keyed BY MODEL. The flat cache silently mixed two models'
+    judgements (200 files from the v10 era + 302 from v20, found
+    2026-07-15): a sweep over that chimera tuned constants for a model
+    that does not exist. One subdirectory per verifier checkpoint."""
+    import os
+
+    modelo = Path(
+        os.environ.get("AIDAM_MODELO_VERIFICADOR", "models/verificador-v0")
+    ).name
+    return Path("data/local/pares_cache") / modelo
+
+
+RUTA_CACHE = _ruta_cache()
 RUTA_DEV = Path("data/local/averitec_dev.json")
 
 A_AVERITEC = {

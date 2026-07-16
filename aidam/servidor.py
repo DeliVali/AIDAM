@@ -103,10 +103,15 @@ class _Sesion:
         ws: WebSocket,
         verificar_fn: Callable[..., Informe],
         obtener_memoria: Callable[[], object | None] = lambda: None,
+        recuperar_fn: Callable[..., list] | None = None,
+        buscar_web_fn: Callable[..., list] | None = None,
     ):
         self.ws = ws
         self.verificar_fn = verificar_fn
         self.obtener_memoria = obtener_memoria
+        # Injectable so tests exercise the permission gate without network.
+        self.recuperar_fn = recuperar_fn
+        self.buscar_web_fn = buscar_web_fn
         self.loop = asyncio.get_running_loop()
         self.modo = "auto"
         self.tarea: asyncio.Task | None = None
@@ -176,7 +181,9 @@ class _Sesion:
                 {"tipo": "progreso", "mensaje": "Búsqueda omitida por decisión del usuario"}
             )
             return []
-        from .retrieve import recuperar
+        recuperar = self.recuperar_fn
+        if recuperar is None:
+            from .retrieve import recuperar
 
         return recuperar(hecho, lang=lang, max_idiomas=max_idiomas, categoria=categoria)
 
@@ -191,7 +198,9 @@ class _Sesion:
                     {"tipo": "progreso", "mensaje": "Pregunta omitida por decisión del usuario"}
                 )
                 return []
-            from .retrieve import buscar_web
+            buscar_web = self.buscar_web_fn
+            if buscar_web is None:
+                from .retrieve import buscar_web
 
             # Same defaults pipeline.verificar uses when nothing is injected.
             return buscar_web(pregunta, max_resultados=4, lang=lang, paginas_completas=1)
@@ -304,12 +313,32 @@ def _transcribir(datos: bytes, lang: str) -> str:
 # -- app ------------------------------------------------------------------------
 
 
-def crear_app(verificar_fn: Callable[..., Informe] | None = None) -> FastAPI:
+def crear_app(
+    verificar_fn: Callable[..., Informe] | None = None,
+    ruta_memoria: str | None = None,
+    recuperar_fn: Callable[..., list] | None = None,
+    buscar_web_fn: Callable[..., list] | None = None,
+) -> FastAPI:
     """Builds the FastAPI app. `verificar_fn` accepts the same contract as
     `pipeline.verificar` — tests inject a fake to exercise the protocol
-    without models or network."""
+    without models or network. `ruta_memoria` overrides where the agent
+    memory lives (tests point it at a temp file); `recuperar_fn` and
+    `buscar_web_fn` replace live retrieval behind the permission gate."""
     verificar_fn = verificar_fn or _verificar_por_defecto
     app = FastAPI(title="AIDAM", version=__version__)
+    app.state.memoria = None
+
+    def obtener_memoria():
+        """One agent-memory session per server run, created lazily; if the
+        memory can't open, the interface keeps working without it."""
+        if app.state.memoria is None:
+            try:
+                from .memoria import MemoriaAgente
+
+                app.state.memoria = MemoriaAgente(ruta_memoria)
+            except Exception:
+                return None
+        return app.state.memoria
 
     @app.get("/api/capacidades")
     def capacidades():
@@ -318,6 +347,18 @@ def crear_app(verificar_fn: Callable[..., Informe] | None = None) -> FastAPI:
             "voz": importlib.util.find_spec("faster_whisper") is not None,
             "imagen": importlib.util.find_spec("rapidocr_onnxruntime") is not None,
         }
+
+    # async on purpose: the SQLite connection lives on the event-loop thread
+    # (a sync endpoint would run in the threadpool and trip check_same_thread).
+    @app.get("/api/historial")
+    async def api_historial(limite: int = 20):
+        memoria = obtener_memoria()
+        if memoria is None:
+            return {"historial": []}
+        try:
+            return {"historial": memoria.historial(limite)}
+        except Exception:
+            return {"historial": []}
 
     @app.post("/api/imagen")
     async def api_imagen(archivo: UploadFile):
@@ -338,7 +379,9 @@ def crear_app(verificar_fn: Callable[..., Informe] | None = None) -> FastAPI:
     @app.websocket("/ws")
     async def ws_verificar(ws: WebSocket):
         await ws.accept()
-        sesion = _Sesion(ws, verificar_fn)
+        sesion = _Sesion(
+            ws, verificar_fn, obtener_memoria, recuperar_fn, buscar_web_fn
+        )
         try:
             while True:
                 try:

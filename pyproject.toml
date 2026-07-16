@@ -42,12 +42,20 @@ interfaz = [
     "uvicorn[standard]>=0.29",
     "python-multipart>=0.0.9",
 ]
-# Local voice recognition for the interface (private: audio never leaves
-# the machine). Without it, the UI falls back to the browser's speech API.
-voz = ["faster-whisper>=1.0"]
+# Local voice recognition (private: audio never leaves the machine).
+# STT: faster-whisper (MIT). Capture/VAD: RealtimeSTT (MIT, bundles Silero
+# VAD). TTS: Kokoro-82M via ONNX (Apache-2.0), played with sounddevice.
+voz = [
+    "faster-whisper>=1.0",
+    "RealtimeSTT>=0.3",
+    "kokoro-onnx>=0.4",
+    "sounddevice>=0.4",
+]
 # Text extraction from images (OCR) for the interface, ONNX-based like
 # the CPU verifier.
 imagen = ["rapidocr-onnxruntime>=1.3"]
+# Tier-2 web crawling for JS-heavy pages (Apache-2.0); plain HTTP stays tier-1.
+rastreo = ["crawl4ai>=0.7"]
 dev = ["pytest>=8.0", "httpx>=0.27"]
 
 [project.urls]

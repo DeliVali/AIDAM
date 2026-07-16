@@ -1080,6 +1080,15 @@ class, the hardest in the benchmark.
       and SciFact (66.3) — AVeriTeC-500 of the mmBERT lineage launched
       (never measured before).
 
+- [x] **CORRECTION (2026-07-15): the 59.6 "recalibrated" figure below is
+      INVALID — the aggregation-pair cache silently mixed two models (200
+      files cached in the v10 era + 300 cached with v20; the cache was
+      keyed by claim index only). A sweep over that chimera tuned
+      constants for a model that does not exist. Fixed at the root: the
+      cache is now keyed per verifier checkpoint, the mixed files were
+      migrated by date, and the v20 cache is being completed for an
+      honest re-sweep. The 54.2 raw number stands (it came from the real
+      eval, not the cache).**
 - [x] **AVeriTeC-500 of the mmBERT lineage: 54.2 raw → 59.6 recalibrated —
       v10 keeps production (2026-07-13).** First AVeriTeC measurement of
       the new backbone: v20 scored 54.2 under constants swept for
@@ -1107,6 +1116,16 @@ class, the hardest in the benchmark.
       machine-native representation once, retrieve by meaning) — the
       measured precedent is pares_cache turning hour-long sweeps into
       seconds.
+
+- [x] **Agent memory phase 2 shipped: evidence remembered by MEANING
+      (2026-07-15, Jeffrey's "machine-native context" idea).** Every
+      verification now embeds its evidence passages once
+      (multilingual-e5-small, open weights, loaded through the existing
+      transformers dependency, CPU on purpose) and stores the vectors in
+      the same SQLite memory file. `aidam recordar "…"` searches past
+      evidence by meaning — runtime-verified: a differently-worded query
+      found the right passages at 0.87 cosine. Compute-once, reuse-forever:
+      the same measured principle as pares_cache.
 
 ### Goal RAISED (2026-07-13, Jeffrey): 90 general — "ya no será 80 general
 sino 90% general". Recorded with the honest operationalization already
@@ -1231,3 +1250,56 @@ task.
 - [ ] BitNet experiment: fine-tune bitnet-b1.58-2B-4T + deploy with bitnet.cpp
 - [ ] Distill the decomposer to <500M
 - [ ] Fuse decomposition+verification into one pass (VeriFastScore style)
+
+## Agent subsystems — 2026-07-15
+
+**Agent scaffolding SHIPPED as infrastructure; the investigation cascade is NOT
+promoted to default (gate pre-registered before any number exists).** New subpackage
+`aidam/agente/` (design doc: docs/AGENT.md; ~50 unit tests, no network, no GPU, CI-safe):
+
+- **Permissions** (`permisos.py`): deny-first rules (`Herramienta(patron)`), four modes
+  (plan / preguntar / aceptar_ediciones / lote), compound-command splitting outside
+  quotes, path anchors with symlink resolution, built-in `rm -rf /` circuit breaker,
+  and the deliberate asymmetry: command grants may persist, edit grants are
+  session-only. `aidam permisos` shows the live rules.
+- **Sandbox** (`sandbox.py`): every agent command runs under bubblewrap — read-only
+  `/`, write access only to the workspace, `.git` re-mounted read-only, network
+  unshared by default, timeout kill. Verified against real bwrap 0.11.2 (write, net
+  and timeout isolation tests run live, not mocked). This is the pattern Claude Code
+  and Codex CLI converged on in 2026.
+- **Audit** (`auditoria.py`): every tool call → one flushed JSONL line (decision, mode,
+  who approved, output hash). Same philosophy as the aggregator: reconstructible.
+- **Work queue** (`cola.py`): SQLite, thread-safe atomic claim, `reanudar_huerfanas()`
+  — the `--reanudar` pattern promoted to a reusable primitive for orchestrated workers.
+- **Investigation cascade** (`orquestador.py` + `angulos.py`, `aidam investigar`):
+  tier-0 is the normal cheap pass; escalation happens only on MEASURED signals (low
+  confidence, evidence conflict, insufficiency) — never guessed a priori. Angles
+  diversify what Condorcet requires: the negation angle judges the negated hypothesis
+  and flips labels back (explicit negation retrieves refuting evidence affirmative
+  search misses), reformulation angles (LLM) diversify retrieval only — the judged
+  hypothesis is always the fact verbatim. Re-aggregation goes through the SAME
+  auditable `agregar_*` rules; there is no second verdict path. The LLM post-processes
+  (omission judge, NEI resolver) are deliberately absent from this path in v1.
+  First live run: the Eiffel claim escalated to level 2 on a genuine conflict signal
+  (the Torre Eiffel of Sucre, Bolivia) — the signal works; whether escalation IMPROVES
+  accuracy is exactly what the gate below must decide.
+- **Synthesis** (`sintesis.py`): the LLM sees only the deterministic evidence table and
+  narrates; a marker check drops any output contradicting the verdicts. LLMs are
+  factory tools, never the judge (24% vs 58%, measured).
+- **REPL** (`bucle.py`, `aidam agente`): one while loop, flat history, slash commands,
+  diff-previewed writes, sandboxed execution; free text = claim to investigate.
+- **Voice/vision/crawling as optional extras that never touch the verdict path**:
+  `voz` (faster-whisper large-v3-turbo INT8 + RealtimeSTT/Silero + Kokoro-82M TTS, all
+  MIT/Apache, ~1.5 GB VRAM), `imagen` (RapidOCR ONNX + c2patool C2PA provenance — the
+  absence of a manifest is NEVER evidence of forgery), `rastreo` (Crawl4AI, robots.txt
+  honored, tier-2 only, deliberately NOT registered in FUENTES until measured).
+  Whisper-as-EVIDENCE stays gated by the existing miss-rate rule; voice here is UI.
+
+**Pre-registered gate (declared before any benchmark number exists):** the cascade
+(tier-1/2) may become a default only if, at fixed coverage, it reduces risk vs tier-0
+on FEVER dev + the general set, with ECE no worse than tier-0, AND inter-angle
+agreement predicts correctness (claims where angles agree must be right more often
+than claims where they disagree). If agreement does not predict correctness, the
+angles are not independent and the fix is diversity redesign, not more N. Constants
+(UMBRAL_CONFIANZA=0.6, UMBRAL_CONFLICTO=0.75, MAX_NIVEL=2) are off-test placeholders
+pending calibration on dev data — never on benchmarks.
