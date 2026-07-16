@@ -1111,6 +1111,21 @@ FUENTES: dict[str, tuple[str, set[str] | None, object]] = {
         None,
         lambda c, lang, mi: buscar_web(c, lang=lang),
     ),
+    "hackernews": (
+        "Hilos de la comunidad tecnológica (Hacker News)",
+        {"actualidad", "general", "programacion"},
+        lambda c, lang, mi: buscar_hackernews(c),
+    ),
+    "reddit": (
+        "Posts de comunidades de Reddit (búsqueda pública)",
+        {"actualidad", "general"},
+        lambda c, lang, mi: buscar_reddit(c, lang=lang),
+    ),
+    "openlibrary": (
+        "Catálogo bibliográfico de Open Library (cultura general)",
+        {"general"},
+        lambda c, lang, mi: buscar_openlibrary(c),
+    ),
     "desmentidos": (
         "Búsqueda dirigida a fact-checkers (artículo completo)",
         None,
@@ -1176,6 +1191,90 @@ FUENTES: dict[str, tuple[str, set[str] | None, object]] = {
 }
 
 
+def buscar_hackernews(consulta: str, lang: str = "", max_hilos: int = 3) -> list[Evidencia]:
+    """Community posts via Hacker News (Algolia API, free, no key).
+
+    Jeffrey's ask (2026-07-16): post-type sources. HN threads document
+    what the tech/general community reported and when — useful coverage
+    for product, startup and internet-culture claims. Weighted PESO_BASE
+    by the aggregator like any community content.
+    """
+    datos = _get_json(
+        "https://hn.algolia.com/api/v1/search",
+        {"query": consulta, "hitsPerPage": max_hilos, "tags": "story"},
+    )
+    evidencias: list[Evidencia] = []
+    for hit in (datos or {}).get("hits", []):
+        titulo = hit.get("title") or ""
+        cuerpo = hit.get("story_text") or ""
+        texto = f"{titulo}. {cuerpo}".strip(". ")
+        if len(texto) < 30:
+            continue
+        evidencias.append(Evidencia(
+            texto=texto[:1000],
+            url=f"https://news.ycombinator.com/item?id={hit.get('objectID', '')}",
+            titulo=titulo[:120],
+            dominio="news.ycombinator.com",
+            fuente="posts",
+            idioma="en",
+        ))
+    return evidencias
+
+
+def buscar_reddit(consulta: str, lang: str = "", max_posts: int = 3) -> list[Evidencia]:
+    """Community posts via Reddit's public search JSON (no key; UA required)."""
+    datos = _get_json(
+        "https://www.reddit.com/search.json",
+        {"q": consulta, "limit": max_posts, "sort": "relevance"},
+    )
+    evidencias: list[Evidencia] = []
+    for hijo in ((datos or {}).get("data") or {}).get("children", []):
+        d = hijo.get("data", {})
+        texto = f"{d.get('title', '')}. {d.get('selftext', '')}".strip(". ")
+        if len(texto) < 40:
+            continue
+        evidencias.append(Evidencia(
+            texto=texto[:1000],
+            url=f"https://www.reddit.com{d.get('permalink', '')}",
+            titulo=d.get("title", "")[:120],
+            dominio="reddit.com",
+            fuente="posts",
+            idioma=lang or "en",
+        ))
+    return evidencias
+
+
+def buscar_openlibrary(consulta: str, lang: str = "", max_libros: int = 3) -> list[Evidencia]:
+    """Bibliographic facts via Open Library (free, no key) — general culture.
+
+    For «author X wrote Y» / «Y was published in Z» claims the catalog
+    record is close to a certified source: title, author, first
+    publication year, straight from the Internet Archive's catalog.
+    """
+    datos = _get_json(
+        "https://openlibrary.org/search.json",
+        {"q": consulta, "limit": max_libros,
+         "fields": "title,author_name,first_publish_year,key"},
+    )
+    evidencias: list[Evidencia] = []
+    for doc in (datos or {}).get("docs", []):
+        titulo = doc.get("title") or ""
+        autores = ", ".join(doc.get("author_name") or [])
+        anio = doc.get("first_publish_year") or ""
+        if not titulo or not autores:
+            continue
+        evidencias.append(Evidencia(
+            texto=(f"Registro bibliográfico: «{titulo}», de {autores}"
+                   + (f", publicado por primera vez en {anio}." if anio else ".")),
+            url=f"https://openlibrary.org{doc.get('key', '')}",
+            titulo=titulo[:120],
+            dominio="openlibrary.org",
+            fuente="academica",
+            idioma="en",
+        ))
+    return evidencias
+
+
 def _es_probatoria(hecho_texto: str, evidencia: Evidencia, lang: str) -> bool:
     """Does the passage address what the fact asserts, or just the general topic?
 
@@ -1230,4 +1329,43 @@ def recuperar(
             if clave not in vistas and _es_probatoria(hecho.texto, e, lang):
                 vistas.add(clave)
                 unicas.append(e)
-    return unicas
+    return _filtrar_por_significado(hecho.texto, unicas)
+
+
+# Below this cosine against the fact, a passage is off-topic noise that
+# only gives the NLI verifier chances to hallucinate a judgement
+# (measured product complaint, 2026-07-16: retrieved passages sometimes
+# unrelated to the input). Calibrated on measured e5-small cosines, whose
+# range is compressed: off-topic garbage (paella/fútbol/DNS vs a Mona
+# Lisa fact) scores 0.77-0.78 while real evidence stays ≥0.83 — including
+# a REFUTING passage sharing few words (0.851) and a relevant passage in
+# another language (0.895), the two cases a lexical filter gets wrong.
+_UMBRAL_SIGNIFICADO = 0.80
+_MAX_PASAJES = 30
+
+
+def _filtrar_por_significado(hecho_texto: str, evidencias: list[Evidencia]) -> list[Evidencia]:
+    """Meaning-level relevance filter before the verifier (Jeffrey's ask):
+    a small embedder scores every passage against the fact and drops the
+    unrelated tail. Best effort — without the embedder, everything passes
+    (the lexical `_es_probatoria` filter above still applies)."""
+    if len(evidencias) <= 3:
+        return evidencias
+    try:
+        import numpy as np
+
+        from .vectores import _codificador
+
+        codificar = _codificador()
+        consulta = codificar([f"query: {hecho_texto}"])[0]
+        matriz = codificar([f"passage: {e.texto[:600]}" for e in evidencias])
+        puntajes = matriz @ consulta
+        orden = np.argsort(-puntajes)
+        filtradas = [
+            evidencias[i] for i in orden[:_MAX_PASAJES]
+            if puntajes[i] >= _UMBRAL_SIGNIFICADO
+        ]
+        # never filter down to nothing: keep the 3 best regardless
+        return filtradas or [evidencias[i] for i in orden[:3]]
+    except Exception:
+        return evidencias
