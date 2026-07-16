@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="AIDAM">
+  <!-- circular mark derived from assets/aidamlogo.svg: the flat bitten apple
+       on a white disc, ringed by a soft celestial halo -->
+  <defs>
+    <radialGradient id="halo" cx="50%" cy="42%" r="60%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="82%" stop-color="#f2f7ff"/>
+      <stop offset="100%" stop-color="#dcebff"/>
+    </radialGradient>
+  </defs>
+
+  <circle cx="64" cy="64" r="62" fill="url(#halo)"/>
+  <circle cx="64" cy="64" r="61" fill="none" stroke="#bfd9f5" stroke-width="2"/>
+  <circle cx="64" cy="64" r="56.5" fill="none" stroke="#e4c98f" stroke-width="1.5"/>
+
+  <g transform="translate(66 62) scale(0.5)">
+    <!-- stem -->
+    <path d="M1 -50 C -2 -64, -9 -74, -18 -80" stroke="#7a4a2b" stroke-width="6" stroke-linecap="round" fill="none"/>
+    <!-- flat leaf -->
+    <path d="M4 -58 C 24 -80, 52 -76, 58 -54 C 40 -47, 16 -52, 4 -58 Z" fill="#43a047"/>
+    <!-- flat apple body with a bite on the right -->
+    <path d="M0 -44
+             C -13 -58, -46 -58, -58 -36
+             C -70 -14, -63 30, -40 52
+             C -26 68, -9 74, 1 66
+             C 12 74, 30 68, 42 50
+             C 52 38, 58 22, 60 8
+             C 46 12, 37 3, 37 -9
+             C 37 -21, 46 -30, 60 -26
+             C 61 -42, 30 -58, 0 -44 Z"
+          fill="#e63329"/>
+  </g>
+
+  <g stroke="#26262c" stroke-width="3" stroke-linecap="round" opacity="0.85">
+    <line x1="42" y1="104" x2="86" y2="104"/>
+    <line x1="42" y1="99" x2="42" y2="109"/>
+    <line x1="86" y1="99" x2="86" y2="109"/>
+  </g>
+</svg>

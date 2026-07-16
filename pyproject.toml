@@ -41,6 +41,7 @@ interfaz = [
     "fastapi>=0.110",
     "uvicorn[standard]>=0.29",
     "python-multipart>=0.0.9",
+    "pypdf>=4.0",
 ]
 # Local voice recognition (private: audio never leaves the machine).
 # STT: faster-whisper (MIT). Capture/VAD: RealtimeSTT (MIT, bundles Silero
@@ -54,6 +55,8 @@ voz = [
 # Text extraction from images (OCR) for the interface, ONNX-based like
 # the CPU verifier.
 imagen = ["rapidocr-onnxruntime>=1.3"]
+# The desktop app (native window, Electron) lives in escritorio/ — it is a
+# Node project that spawns `aidam interfaz` as its backend; see docs/INTERFAZ.md.
 # Tier-2 web crawling for JS-heavy pages (Apache-2.0); plain HTTP stays tier-1.
 rastreo = ["crawl4ai>=0.7"]
 dev = ["pytest>=8.0", "httpx>=0.27"]

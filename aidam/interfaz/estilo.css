@@ -59,13 +59,16 @@ body {
   z-index: 10;
 }
 
-.marca { display: flex; align-items: baseline; gap: 10px; }
+.marca { display: flex; align-items: center; gap: 10px; }
+
+.marca-icono { width: 26px; height: 26px; border-radius: 6px; }
 
 .marca-logo {
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: 1.35rem;
-  letter-spacing: 0.22em;
-  font-weight: 600;
+  /* same stack as assets/aidamlogo.svg */
+  font-family: "Cormorant Garamond", "EB Garamond", Garamond, "Times New Roman", serif;
+  font-size: 1.45rem;
+  letter-spacing: 0.12em;
+  font-weight: 500;
 }
 
 .marca-lema { color: var(--texto-tenue); font-size: 0.8rem; }
@@ -444,3 +447,13 @@ details.registro-plegado .registro { margin-top: 6px; max-height: 260px; }
 .aviso.error { border-left-color: var(--refutado); }
 
 .oculto { display: none !important; }
+
+/* Answer mode: questions get text with sources, never a verdict label */
+.veredicto-respuesta { border-left-color: #22d3ee; }
+.veredicto-respuesta .veredicto-titulo { color: #22d3ee; }
+.respuesta-texto {
+  margin-top: 0.6rem;
+  white-space: pre-wrap;
+  line-height: 1.5;
+  color: var(--texto, #e5e7eb);
+}

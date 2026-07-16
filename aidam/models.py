@@ -66,12 +66,20 @@ class VeredictoHecho:
 
 @dataclass
 class Informe:
-    """Complete result of verifying a claim."""
+    """Complete result of verifying a claim (or answering a question)."""
 
     afirmacion: str
     veredicto: Veredicto
     confianza: float
     hechos: list[VeredictoHecho] = field(default_factory=list)
+    # "afirmacion" → verdict semantics apply; "pregunta" → the user asked a
+    # research question: `respuesta` carries the evidence-grounded answer
+    # and UIs must NOT present a verdict label (a question cannot be
+    # "refuted" — measured product failure, 2026-07-16: «¿dónde está la
+    # Mona Lisa?» rendered as REFUTADO).
+    tipo: str = "afirmacion"
+    # Always-present one-breath answer for the user; built from evidence.
+    respuesta: str = ""
 
 
 def informe_a_dict(informe: Informe) -> dict:

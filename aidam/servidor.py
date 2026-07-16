@@ -17,7 +17,9 @@ WebSocket protocol (JSON messages, documented in docs/INTERFAZ.md):
 
   client → server
     {"tipo": "verificar", "afirmacion": str, "lang": str, "max_idiomas": int,
-     "preguntas": bool, "modo": "auto" | "permisos"}
+     "modo": "auto" | "permisos"}
+    # "preguntas" (bool) is accepted but optional: if absent, the agent
+    # decides — LLM-guided search runs whenever the local model is present.
     {"tipo": "permiso_respuesta", "id": int, "aprobado": bool, "todo": bool}
     {"tipo": "cancelar"}
 
@@ -64,6 +66,22 @@ _FALTA_VOZ = (
     "Reconocimiento de voz local no instalado. "
     "Instálalo con: uv pip install -e '.[voz]'"
 )
+_FALTA_PDF = (
+    "Lectura de PDF no instalada. "
+    "Instálala con: uv pip install -e '.[interfaz]' (incluye pypdf)"
+)
+
+
+def _preguntas_disponibles() -> bool:
+    """LLM-guided search is an agent capability, not a user toggle: it runs
+    whenever the local question model is present, and silently doesn't when
+    it isn't (the pipeline already degrades gracefully)."""
+    try:
+        from .questions import ruta_modelo
+
+        return ruta_modelo() is not None
+    except Exception:
+        return False
 
 
 class _Cancelado(Exception):
@@ -255,13 +273,17 @@ class _Sesion:
             if previas:
                 await self._enviar_async({"tipo": "memoria", "previas": previas})
 
+        preguntas = peticion.get("preguntas")
+        if preguntas is None:  # the agent decides, by model availability
+            preguntas = _preguntas_disponibles()
+
         try:
             informe = await asyncio.to_thread(
                 self._verificar_bloqueante,
                 afirmacion,
                 peticion.get("lang", "es"),
                 int(peticion.get("max_idiomas", 5)),
-                bool(peticion.get("preguntas", False)),
+                bool(preguntas),
             )
             if memoria is not None:
                 try:
@@ -292,6 +314,16 @@ def _motor_ocr():
 def _extraer_texto_imagen(datos: bytes) -> str:
     resultado, _tiempos = _motor_ocr()(datos)
     return "\n".join(linea[1] for linea in resultado or [])
+
+
+def _extraer_texto_documento(nombre: str, datos: bytes) -> str:
+    """PDF via pypdf; anything else is treated as UTF-8 text (.txt, .md…)."""
+    if Path(nombre or "").suffix.lower() == ".pdf":
+        from pypdf import PdfReader
+
+        lector = PdfReader(io.BytesIO(datos))
+        return "\n".join((pagina.extract_text() or "") for pagina in lector.pages).strip()
+    return datos.decode("utf-8", errors="replace").strip()
 
 
 @lru_cache(maxsize=1)
@@ -346,6 +378,22 @@ def crear_app(
             "version": __version__,
             "voz": importlib.util.find_spec("faster_whisper") is not None,
             "imagen": importlib.util.find_spec("rapidocr_onnxruntime") is not None,
+            "pdf": importlib.util.find_spec("pypdf") is not None,
+        }
+
+    @app.get("/api/fuentes")
+    def api_fuentes():
+        from .retrieve import FUENTES
+
+        return {
+            "fuentes": [
+                {
+                    "nombre": nombre,
+                    "descripcion": descripcion,
+                    "categorias": sorted(categorias) if categorias else [],
+                }
+                for nombre, (descripcion, categorias, _funcion) in FUENTES.items()
+            ]
         }
 
     # async on purpose: the SQLite connection lives on the event-loop thread
@@ -366,6 +414,24 @@ def crear_app(
             return JSONResponse(status_code=501, content={"error": _FALTA_IMAGEN})
         datos = await archivo.read()
         texto = await asyncio.to_thread(_extraer_texto_imagen, datos)
+        return {"texto": texto}
+
+    @app.post("/api/documento")
+    async def api_documento(archivo: UploadFile):
+        nombre = archivo.filename or ""
+        if (
+            nombre.lower().endswith(".pdf")
+            and importlib.util.find_spec("pypdf") is None
+        ):
+            return JSONResponse(status_code=501, content={"error": _FALTA_PDF})
+        datos = await archivo.read()
+        try:
+            texto = await asyncio.to_thread(_extraer_texto_documento, nombre, datos)
+        except Exception as exc:
+            return JSONResponse(
+                status_code=422,
+                content={"error": f"No se pudo leer el documento: {exc}"},
+            )
         return {"texto": texto}
 
     @app.post("/api/voz")

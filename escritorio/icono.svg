@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="AIDAM">
+  <!-- same visual language as assets/aidamlogo.svg: white canvas, the flat
+       bitten apple, and the signature rule with end ticks -->
+  <rect width="128" height="128" rx="28" fill="#ffffff"/>
+
+  <g transform="translate(66 60) scale(0.55)">
+    <!-- stem -->
+    <path d="M1 -50 C -2 -64, -9 -74, -18 -80" stroke="#7a4a2b" stroke-width="6" stroke-linecap="round" fill="none"/>
+    <!-- flat leaf -->
+    <path d="M4 -58 C 24 -80, 52 -76, 58 -54 C 40 -47, 16 -52, 4 -58 Z" fill="#43a047"/>
+    <!-- flat apple body with a bite on the right -->
+    <path d="M0 -44
+             C -13 -58, -46 -58, -58 -36
+             C -70 -14, -63 30, -40 52
+             C -26 68, -9 74, 1 66
+             C 12 74, 30 68, 42 50
+             C 52 38, 58 22, 60 8
+             C 46 12, 37 3, 37 -9
+             C 37 -21, 46 -30, 60 -26
+             C 61 -42, 30 -58, 0 -44 Z"
+          fill="#e63329"/>
+  </g>
+
+  <g stroke="#26262c" stroke-width="3" stroke-linecap="round">
+    <line x1="34" y1="112" x2="94" y2="112"/>
+    <line x1="34" y1="106" x2="34" y2="118"/>
+    <line x1="94" y1="106" x2="94" y2="118"/>
+  </g>
+</svg>

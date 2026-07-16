@@ -279,6 +279,20 @@ function mostrarInforme(informe) {
   const contenedor = t.contenedor;
   terminarTurno();
 
+  // Una pregunta no se "refuta": el modo respuesta muestra el texto con
+  // sus fuentes y NUNCA una etiqueta de veredicto (fallo medido 2026-07-16).
+  if (informe.tipo === "pregunta") {
+    const tarjeta = crear("div", "tarjeta-veredicto veredicto-respuesta");
+    const titulo = crear("div", "veredicto-titulo");
+    titulo.appendChild(crear("span", "icono", "💬"));
+    titulo.appendChild(crear("span", null, "RESPUESTA"));
+    tarjeta.appendChild(titulo);
+    tarjeta.appendChild(crear("div", "respuesta-texto", informe.respuesta || ""));
+    contenedor.appendChild(tarjeta);
+    bajarConversacion();
+    return;
+  }
+
   const v = VEREDICTOS[informe.veredicto] || VEREDICTOS.evidencia_insuficiente;
   const tarjeta = crear("div", `tarjeta-veredicto ${v.clase}`);
 
@@ -293,6 +307,10 @@ function mostrarInforme(informe) {
   barra.appendChild(relleno);
   tarjeta.appendChild(barra);
   tarjeta.appendChild(crear("div", "confianza-texto", `confianza ${Math.round(informe.confianza * 100)}%`));
+
+  if (informe.respuesta) {
+    tarjeta.appendChild(crear("div", "respuesta-texto", informe.respuesta));
+  }
 
   for (const hecho of informe.hechos || []) tarjeta.appendChild(renderHecho(hecho));
 

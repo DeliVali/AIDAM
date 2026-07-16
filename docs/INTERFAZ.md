@@ -89,10 +89,22 @@ replaces live retrieval *behind* the permission gate, so the gate itself is
 tested without network. Runtime verification (real server, real claim, real
 sources) is described in `.claude/skills/verify`.
 
+## The desktop app (`escritorio/`)
+
+The native-window app lives in `escritorio/` — an Electron shell (Node, not
+Python) that spawns `aidam interfaz` on a free localhost port when opened and
+kills it on close. Its icon is derived from `assets/aidamlogo.svg` (the flat
+bitten apple + signature rule). Development: `cd escritorio && npm install &&
+npm start`. **GitHub releases** are built there too: `npm run empaquetar`
+produces `dist/AIDAM-<version>.AppImage` and `.deb` — those are the artifacts
+to upload; a self-contained package additionally needs the PyInstaller'd
+backend in `escritorio/backend/` (see `escritorio/README.md`).
+
 ## Deliberately not done yet
 
-- **Desktop packaging** (Tauri/Electron wrapper): the web app is the core
-  either way; wrap it when someone actually needs a dock icon.
+- **Self-contained backend binary** (PyInstaller over the ONNX CPU backend)
+  so releases run without Python installed — the `escritorio/backend/`
+  contract is defined; the build recipe is pending.
 - **Spoken verdicts** (TTS): the `voz` extra already ships kokoro-onnx for
   the CLI agent; wiring it to the UI is pending.
 - **`investigar` in the UI**: the cascade orchestrator (`aidam investigar`)

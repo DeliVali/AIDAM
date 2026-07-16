@@ -22,11 +22,18 @@ def _imprimir(informe: Informe) -> None:
     from rich.panel import Panel
 
     consola = Console()
+    if informe.tipo == "pregunta":
+        consola.print(Panel(
+            f"[bold]{informe.afirmacion}[/bold]\n\n{informe.respuesta}",
+            title="AIDAM · Respuesta", border_style="cyan",
+        ))
+        return
     color, titulo = _ESTILO[informe.veredicto]
+    respuesta = f"\n\n{informe.respuesta}" if informe.respuesta else ""
     consola.print(
         Panel(
             f"[bold]{informe.afirmacion}[/bold]\n\n"
-            f"[{color} bold]{titulo}[/] · confianza {informe.confianza:.0%}",
+            f"[{color} bold]{titulo}[/] · confianza {informe.confianza:.0%}{respuesta}",
             title="AIDAM",
             border_style=color,
         )
@@ -219,20 +226,22 @@ def main(argv: list[str] | None = None) -> int:
                 "senales": _dc.asdict(resultado.senales),
                 "angulos": [_dc.asdict(a) for a in resultado.angulos],
                 "sintesis": resultado.sintesis,
+                "respuesta": resultado.respuesta,
             }
             print(json.dumps(salida, ensure_ascii=False, indent=2))
         else:
+            from rich.console import Console
+            from rich.panel import Panel
+
             _imprimir(resultado.informe)
             print(
                 f"\n[aidam] nivel de investigación: {resultado.nivel}"
                 f" · ángulos: {len(resultado.angulos)}",
                 file=sys.stderr,
             )
-            if resultado.sintesis:
-                from rich.console import Console
-                from rich.panel import Panel
-
-                Console().print(Panel(resultado.sintesis, title="Síntesis (LLM, no juez)"))
+            if resultado.respuesta:
+                titulo = "Respuesta" + (" (LLM, no juez)" if resultado.sintesis else "")
+                Console().print(Panel(resultado.respuesta, title=titulo, border_style="cyan"))
         return 0
 
     if args.comando == "agente":

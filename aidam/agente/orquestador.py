@@ -51,6 +51,11 @@ class InformeInvestigacion:
     senales: SenalesEscalado
     angulos: list[ResultadoAngulo] = field(default_factory=list)
     sintesis: str | None = None
+    # Always present: the one-breath answer the user actually reads
+    # («No — la evidencia lo refuta: … (fuente)»). Deterministic template
+    # by default; the LLM synthesis replaces it only when available AND
+    # it passes the contradiction safeguard.
+    respuesta: str = ""
 
 
 # ───────── señales ─────────
@@ -106,6 +111,27 @@ def investigar(
     automatically while `hay_que_escalar` holds.
     """
     avisar = progreso or (lambda _mensaje: None)
+
+    from .sintesis import es_pregunta, responder_pregunta
+
+    if es_pregunta(afirmacion):
+        # Answer mode: questions are answered from evidence, never judged
+        # (same rule as pipeline.verificar; measured failure 2026-07-16).
+        avisar("Pregunta detectada: buscando la respuesta en las fuentes…")
+        from ..models import HechoAtomico
+
+        hecho_q = HechoAtomico(texto=afirmacion, origen="pregunta")
+        evidencias = _recuperar(hecho_q, lang, max_idiomas, None)
+        respuesta = responder_pregunta(afirmacion, evidencias)
+        informe_q = Informe(
+            afirmacion=afirmacion, veredicto=Veredicto.INSUFICIENTE,
+            confianza=0.0, hechos=[], tipo="pregunta", respuesta=respuesta,
+        )
+        return InformeInvestigacion(
+            informe=informe_q, nivel=0,
+            senales=SenalesEscalado(confianza=0.0, conflicto=False, insuficiente=False),
+            respuesta=respuesta,
+        )
 
     if verificador is None:
         avisar("Cargando el núcleo verificador…")
@@ -214,15 +240,21 @@ def investigar(
         senales.desacuerdo = round(sum(votos) / len(votos), 3) if votos else 0.0
         nivel_final = nivel_actual
 
+    from .sintesis import respuesta_concisa
+
+    respuesta = respuesta_concisa(informe)
     sintesis = None
     if sintetizar_final and generador is not None:
         from .sintesis import sintetizar
 
         avisar("Redactando síntesis (el LLM narra, no juzga)…")
         sintesis = sintetizar(informe, generador, lang=lang)
+        if sintesis:
+            respuesta = sintesis
 
     return InformeInvestigacion(
-        informe=informe, nivel=nivel_final, senales=senales, angulos=resultados, sintesis=sintesis
+        informe=informe, nivel=nivel_final, senales=senales, angulos=resultados,
+        sintesis=sintesis, respuesta=respuesta,
     )
 
 

@@ -1,0 +1,54 @@
+{
+  "name": "aidam-escritorio",
+  "productName": "AIDAM",
+  "version": "0.1.0",
+  "description": "AIDAM — verificación abierta de información (aplicación de escritorio)",
+  "author": "Jeffrey Romero Del Val",
+  "license": "Apache-2.0",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "empaquetar": "electron-builder --linux"
+  },
+  "build": {
+    "appId": "dev.delivali.aidam",
+    "productName": "AIDAM",
+    "files": [
+      "main.js",
+      "icono.svg",
+      "build/icon.png"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "icon": "build/icon.png",
+      "category": "Utility",
+      "synopsis": "Verificación abierta de información",
+      "desktop": {
+        "entry": {
+          "Name": "AIDAM",
+          "Comment": "Verificación abierta de información",
+          "Keywords": "fact-checking;verificación;noticias;"
+        }
+      }
+    },
+    "extraResources": [
+      {
+        "from": "backend",
+        "to": "backend",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ]
+  },
+  "devDependencies": {
+    "electron": "43.1.1",
+    "electron-builder": "26.15.3"
+  }
+}

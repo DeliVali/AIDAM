@@ -61,6 +61,27 @@ def verificar(
     avisar = progreso or (lambda _mensaje: None)
     buscar = recuperador or recuperar
 
+    from .agente.sintesis import es_pregunta, responder_pregunta
+
+    if recuperador is None and es_pregunta(afirmacion):
+        # Research question → answer mode. Verdict semantics do not apply
+        # (a question cannot be refuted); the answer comes from retrieved
+        # evidence, ranked by meaning, with citations. Gated to the live
+        # path: eval seams inject `recuperador` and always verify claims.
+        avisar("Pregunta detectada: buscando la respuesta en las fuentes…")
+        from .models import HechoAtomico
+
+        hecho_q = HechoAtomico(texto=afirmacion, origen="pregunta")
+        evidencias = buscar(hecho_q, lang=lang, max_idiomas=max_idiomas, categoria=None)
+        return Informe(
+            afirmacion=afirmacion,
+            veredicto=Veredicto.INSUFICIENTE,
+            confianza=0.0,
+            hechos=[],
+            tipo="pregunta",
+            respuesta=responder_pregunta(afirmacion, evidencias),
+        )
+
     if verificador is None:
         avisar("Cargando el núcleo verificador…")
         from .verify import crear_verificador
@@ -195,4 +216,10 @@ def verificar(
 
         veredictos_hechos.append(vh)
 
-    return agregar_informe(afirmacion, veredictos_hechos)
+    informe = agregar_informe(afirmacion, veredictos_hechos)
+    # Jeffrey's product rule (2026-07-16): a bare label is not an answer.
+    # Every claim report carries the one-breath grounded explanation.
+    from .agente.sintesis import respuesta_concisa
+
+    informe.respuesta = respuesta_concisa(informe)
+    return informe
