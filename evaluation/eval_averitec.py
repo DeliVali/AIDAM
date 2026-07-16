@@ -173,6 +173,9 @@ def main() -> None:
                         verificador=verificador,
                         recuperador=recuperador,
                         buscador_preguntas=buscador_preguntas,
+                        # Benchmark claims are ALWAYS verified, even the four
+                        # dev claims that look interrogative (WHO…, Why…).
+                        modo_pregunta=False,
                     )
                     prediccion = A_AVERITEC[informe.veredicto.value]
                     confianza = informe.confianza

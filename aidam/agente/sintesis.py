@@ -67,26 +67,46 @@ def es_pregunta(texto: str) -> bool:
     A question cannot be \"refuted\" — treating it as a claim produced the
     measured product failure of 2026-07-16 («¿dónde está la Mona Lisa?» →
     REFUTADO 75%). Questions route to answer mode: retrieve, rank by
-    meaning, answer with the passage that contains the answer.
+    meaning, answer with the sentence that contains the answer.
+
+    Tuned against the AVeriTeC dev false-positives: «WHO (World Health
+    Organization) approved…» is a CLAIM (all-caps first word = acronym,
+    not the pronoun), and «Why should you pay more taxes than…» rants are
+    claims too (long, ends without ?). Rules: ends with «?», or starts
+    with an interrogative word — not an all-caps acronym — in a short
+    input that doesn't close as a statement.
     """
     limpio = texto.strip()
-    return limpio.endswith("?") or bool(_INTERROGATIVOS.match(limpio))
+    if limpio.endswith("?"):
+        return True
+    primera = limpio.split()[0] if limpio.split() else ""
+    if primera.isupper() and len(primera) > 2:
+        return False  # acronym subject (WHO, NASA…), not a question word
+    return bool(_INTERROGATIVOS.match(limpio)) and len(limpio) < 140 and not limpio.endswith(".")
 
 
 def responder_pregunta(pregunta: str, evidencias: list) -> str:
-    """Evidence-grounded answer to a question, concise by construction.
+    """Evidence-grounded answer to a question, phrased like a person.
 
-    Ranks the retrieved passages by meaning against the question (the same
-    computed-once embedder as the semantic memory; graceful order-preserving
-    fallback without it) and answers with the best passage, cited. No LLM
-    required; when the narrator LLM is active it may polish this, never
-    replace its grounding.
+    Two-level ranking with the computed-once embedder (order-preserving
+    fallback without it): best passages first, then the best SENTENCES
+    inside them — the user reads the sentence that answers, not the
+    passage's trivia lead-in. Grounded by construction: every word shown
+    comes verbatim from a retrieved source, cited below.
     """
     utiles = [e for e in evidencias if e.texto.strip()]
     if not utiles:
         return ("No encontré evidencia para responder esta pregunta; "
                 "conviene reformularla o intentar más tarde.")
-    orden = utiles
+    candidatas: list[tuple[str, object]] = []  # (frase, evidencia)
+    for e in utiles:
+        for frase in re.split(r"(?<=[.!?»])\s+", e.texto):
+            frase = frase.strip()
+            if 25 <= len(frase) <= 300 and not frase.endswith("?"):
+                candidatas.append((frase, e))
+    if not candidatas:
+        candidatas = [(e.texto[:220].strip(), e) for e in utiles[:3]]
+    orden = candidatas
     try:
         import numpy as np
 
@@ -94,15 +114,22 @@ def responder_pregunta(pregunta: str, evidencias: list) -> str:
 
         codificar = _codificador()
         consulta = codificar([f"query: {pregunta}"])[0]
-        matriz = codificar([f"passage: {e.texto[:1000]}" for e in utiles])
+        matriz = codificar([f"passage: {f}" for f, _ in candidatas[:60]])
         puntajes = matriz @ consulta
-        orden = [utiles[i] for i in np.argsort(-puntajes)]
+        orden = [candidatas[i] for i in np.argsort(-puntajes)]
     except Exception:
         pass
-    mejor = orden[0]
-    lineas = [f"Según {mejor.dominio}: «{mejor.texto[:220].strip()}…»", f"  {mejor.url}"]
-    for extra in orden[1:3]:
-        lineas.append(f"También: {extra.dominio} — {extra.url}")
+    frase, fuente = orden[0]
+    lineas = [frase if frase.endswith((".", "!", "»")) else frase + ".",
+              f"Fuente: {fuente.dominio} — {fuente.url}"]
+    otras = []
+    for f2, e2 in orden[1:]:
+        if e2.dominio != fuente.dominio and e2.dominio not in otras:
+            otras.append(e2.dominio)
+        if len(otras) == 2:
+            break
+    if otras:
+        lineas.append(f"También lo cubren: {', '.join(otras)}.")
     return "\n".join(lineas)
 
 

@@ -38,6 +38,7 @@ def verificar(
     progreso: Callable[[str], None] | None = None,
     recuperador: Callable[..., list] | None = None,
     buscador_preguntas: Callable[[str], list] | None = None,
+    modo_pregunta: bool = True,
 ) -> Informe:
     """Verifies a claim end to end and returns the report.
 
@@ -63,11 +64,13 @@ def verificar(
 
     from .agente.sintesis import es_pregunta, responder_pregunta
 
-    if recuperador is None and es_pregunta(afirmacion):
+    if modo_pregunta and es_pregunta(afirmacion):
         # Research question → answer mode. Verdict semantics do not apply
         # (a question cannot be refuted); the answer comes from retrieved
-        # evidence, ranked by meaning, with citations. Gated to the live
-        # path: eval seams inject `recuperador` and always verify claims.
+        # evidence — through the INJECTED retriever when there is one (the
+        # desktop app wraps retrieval for memory; measured failure
+        # 2026-07-16: gating on `recuperador is None` silently disabled
+        # answer mode exactly there). Evals pass modo_pregunta=False.
         avisar("Pregunta detectada: buscando la respuesta en las fuentes…")
         from .models import HechoAtomico
 
