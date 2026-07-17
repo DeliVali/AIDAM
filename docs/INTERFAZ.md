@@ -1,13 +1,22 @@
 # The graphical interface
 
 `aidam interfaz` starts a local server and opens the browser. Same pipeline
-as the CLI, same verdicts, same citations — plus live progress, an execution
-permission system, the agent's memory, a collapsible information sidebar
-(history, evidence-source registry, about) and document input (image OCR,
-PDF, plain text). Celestial palette: sky blues, cloud whites and golden halo
-accents, with an indigo night variant for dark mode; the circular mark
-derives from `assets/aidamlogo.svg`. No build step, no Node: the UI is three
-static files (`aidam/interfaz/`) served by FastAPI.
+as the CLI, same verdicts, same citations — a chat-style layout (Claude Code
+shape): a left sidebar with **reopenable verification history** and a "new
+verification" button, and the conversation area with live progress, the
+execution permission system, the agent's memory and document input (image
+OCR, PDF, plain text).
+
+**"Glacial" design**: translucent glass panels over obsidian with glacial
+blue, a subtle animated ice background (`fondo.js`, self-contained WebGL that
+steps aside under `prefers-reduced-motion` or without WebGL), glowing verdict
+dots, and typography bundled locally in `fuentes/` (Hanken Grotesk for text,
+JetBrains Mono for metadata — no CDN, works offline). The brand couples the
+palette to `assets/aidamlogo.svg`: the circular apple mark in a golden-ring
+halo, the apple's red for *refuted/stop*, the leaf's green for *supported*,
+the signature rule's gold for memory and permission accents. Dark-only by
+design — the glass needs the night. No build step, no Node: static files
+served by FastAPI.
 
 Deliberate omissions in the UI: **no voice input** (product decision for the
 desktop app; the CLI agent keeps its own voice path via `aidam[voz]`), and
@@ -42,10 +51,13 @@ ask-the-user gate over the WebSocket.
 ## Memory
 
 Verifications are saved to the agent memory (`~/.aidam/memoria.db`, see
-`aidam/memoria.py`) and browsable from the **Historial** panel. If a claim was
-verified before, the UI shows when and with what verdict — and re-verifies it
-anyway: a remembered verdict is context, never a substitute (facts change).
-Uncheck **memoria** to skip both the lookup and the save for one run.
+`aidam/memoria.py`) and listed in the sidebar. Clicking an entry **reopens the
+stored conversation** — claim, date and the full report with its citations —
+via `GET /api/verificacion/{id}` (`memoria.informe_por_id()`), without
+re-running anything. If a claim was verified before, a new run still shows the
+prior verdict as context — and re-verifies anyway: a remembered verdict is
+never a substitute (facts change). Uncheck **memoria** to skip both the lookup
+and the save for one run.
 
 ## Documents (📎)
 
