@@ -112,7 +112,20 @@ def investigar(
     """
     avisar = progreso or (lambda _mensaje: None)
 
+    from .computables import responder_computable
     from .sintesis import es_pregunta, responder_pregunta
+
+    computada = responder_computable(afirmacion)
+    if computada is not None:
+        informe_c = Informe(
+            afirmacion=afirmacion, veredicto=Veredicto.INSUFICIENTE,
+            confianza=1.0, hechos=[], tipo="pregunta", respuesta=computada,
+        )
+        return InformeInvestigacion(
+            informe=informe_c, nivel=0,
+            senales=SenalesEscalado(confianza=1.0, conflicto=False, insuficiente=False),
+            respuesta=computada,
+        )
 
     if es_pregunta(afirmacion):
         # Answer mode: questions are answered from evidence, never judged

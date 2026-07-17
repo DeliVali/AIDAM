@@ -64,6 +64,19 @@ def verificar(
 
     from .agente.sintesis import es_pregunta, responder_pregunta
 
+    if modo_pregunta:
+        # Computable questions never touch retrieval: the system clock and
+        # whitelisted arithmetic answer instantly (measured failure: «qué
+        # día es hoy» retrieved Wikiquote's tautology about "today").
+        from .agente.computables import responder_computable
+
+        computada = responder_computable(afirmacion)
+        if computada is not None:
+            return Informe(
+                afirmacion=afirmacion, veredicto=Veredicto.INSUFICIENTE,
+                confianza=1.0, hechos=[], tipo="pregunta", respuesta=computada,
+            )
+
     if modo_pregunta and es_pregunta(afirmacion):
         # Research question → answer mode. Verdict semantics do not apply
         # (a question cannot be refuted); the answer comes from retrieved
