@@ -136,6 +136,43 @@ def proponer_candidatos(tarea: str, n: int = 3, generador=None) -> dict[str, str
     return candidatos
 
 
+def candidatos_desde_web(tarea: str, lang: str = "es", maximo: int = 3) -> dict[str, str]:
+    """Jeffrey's «opencrawl» leg, closed with our own retrieval: harvest
+    candidate implementations FROM THE WEB (Stack Overflow + open web) and
+    feed them to the same measured harness. No external crawler — the
+    multi-source retriever already fetches, the code extractor already
+    isolates runs, the compile gate drops garbage, and the stopwatch (not
+    the snippet's upvotes) decides the winner.
+    """
+    from ..retrieve import buscar_stackexchange, buscar_web
+    from .sintesis import _extraer_codigo
+
+    evidencias = []
+    try:
+        evidencias += buscar_stackexchange(tarea)
+    except Exception:
+        pass
+    try:
+        evidencias += buscar_web(tarea, lang=lang)
+    except Exception:
+        pass
+
+    candidatos: dict[str, str] = {}
+    for e in evidencias:
+        if len(candidatos) >= maximo:
+            break
+        codigo = _extraer_codigo([e])
+        if not codigo:
+            continue
+        try:
+            compile(codigo, e.dominio, "exec")
+        except SyntaxError:
+            continue
+        nombre = f"web-{e.dominio.split('.')[0]}-{len(candidatos) + 1}"
+        candidatos[nombre] = codigo
+    return candidatos
+
+
 def medir_candidato(nombre: str, codigo: str, llamada: str, preparacion: str = "",
                     repeticiones: int = 7, timeout: float = 60.0,
                     nucleo: int | None = None) -> MedicionCandidato:

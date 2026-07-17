@@ -187,6 +187,11 @@ def main(argv: list[str] | None = None) -> int:
     p_codigo.add_argument("--candidatos", type=int, default=3,
                           help="cuántas candidatas propone el LLM con --tarea")
     p_codigo.add_argument(
+        "--web", action="store_true",
+        help="cosechar candidatas de la web (Stack Overflow y web abierta) "
+        "además de las locales/LLM — el cronómetro sigue decidiendo",
+    )
+    p_codigo.add_argument(
         "--llamada", required=True,
         help="expresión a medir, p. ej. \"ordenar(datos)\"",
     )
@@ -314,7 +319,12 @@ def main(argv: list[str] | None = None) -> int:
         for ruta in args.archivos:
             p = _Path(ruta)
             candidatos[p.stem] = p.read_text()
-        if args.tarea:
+        if args.tarea and args.web:
+            from .agente.codigo import candidatos_desde_web
+
+            print("[aidam] cosechando candidatas de la web…", file=sys.stderr)
+            candidatos.update(candidatos_desde_web(args.tarea))
+        if args.tarea and not args.web:
             from .agente.codigo import proponer_candidatos
 
             print("[aidam] el LLM local propone candidatas…", file=sys.stderr)
