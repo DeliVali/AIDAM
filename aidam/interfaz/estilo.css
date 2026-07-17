@@ -143,7 +143,45 @@ body {
   padding: 0 8px 6px;
 }
 
-/* carpeta de trabajo del agente */
+/* espacios de trabajo (General + carpetas del agente) */
+.lista-espacios {
+  list-style: none;
+  margin: 0 0 6px;
+  padding: 0;
+  max-height: 168px;
+  overflow-y: auto;
+}
+
+.lista-espacios li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  font-size: 0.84rem;
+  transition: background 0.15s;
+}
+
+.lista-espacios li:hover { background: var(--vidrio-alzado); }
+
+.lista-espacios li.activa {
+  background: rgba(228, 201, 143, 0.08);
+  border-color: rgba(228, 201, 143, 0.45);
+}
+
+.espacio-nombre {
+  flex: 1;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.lista-espacios li.activa .espacio-nombre { color: var(--dorado); }
+
+.espacio-quitar { color: var(--texto-tenue); padding: 0 2px; font-size: 0.8rem; }
+.espacio-quitar:hover { color: var(--manzana); }
+
+/* añadir carpeta como espacio */
 .boton-carpeta {
   display: flex;
   align-items: center;

@@ -35,7 +35,9 @@ RUTA_DEFECTO = Path(os.environ.get("AIDAM_MEMORIA", "~/.aidam/memoria.db"))
 _ESQUEMA = """
 CREATE TABLE IF NOT EXISTS sesiones (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    inicio TEXT NOT NULL
+    inicio TEXT NOT NULL,
+    carpeta TEXT NOT NULL DEFAULT '',
+    titulo TEXT NOT NULL DEFAULT ''
 );
 CREATE TABLE IF NOT EXISTS verificaciones (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -50,6 +52,19 @@ CREATE TABLE IF NOT EXISTS verificaciones (
 CREATE INDEX IF NOT EXISTS idx_verif_normal
     ON verificaciones(afirmacion_normal);
 """
+
+# Schema history (PRAGMA user_version):
+#   0 → 1: sesiones gains carpeta ('' = the General workspace) and titulo —
+#          a session becomes a CONVERSATION in a workspace. Existing rows
+#          land in General, so prior history stays visible.
+_VERSION_ESQUEMA = 1
+
+_MIGRACIONES = {
+    1: [
+        "ALTER TABLE sesiones ADD COLUMN carpeta TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE sesiones ADD COLUMN titulo TEXT NOT NULL DEFAULT ''",
+    ],
+}
 
 
 def _normalizar(texto: str) -> str:
@@ -70,21 +85,60 @@ class MemoriaAgente:
         self.ruta = Path(ruta or RUTA_DEFECTO).expanduser()
         self.ruta.parent.mkdir(parents=True, exist_ok=True)
         self._db = sqlite3.connect(self.ruta)
+        version = self._db.execute("PRAGMA user_version").fetchone()[0]
+        if self._tabla_existe("sesiones"):
+            # Existing database: walk pending migrations (fresh ones skip
+            # this — executescript below already creates the current shape).
+            for destino in range(version + 1, _VERSION_ESQUEMA + 1):
+                for sentencia in _MIGRACIONES.get(destino, []):
+                    self._db.execute(sentencia)
         self._db.executescript(_ESQUEMA)
+        self._db.execute(f"PRAGMA user_version = {_VERSION_ESQUEMA}")
+        # Idempotent backfill: conversations from before titles existed get
+        # named by their first claim (cheap; touches only untitled rows).
+        self._db.execute(
+            "UPDATE sesiones SET titulo = COALESCE((SELECT v.afirmacion"
+            " FROM verificaciones v WHERE v.sesion_id = sesiones.id"
+            " ORDER BY v.fecha, v.id LIMIT 1), '') WHERE titulo = ''"
+        )
         self._db.commit()
-        self.sesion_id = self._db.execute(
-            "INSERT INTO sesiones (inicio) VALUES (?)", (_ahora(),)
+        self._sesion_id: int | None = None  # lazy: no junk rows per startup
+
+    def _tabla_existe(self, nombre: str) -> bool:
+        return (
+            self._db.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+                (nombre,),
+            ).fetchone()
+            is not None
+        )
+
+    @property
+    def sesion_id(self) -> int:
+        """The instance's own conversation, created on first use (the CLI's
+        one-shot flow); the server manages explicit ids via nueva_sesion()."""
+        if self._sesion_id is None:
+            self._sesion_id = self.nueva_sesion()
+        return self._sesion_id
+
+    def nueva_sesion(self, carpeta: str = "", titulo: str = "") -> int:
+        """New conversation in a workspace ('' = General). Returns its id."""
+        id_nueva = self._db.execute(
+            "INSERT INTO sesiones (inicio, carpeta, titulo) VALUES (?, ?, ?)",
+            (_ahora(), carpeta, titulo),
         ).lastrowid
         self._db.commit()
+        return id_nueva
 
-    def guardar(self, informe: Informe) -> None:
+    def guardar(self, informe: Informe, sesion_id: int | None = None) -> None:
+        destino = sesion_id if sesion_id is not None else self.sesion_id
         fecha = _ahora()
         self._db.execute(
             "INSERT INTO verificaciones (sesion_id, afirmacion,"
             " afirmacion_normal, veredicto, confianza, fecha, informe_json)"
             " VALUES (?, ?, ?, ?, ?, ?, ?)",
             (
-                self.sesion_id,
+                destino,
                 informe.afirmacion,
                 _normalizar(informe.afirmacion),
                 informe.veredicto.value,
@@ -92,6 +146,11 @@ class MemoriaAgente:
                 fecha,
                 json.dumps(asdict(informe), ensure_ascii=False, default=str),
             ),
+        )
+        # A conversation is titled by its first claim.
+        self._db.execute(
+            "UPDATE sesiones SET titulo = ? WHERE id = ? AND titulo = ''",
+            (informe.afirmacion[:80], destino),
         )
         self._db.commit()
         self._indexar_evidencia(informe, fecha)
@@ -141,6 +200,56 @@ class MemoriaAgente:
         return [
             {"id": i, "afirmacion": a, "veredicto": v, "confianza": c, "fecha": f}
             for i, a, v, c, f in filas
+        ]
+
+    def conversaciones(self, carpeta: str = "", limite: int = 30) -> list[dict]:
+        """Conversations of one workspace ('' = General), most recent first.
+
+        Only conversations that got at least one verification are listed —
+        empty ones are invisible noise, not history.
+        """
+        filas = self._db.execute(
+            "SELECT s.id, s.titulo, s.inicio, MAX(v.fecha), COUNT(v.id)"
+            " FROM sesiones s JOIN verificaciones v ON v.sesion_id = s.id"
+            " WHERE s.carpeta = ?"
+            " GROUP BY s.id ORDER BY MAX(v.fecha) DESC LIMIT ?",
+            (carpeta, limite),
+        ).fetchall()
+        return [
+            {"id": i, "titulo": t, "inicio": ini, "ultima": u, "turnos": n}
+            for i, t, ini, u, n in filas
+        ]
+
+    def hilo(self, sesion_id: int) -> list[dict]:
+        """Full thread of one conversation, oldest first (reopen & continue)."""
+        filas = self._db.execute(
+            "SELECT id, afirmacion, veredicto, confianza, fecha, informe_json"
+            " FROM verificaciones WHERE sesion_id = ? ORDER BY fecha, id",
+            (sesion_id,),
+        ).fetchall()
+        return [
+            {
+                "id": i,
+                "afirmacion": a,
+                "veredicto": v,
+                "confianza": c,
+                "fecha": f,
+                "informe": json.loads(j),
+            }
+            for i, a, v, c, f, j in filas
+        ]
+
+    def carpetas(self) -> list[dict]:
+        """Workspaces with activity, newest first. General ('') is implicit
+        and always exists, so it is excluded here."""
+        filas = self._db.execute(
+            "SELECT s.carpeta, COUNT(DISTINCT s.id), MAX(v.fecha)"
+            " FROM sesiones s JOIN verificaciones v ON v.sesion_id = s.id"
+            " WHERE s.carpeta != ''"
+            " GROUP BY s.carpeta ORDER BY MAX(v.fecha) DESC",
+        ).fetchall()
+        return [
+            {"carpeta": c, "conversaciones": n, "ultima": u} for c, n, u in filas
         ]
 
     def informe_por_id(self, id_verificacion: int) -> dict | None:

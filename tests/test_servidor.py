@@ -81,7 +81,9 @@ def _recuperar_falso(hecho, lang="es", max_idiomas=5, categoria=None):
 
 
 @pytest.fixture()
-def cliente(tmp_path):
+def cliente(tmp_path, monkeypatch):
+    # aisla el espacio General (carpeta real por SO) del entorno del usuario
+    monkeypatch.setenv("AIDAM_DATOS", str(tmp_path / "datos"))
     app = crear_app(
         verificar_fn=_verificar_falso,
         ruta_memoria=str(tmp_path / "memoria.db"),
@@ -99,7 +101,7 @@ def _recibir(ws):
     return json.loads(ws.receive_text())
 
 
-def _recibir_hasta(ws, tipo, saltando=("progreso", "memoria")):
+def _recibir_hasta(ws, tipo, saltando=("progreso", "memoria", "conversacion")):
     """Skips intermediate events until `tipo` arrives (fails on anything else)."""
     for _ in range(50):
         mensaje = _recibir(ws)
@@ -256,7 +258,7 @@ def test_memoria_guarda_y_avisa_de_repetidas(cliente):
     # Segunda verificación de la MISMA afirmación: avisa de la previa…
     with cliente.websocket_connect("/ws") as ws:
         _enviar(ws, tipo="verificar", afirmacion=afirmacion)
-        memoria = _recibir_hasta(ws, "memoria", saltando=("progreso",))
+        memoria = _recibir_hasta(ws, "memoria", saltando=("progreso", "conversacion"))
         assert memoria["previas"][0]["veredicto"] == "sustentado"
         # …y aún así se vuelve a verificar (el informe llega igualmente).
         _recibir_hasta(ws, "informe")
@@ -294,6 +296,60 @@ def test_carpeta_de_trabajo_inexistente_da_error(cliente):
         mensaje = _recibir(ws)
     assert mensaje["tipo"] == "error"
     assert "carpeta de trabajo" in mensaje["mensaje"]
+
+
+def test_conversacion_se_crea_se_continua_y_se_reabre(cliente):
+    # 1) turno sin id → el servidor crea la conversación y la anuncia
+    with cliente.websocket_connect("/ws") as ws:
+        _enviar(ws, tipo="verificar", afirmacion="Primer turno del hilo")
+        conversacion = _recibir_hasta(ws, "conversacion", saltando=("progreso",))
+        id_conv = conversacion["id"]
+        _recibir_hasta(ws, "informe")
+
+        # 2) segundo turno CON el id → mismo hilo, sin anuncio nuevo
+        _enviar(ws, tipo="verificar", afirmacion="Segundo turno", conversacion=id_conv)
+        _recibir_hasta(ws, "informe", saltando=("progreso", "memoria"))
+
+    hilo = cliente.get(f"/api/conversacion/{id_conv}").json()
+    assert [t["afirmacion"] for t in hilo["turnos"]] == [
+        "Primer turno del hilo",
+        "Segundo turno",
+    ]
+
+    lista = cliente.get("/api/conversaciones").json()["conversaciones"]
+    assert len(lista) == 1
+    assert lista[0]["titulo"] == "Primer turno del hilo"
+    assert lista[0]["turnos"] == 2
+
+    # 3) reabrir desde OTRA conexión (nueva pestaña) y continuar el hilo
+    with cliente.websocket_connect("/ws") as ws:
+        _enviar(ws, tipo="verificar", afirmacion="Tercer turno", conversacion=id_conv)
+        _recibir_hasta(ws, "informe")
+    assert len(cliente.get(f"/api/conversacion/{id_conv}").json()["turnos"]) == 3
+
+    assert cliente.get("/api/conversacion/99999").status_code == 404
+
+
+def test_espacios_separan_conversaciones(cliente, tmp_path):
+    proyecto = tmp_path / "proyecto"
+    proyecto.mkdir()
+    with cliente.websocket_connect("/ws") as ws:
+        _enviar(ws, tipo="verificar", afirmacion="En general")
+        _recibir_hasta(ws, "informe")
+    with cliente.websocket_connect("/ws") as ws:
+        _enviar(ws, tipo="verificar", afirmacion="En el proyecto", carpeta=str(proyecto))
+        _recibir_hasta(ws, "informe")
+
+    general = cliente.get("/api/conversaciones").json()["conversaciones"]
+    assert [c["titulo"] for c in general] == ["En general"]
+
+    del_proyecto = cliente.get(
+        "/api/conversaciones", params={"carpeta": str(proyecto)}
+    ).json()["conversaciones"]
+    assert [c["titulo"] for c in del_proyecto] == ["En el proyecto"]
+
+    carpetas = cliente.get("/api/carpetas").json()["carpetas"]
+    assert [c["carpeta"] for c in carpetas] == [str(proyecto)]
 
 
 def test_reabrir_verificacion_guardada(cliente):

@@ -59,16 +59,28 @@ prior verdict as context — and re-verifies anyway: a remembered verdict is
 never a substitute (facts change). Uncheck **memoria** to skip both the lookup
 and the save for one run.
 
-## Working folder (📁)
+## Workspaces and conversations (📁)
 
-AIDAM is an agent, and agents work somewhere: the sidebar's **Carpeta de
-trabajo** picks the workspace root. In the desktop app it opens the native
-folder dialog (`escritorio/preload.js` → IPC → `dialog.showOpenDialog`); in a
-browser there is no real-path dialog, so the UI falls back to typing the path
-(the server runs on the same machine). The choice persists, travels with each
-`verificar` message, is validated server-side (a typo fails loud, not
-silently) and lives on the session as the anchor for the file-facing agent
-tools (`aidam/agente/herramientas.py`).
+AIDAM is an agent, and agents work somewhere: the sidebar lists **workspaces**
+— the permanent **General** space plus any folders you add. General is backed
+by a real folder that always exists, created on first start in the OS's
+per-user data directory (`aidam/plataforma.py`: `%APPDATA%\aidam` on Windows,
+`~/Library/Application Support/aidam` on macOS, `$XDG_DATA_HOME/aidam` or
+`~/.local/share/aidam` on Linux; `AIDAM_DATOS` overrides). Adding a folder
+uses the native dialog in the desktop app (`escritorio/preload.js` → IPC) or
+manual path entry in a browser; the path is validated server-side and anchors
+the file-facing agent tools.
+
+Each workspace holds its own **conversations**. A turn without a
+`conversacion` id opens a new thread (announced back via the `conversacion`
+event); sending a stored id **continues** that thread — including reopened
+ones: the RAM-only conversational context (`agente/contexto.py`) is rebuilt
+from the stored turns, so follow-ups keep resolving after a restart. Threads
+live in the agent memory as `sesiones` rows (`carpeta` = workspace, '' =
+General; migration v0→v1 via `PRAGMA user_version` lands prior history in
+General, titled by each thread's first claim). Sidebar data comes from
+`GET /api/carpetas`, `GET /api/conversaciones?carpeta=` and
+`GET /api/conversacion/{id}`.
 
 ## Documents (📎)
 
