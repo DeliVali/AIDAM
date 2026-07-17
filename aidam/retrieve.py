@@ -1126,6 +1126,16 @@ FUENTES: dict[str, tuple[str, set[str] | None, object]] = {
         {"general"},
         lambda c, lang, mi: buscar_openlibrary(c),
     ),
+    "musicbrainz": (
+        "Catálogo musical abierto MusicBrainz (artistas, obras, fechas)",
+        {"general", "actualidad"},
+        lambda c, lang, mi: buscar_musicbrainz(c),
+    ),
+    "letras": (
+        "Letras de canciones vía lyrics.ovh (cuando se nombran artista y canción)",
+        {"general"},
+        lambda c, lang, mi: buscar_letras(c, lang=lang),
+    ),
     "desmentidos": (
         "Búsqueda dirigida a fact-checkers (artículo completo)",
         None,
@@ -1273,6 +1283,66 @@ def buscar_openlibrary(consulta: str, lang: str = "", max_libros: int = 3) -> li
             idioma="en",
         ))
     return evidencias
+
+
+def buscar_musicbrainz(consulta: str, lang: str = "", max_obras: int = 3) -> list[Evidencia]:
+    """Music catalog facts via MusicBrainz (open data, free, no key).
+
+    Jeffrey's ask (2026-07-16): music sources. For «X wrote/released Y in
+    Z» claims the catalog record is the certified answer: artist, title,
+    first release date, straight from the open encyclopedia of music.
+    """
+    datos = _get_json(
+        "https://musicbrainz.org/ws/2/recording",
+        {"query": consulta, "limit": max_obras, "fmt": "json"},
+    )
+    evidencias: list[Evidencia] = []
+    for obra in (datos or {}).get("recordings", []):
+        titulo = obra.get("title") or ""
+        artistas = ", ".join(
+            c.get("name", "") for c in (a.get("artist", {}) for a in obra.get("artist-credit", []))
+            if isinstance(c, dict)
+        ) or ", ".join(a.get("name", "") for a in obra.get("artist-credit", []) if isinstance(a, dict))
+        fecha = obra.get("first-release-date", "")
+        if not titulo or not artistas:
+            continue
+        evidencias.append(Evidencia(
+            texto=(f"Registro musical: «{titulo}», interpretada por {artistas}"
+                   + (f", primera publicación {fecha}." if fecha else ".")),
+            url=f"https://musicbrainz.org/recording/{obra.get('id', '')}",
+            titulo=titulo[:120],
+            dominio="musicbrainz.org",
+            fuente="academica",
+            idioma="en",
+        ))
+    return evidencias
+
+
+def buscar_letras(consulta: str, lang: str = "", artista: str = "", cancion: str = "") -> list[Evidencia]:
+    """Song lyrics via lyrics.ovh (free, no key) when the query names
+    artist and song («letra de X de Y»); silent otherwise. The lyric text
+    itself is the evidence for «la letra dice…» claims."""
+    m = re.search(
+        r"letra de ['\"«]?(.+?)['\"»]? de (.+)$|lyrics? (?:of|to) ['\"]?(.+?)['\"]? by (.+)$",
+        consulta, re.IGNORECASE,
+    )
+    if m:
+        cancion = cancion or (m.group(1) or m.group(3) or "").strip()
+        artista = artista or (m.group(2) or m.group(4) or "").strip(" ?.")
+    if not (artista and cancion):
+        return []
+    datos = _get_json(f"https://api.lyrics.ovh/v1/{artista}/{cancion}", None)
+    letra = (datos or {}).get("lyrics", "")
+    if len(letra) < 40:
+        return []
+    return [Evidencia(
+        texto=f"Letra de «{cancion}» ({artista}): {letra[:800]}",
+        url=f"https://api.lyrics.ovh/v1/{artista}/{cancion}",
+        titulo=f"letra: {cancion}",
+        dominio="lyrics.ovh",
+        fuente="web",
+        idioma=lang or "en",
+    )]
 
 
 def _es_probatoria(hecho_texto: str, evidencia: Evidencia, lang: str) -> bool:

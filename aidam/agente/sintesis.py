@@ -85,7 +85,8 @@ def es_pregunta(texto: str) -> bool:
     return bool(_INTERROGATIVOS.match(limpio)) and len(limpio) < 140 and not limpio.endswith(".")
 
 
-def responder_pregunta(pregunta: str, evidencias: list) -> str:
+def responder_pregunta(pregunta: str, evidencias: list,
+                       excluir_dominios: set[str] | None = None) -> str:
     """Evidence-grounded answer to a question, phrased like a person.
 
     Two-level ranking with the computed-once embedder (order-preserving
@@ -95,6 +96,11 @@ def responder_pregunta(pregunta: str, evidencias: list) -> str:
     comes verbatim from a retrieved source, cited below.
     """
     utiles = [e for e in evidencias if e.texto.strip()]
+    if excluir_dominios:
+        # Rejection flow: the user said «no es esa» — the previously cited
+        # domains step aside and the next-best source answers.
+        restantes = [e for e in utiles if e.dominio not in excluir_dominios]
+        utiles = restantes or utiles
     if not utiles:
         return ("No encontré evidencia para responder esta pregunta; "
                 "conviene reformularla o intentar más tarde.")

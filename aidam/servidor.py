@@ -54,7 +54,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import __version__
-from .models import Informe, informe_a_dict
+from .models import Informe, Veredicto, informe_a_dict
 
 RUTA_INTERFAZ = Path(__file__).parent / "interfaz"
 
@@ -233,7 +233,8 @@ class _Sesion:
     # -- run -------------------------------------------------------------------
 
     def _verificar_bloqueante(
-        self, afirmacion: str, lang: str, max_idiomas: int, preguntas: bool
+        self, afirmacion: str, lang: str, max_idiomas: int, preguntas: bool,
+        excluir_dominios: set[str] | None = None,
     ) -> Informe:
         def progreso(mensaje: str) -> None:
             # The pipeline reports progress often, so this doubles as the
@@ -250,6 +251,7 @@ class _Sesion:
             progreso=progreso,
             recuperador=self._recuperador,
             buscador_preguntas=self._buscador_preguntas(lang),
+            excluir_dominios=excluir_dominios,
         )
 
     async def ejecutar(self, peticion: dict) -> None:
@@ -266,17 +268,50 @@ class _Sesion:
         # is rewritten self-contained against the best antecedent turn —
         # recent by default, an older one when the meaning matches it
         # better. RAM only; the interpretation is SHOWN, never silent.
-        from .agente.contexto import ContextoConversacion
+        from .agente.contexto import ContextoConversacion, es_rechazo, respuesta_social
 
         if not hasattr(self, "contexto"):
             self.contexto = ContextoConversacion()
-        resuelta = self.contexto.resolver(afirmacion)
-        if resuelta != afirmacion:
+            self.pregunta_activa: str | None = None
+            self.dominios_rechazados: set[str] = set()
+
+        social = respuesta_social(afirmacion)
+        if social is not None:
+            # A greeting/thanks is a conversation, not a claim: answer like
+            # a person, verify nothing, spend nothing.
+            await self._enviar_async({
+                "tipo": "informe",
+                "informe": informe_a_dict(Informe(
+                    afirmacion=afirmacion, veredicto=Veredicto.INSUFICIENTE,
+                    confianza=1.0, hechos=[], tipo="pregunta", respuesta=social,
+                )),
+            })
+            return
+
+        excluir: set[str] = set()
+        if es_rechazo(afirmacion) and self.pregunta_activa:
+            # «no, no es esa» is a dialogue act, not a claim: re-answer the
+            # SAME question with the rejected sources stepping aside.
+            self.dominios_rechazados |= set(
+                re.findall(r"[a-z0-9.-]+\.[a-z]{2,}", getattr(self, "ultima_respuesta", ""))
+            )
+            afirmacion = self.pregunta_activa
+            excluir = self.dominios_rechazados
             await self._enviar_async(
                 {"tipo": "progreso",
-                 "mensaje": f"pregunta interpretada con el contexto: «{resuelta}»"}
+                 "mensaje": f"entendido — busco otra respuesta para: «{afirmacion}» "
+                            f"(excluyendo {', '.join(sorted(excluir)) or 'nada'})"}
             )
-            afirmacion = resuelta
+        else:
+            resuelta = self.contexto.resolver(afirmacion)
+            if resuelta != afirmacion:
+                await self._enviar_async(
+                    {"tipo": "progreso",
+                     "mensaje": f"pregunta interpretada con el contexto: «{resuelta}»"}
+                )
+                afirmacion = resuelta
+            self.pregunta_activa = afirmacion
+            self.dominios_rechazados = set()
 
         # Remembered verdicts are CONTEXT for the user, never a shortcut:
         # the claim is re-verified below regardless (same rule as the CLI).
@@ -305,7 +340,9 @@ class _Sesion:
                 peticion.get("lang", "es"),
                 int(peticion.get("max_idiomas", 5)),
                 bool(preguntas),
+                excluir or None,
             )
+            self.ultima_respuesta = informe.respuesta or ""
             if memoria is not None:
                 try:
                     memoria.guardar(informe)

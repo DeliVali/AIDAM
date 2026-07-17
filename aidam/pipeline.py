@@ -39,6 +39,7 @@ def verificar(
     recuperador: Callable[..., list] | None = None,
     buscador_preguntas: Callable[[str], list] | None = None,
     modo_pregunta: bool = True,
+    excluir_dominios: set[str] | None = None,
 ) -> Informe:
     """Verifies a claim end to end and returns the report.
 
@@ -95,7 +96,7 @@ def verificar(
             confianza=0.0,
             hechos=[],
             tipo="pregunta",
-            respuesta=responder_pregunta(afirmacion, evidencias),
+            respuesta=responder_pregunta(afirmacion, evidencias, excluir_dominios),
         )
 
     if verificador is None:
