@@ -5,9 +5,10 @@
  * continuables; modo de ejecución como icono junto a la entrada; idioma y
  * memoria en el engranaje de configuración. Sin voz por diseño.
  *
- * i18n: el idioma elegido cambia TODA la interfaz. Español e inglés son
- * nativos; fr/de/pt/it caen a inglés (pendiente de traducción completa) y
- * aun así fijan el idioma de las afirmaciones que se verifican.
+ * i18n: el idioma elegido cambia TODA la interfaz y el idioma de las
+ * afirmaciones que se verifican. Solo español e inglés: se ofrecen
+ * únicamente idiomas con traducción completa (decisión de producto,
+ * 2026-07-17); añadir uno = añadir su diccionario a TEXTOS.
  */
 
 "use strict";
@@ -313,7 +314,7 @@ function cargarPreferencias() {
   let prefs = {};
   try { prefs = JSON.parse(localStorage.getItem("aidam.prefs") || "{}"); } catch {}
   if (prefs.modo === "permisos") estado.modo = "permisos";
-  if (prefs.idioma) ui.idioma.value = prefs.idioma;
+  if (TEXTOS[prefs.idioma]) ui.idioma.value = prefs.idioma;
   ui.memoria.checked = prefs.memoria !== false;
   estado.carpetas = Array.isArray(prefs.carpetas) ? prefs.carpetas : [];
   if (prefs.carpeta && !estado.carpetas.includes(prefs.carpeta)) {
