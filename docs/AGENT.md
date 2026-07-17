@@ -242,6 +242,55 @@ narrates), and NVMe swap costs seconds.
   errors; the verifier then judges the claim as stated. The interface never
   launders a mistranscription into a verdict.
 
+## The conversational layer: dialogue acts and context blocks (2026-07-16)
+
+The agent's product failures were measured one screenshot at a time —
+questions «refuted» at 84%, «no, no es esa» verified against Russian
+grammar, «qué día es hoy» answered with Wikiquote's tautology — and each
+one became a routed dialogue act. Input now flows through a deterministic
+router (regex + measured signals, zero models on the floor tier; every
+interpretation is SHOWN, never silently guessed):
+
+| Act | Detector | Response |
+|---|---|---|
+| social («hola», «gracias») | closed rule set (`contexto.respuesta_social`) | conversational reply, nothing verified, nothing spent |
+| computable («qué día es hoy», «15% de 80») | clock/arithmetic patterns (`computables.py`), whitelisted-ast math | instant local answer, provenance stated |
+| file order («mueve X a Y») | strict imperatives (`archivos.py`) | permission card with the EXACT action; HOME-only; trash-only deletion |
+| question | `sintesis.es_pregunta` (tuned against AVeriTeC false-positives: WHO-acronym, Why-rants) | answer mode: best SENTENCE from meaning-ranked passages, cited; code questions get a copy-ready block extracted verbatim from evidence |
+| ambiguous question («qué es lora») | distinctive-term clustering splits the evidence into senses (`aclaracion_necesaria`) | the agent ASKS, listing the senses actually found; the reply joins the pending context block and the refined question re-runs |
+| rejection («no, no es esa») | `contexto.es_rechazo` | re-answer with rejected domains excluded |
+| follow-up («y en ese contexto…») | connectors/deictics + antecedent search | rewritten self-contained against the best prior turn |
+| claim (everything else) | default | the full verify pipeline; verdicts always carry a one-breath grounded explanation (`respuesta_concisa`) |
+
+**Conversational context is three tiers, RAM-only** (dies with the session;
+never disk, never the repo): a 20-turn verbatim window; a compacted tier
+where evicted turns fold into topic terms + their embedding (bytes, not
+text — anchored-summary consensus, arXiv:2308.15022); and `GrafoPalabras`,
+Jeffrey's keyword architecture — words interned once as integer ids,
+turns as id-tuples, an inverted index as edges, rarity-weighted lookup.
+Antecedent priority: exact rare-word hit > embedding similarity > recency.
+
+**Two measured laws shaped this layer.** (1) The small embedder CANNOT
+split same-word senses — lora-IoT vs LoRA-ML sit at cosine 0.90+ because
+the shared surface term dominates; distinctive-term clustering separates
+them with zero overlap. Keyword structures beat embeddings exactly where
+the surface form collides. (2) Generic modifiers bridge unrelated topics
+(«bajo consumo»/«bajo rango» merged the senses) — they live in the
+stopword set now.
+
+**Input spelling cleanup** (`ortografia.py`) is conservative by measured
+necessity: a naive corrector turns «Pogba» into «bomba». Questions only,
+capitalized words untouchable, edit-distance-1 fixes with an
+anti-mojibake guard, and Spanish diacritics from a curated in-repo map —
+pyspellchecker's es dictionary is corrupted («según» missing, «segün»
+present). Every applied change is shown.
+
+**Ecosystem surfaces.** `POST /v1/chat/completions` makes AIDAM a
+provider for assistant infrastructure (OpenClaw gateways: point them at
+`http://localhost:8236/v1`, model `aidam-verificador`) and any
+OpenAI-style client — verification from WhatsApp/Telegram without
+building messenger bridges ourselves.
+
 ## Pre-registered gates
 
 House rule: gates are declared **before any numbers exist**, and a failed gate blocks
@@ -281,6 +330,11 @@ entries in ROADMAP for the discipline in action).
 | `voz.py` | optional STT/TTS (extra `voz`); lazy imports, graceful degradation |
 | `vision.py` | optional OCR + C2PA provenance (extra `vision`) |
 | `rastreo.py` | optional tier-2 crawler (extra `rastreo`, Crawl4AI, robots.txt respected) |
+| `contexto.py` | dialogue acts (social/rejection/follow-up), three-tier RAM context, `GrafoPalabras` keyword memory |
+| `computables.py` | clock/arithmetic questions answered by code (whitelisted ast), never by retrieval |
+| `archivos.py` | native file control from conversation: HOME-only, trash-only, strict parsing, permission-gated |
+| `codigo.py` | measured code comparison: sandboxed timing (core-pinned), correctness fingerprints, LLM/web candidates |
+| `ortografia.py` | guarded question spelling cleanup; curated Spanish accent map (broken upstream dictionary, measured) |
 
 All modules import without torch, network or GPU; heavy dependencies load lazily
 behind pyproject extras. The binding interface contracts live in the implementation

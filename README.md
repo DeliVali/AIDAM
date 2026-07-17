@@ -53,6 +53,28 @@ Or as a desktop app with its own window (Electron, in [escritorio/](escritorio/)
 cd escritorio && npm install && npm start
 ```
 
+The agent understands conversation, not just claims (each behavior born
+from a measured product failure — see [docs/AGENT.md](docs/AGENT.md)):
+
+- **Questions get answers**, not verdicts: the sentence that answers,
+  cited («La Mona Lisa cuelga en el Louvre. Fuente: …»); code questions
+  get a copy-ready example extracted verbatim from the evidence.
+- **Ambiguity gets a question back**: «¿qué es lora?» splits the evidence
+  into senses (IoT radio vs ML fine-tuning) and the agent asks which one
+  you mean — your reply joins the same context block and refines the search.
+- **Context sticks**: follow-ups («y en ese contexto…», «volviendo a la
+  muralla…») resolve against the right earlier turn via a three-tier
+  RAM-only memory (verbatim window, compacted terms, keyword graph).
+- **Your computer, natively**: «mueve Descargas/fotos a Documentos» shows
+  a permission card with the exact action; HOME-only, deletions always go
+  to the trash.
+- **Code is measured, never opined**: candidates (yours, the local LLM's,
+  or web-harvested) race in a sandbox; a fast wrong answer is disqualified
+  by its result fingerprint before speed counts.
+- **Plugs into assistant infrastructure**: an OpenAI-compatible endpoint
+  (`/v1/chat/completions`) lets OpenClaw-style gateways use AIDAM from
+  WhatsApp/Telegram — no messenger bridges to maintain here.
+
 Runs on GPU, on CPU without PyTorch (`aidam[verificador-cpu]`, ONNX Runtime),
 or on low-RAM machines (319 MB quantized model, `AIDAM_BACKEND=onnx-mini`).
 The model is published on

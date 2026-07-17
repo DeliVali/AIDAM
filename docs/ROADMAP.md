@@ -1197,6 +1197,26 @@ class, the hardest in the benchmark.
       the previous model's 500 results — archived and refreshed; always
       check the "ya evaluadas" line.
 
+- [x] **The conversational-agent wave (2026-07-16, Jeffrey's product
+      direction), consolidated.** One day of screenshot-driven product
+      failures turned into a routed dialogue-act layer (social, computable,
+      file orders, questions, ambiguity-asks, rejections, follow-ups,
+      claims — docs/AGENT.md «conversational layer» has the full table),
+      three-tier RAM-only context (verbatim window + compacted terms +
+      GrafoPalabras keyword memory), guarded spelling cleanup, copy-ready
+      code answers, native file control (HOME-only, trash-only), measured
+      code comparison with LLM/web candidates, three post/culture sources
+      + music catalog/lyrics, a calibrated meaning-level evidence filter,
+      and an OpenAI-compatible endpoint that plugs AIDAM into OpenClaw-style
+      assistant gateways. Measured laws collected on the way: e5-small
+      cannot split same-word senses (0.90+ cosine — keyword clustering
+      wins there); generic modifiers bridge unrelated topics; naive
+      spellcheckers are verdict-corrupting (Pogba→bomba) and
+      pyspellchecker's es dictionary is mojibake-corrupted; in-cache sweep
+      deltas are not promotion evidence (DOMINANCIA +0.8 in-cache was
+      -1.8 real). Everything shipped with tests (195 green) and the
+      no-silent-guessing contract: every interpretation is shown.
+
 ### PRE-REGISTERED: verifier v22 — teaching abstention (designed
 2026-07-16, before any training run). The blind-class law says NEI is a
 representation failure: the pair-level NLI output carries no "this
