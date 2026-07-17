@@ -297,6 +297,39 @@ class _Sesion:
             self.pregunta_activa: str | None = None
             self.dominios_rechazados: set[str] = set()
 
+        # Native file control (Jeffrey, 2026-07-16): «mueve X a Y» typed in
+        # the chat. Detect → permission card with the EXACT action →
+        # execute → human result. HOME-only and trash-only by design.
+        from .agente.archivos import OrdenArchivos, ejecutar_orden, interpretar_orden
+
+        orden = interpretar_orden(afirmacion)
+        if orden is not None:
+            if isinstance(orden, str):
+                texto_orden = orden  # unclear or out-of-home: explain, do nothing
+            else:
+                modo_previo = self.modo
+                self.modo = "permisos"  # file ops ALWAYS ask, even in auto
+                try:
+                    permitido = await asyncio.to_thread(
+                        self.pedir_permiso, "archivos", orden.descripcion)
+                    texto_orden = (
+                        await asyncio.to_thread(ejecutar_orden, orden)
+                        if permitido else "Sin permiso: no toqué nada."
+                    )
+                except _Cancelado:
+                    texto_orden = "Cancelado: no toqué nada."
+                finally:
+                    self.modo = modo_previo
+            await self._enviar_async({
+                "tipo": "informe",
+                "informe": informe_a_dict(Informe(
+                    afirmacion=afirmacion, veredicto=Veredicto.INSUFICIENTE,
+                    confianza=1.0, hechos=[], tipo="pregunta",
+                    respuesta=texto_orden,
+                )),
+            })
+            return
+
         social = respuesta_social(afirmacion)
         if social is not None:
             # A greeting/thanks is a conversation, not a claim: answer like
