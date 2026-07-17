@@ -44,6 +44,19 @@ are documented alongside the promotions (label-poisoning audits, register
 interference laws, backbone trade-offs) in
 [docs/ROADMAP.md](https://github.com/DeliVali/AIDAM/blob/main/docs/ROADMAP.md).
 
+## Model family (published champions)
+
+| Repo | Specialty | Headline number |
+|---|---|---|
+| [aidam-verificador](https://huggingface.co/DeliVali/aidam-verificador) | production (AVeriTeC) | AVeriTeC-500 62.6 |
+| [aidam-verificador-v20](https://huggingface.co/DeliVali/aidam-verificador-v20) | grounding record | LLM-AggreFact **71.0** |
+| [aidam-verificador-fever](https://huggingface.co/DeliVali/aidam-verificador-fever) | FEVER specialist | FEVER **86.0** |
+| [aidam-verificador-v15](https://huggingface.co/DeliVali/aidam-verificador-v15) | scientific register | SciFact **66.3** |
+
+One 0.3B model cannot be optimal at everything — that is a measured law
+of this project (register interference, backbone trade-offs), so the
+champions are published side by side instead of pretending one wins all.
+
 ## The agent around the core
 
 The model ships inside a full local agent (GPU, CPU/ONNX, or 319 MB
