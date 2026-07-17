@@ -77,11 +77,18 @@ class ContextoConversacion:
     """
 
     _MAX_TURNOS = 20
+    _MAX_COMPACTADOS = 200  # compacted turns: terms + embedding, no full text
     _UMBRAL_ANTECEDENTE = 0.82  # must beat the recency default clearly
 
     def __init__(self) -> None:
         self.turnos: list[str] = []
         self._vectores: list = []  # one embedding per turn (lazy, best effort)
+        # Tier 2 (2025-26 consensus: verbatim window + anchored incremental
+        # summary + retrieval store — arXiv:2308.15022 recursive dialogue
+        # memory; Mem0/MemGPT tiering). Evicted turns FOLD here instead of
+        # vanishing: topic terms + embedding survive (a few hundred bytes),
+        # full text does not — genuine compaction, threshold-triggered.
+        self._compactados: list[tuple[str, object]] = []  # (términos, vector)
 
     def _codificar(self, textos: list[str]):
         from ..vectores import _codificador
@@ -95,20 +102,31 @@ class ContextoConversacion:
         except Exception:
             self._vectores.append(None)
         if len(self.turnos) > self._MAX_TURNOS:
-            self.turnos.pop(0)
-            self._vectores.pop(0)
+            texto = self.turnos.pop(0)
+            vector = self._vectores.pop(0)
+            self._compactados.append((" ".join(_terminos_clave(texto)), vector))
+            if len(self._compactados) > self._MAX_COMPACTADOS:
+                self._compactados.pop(0)
+
+    def resumen(self) -> str:
+        """Anchored rolling summary of everything outside the verbatim
+        window — term-level, deterministic, always available (the narrator
+        LLM can produce finer prose from it, never replace it)."""
+        return "; ".join(t for t, _ in self._compactados if t)
 
     def _antecedente(self, entrada: str) -> str | None:
-        """Most recent turn by default; an older turn if it matches the
-        follow-up's meaning clearly better."""
+        """Most recent turn by default; an older (or compacted-out) turn
+        if it matches the follow-up's meaning clearly better."""
         if not self.turnos:
             return None
         eleccion = self.turnos[-1]
         try:
             consulta = self._codificar([f"query: {entrada}"])[0]
             mejor, mejor_p = None, self._UMBRAL_ANTECEDENTE
-            for turno, vector in zip(self.turnos[:-1], self._vectores[:-1]):
-                if vector is None:
+            candidatos = list(zip(self.turnos[:-1], self._vectores[:-1]))
+            candidatos += [(terminos, v) for terminos, v in self._compactados]
+            for turno, vector in candidatos:
+                if vector is None or not turno:
                     continue
                 p = float(vector @ consulta)
                 if p > mejor_p:
