@@ -1210,10 +1210,15 @@ stores); (b) v12's DocNLI relabeling taught anti-refutation — so no label
 mapping: every pair is constructed, never mined-and-relabeled. Recipe:
 ~8-10k trios from AVeriTeC-train (claim + own-evidence SUPPORTS/REFUTES
 as today + cross-claim topical evidence as NEI), mixed into the v20
-recipe from the reusable pre-NLI checkpoint. Gates, fixed now: on the
-real 500 — NEI F1 >= 0.25 (from 0.125) AND accuracy >= 62.0 AND
-AggreFact >= 70.5 (no grounding regression). Any miss = documented
-rejection, v20/v10 stand.
+recipe from the reusable pre-NLI checkpoint. Gates AMENDED before any data was generated (2026-07-16): the
+original triple gate was incoherent — accuracy >= 62.0 on AVeriTeC and
+AggreFact >= 70.5 cannot coexist in one model under the measured
+backbone trade-off law. v22 targets the AVeriTeC production lineage
+(mDeBERTa base, v10-style lean mix + the new NEI pairs); gates on the
+real 500: NEI F1 >= 0.25 (from 0.09) AND accuracy >= 62.0. The
+AggreFact gate is dropped because the grounding champion (v20) is
+untouched by this experiment. Any miss = documented rejection, v10
+stands.
 
 ### Goal RAISED (2026-07-13, Jeffrey): 90 general — "ya no será 80 general
 sino 90% general". Recorded with the honest operationalization already
