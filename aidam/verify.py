@@ -43,19 +43,48 @@ def crear_verificador(device: str | None = None):
     # the cost of −2.2 accuracy — for low-RAM machines (AIDAM_BACKEND=onnx-mini).
     # Dynamic INT8 is ruled out by measurement: quantizing DeBERTa-v3
     # activations (extreme outliers) collapses 88%→51%.
-    base = Path(__file__).resolve().parent.parent / "models"
+    # AIDAM_MODELOS overrides where the ONNX models live: packaged builds
+    # (PyInstaller) point it at the first-run download dir (aidam/modelos.py),
+    # since relative-to-__file__ makes no sense inside a frozen bundle.
+    base = Path(
+        os.environ.get("AIDAM_MODELOS")
+        or Path(__file__).resolve().parent.parent / "models"
+    )
+
+    def _onnx_disponible() -> str | None:
+        for candidato in ("verificador-onnx", "verificador-onnx-mini"):
+            if (base / candidato / "config.json").exists():
+                return str(base / candidato)
+        return None
+
     forzado = os.environ.get("AIDAM_BACKEND", "").lower()
-    if forzado == "onnx-mini":
-        return VerificadorONNX(str(base / "verificador-onnx-mini"))
-    if forzado == "onnx":
-        return VerificadorONNX(str(base / "verificador-onnx"))
+    if forzado in ("onnx", "onnx-mini"):
+        nombre = "verificador-onnx-mini" if forzado == "onnx-mini" else "verificador-onnx"
+        if not (base / nombre / "config.json").exists():
+            # First run without weights: fetch from HuggingFace (downloads
+            # the mini variant), then honor whatever landed on disk.
+            from .modelos import asegurar_verificador
+
+            asegurar_verificador()
+            base = Path(os.environ.get("AIDAM_MODELOS", str(base)))
+            if not (base / nombre / "config.json").exists():
+                nombre = "verificador-onnx-mini"
+        return VerificadorONNX(str(base / nombre))
     if forzado != "torch":
         try:
             import torch  # noqa: F401
         except ImportError:
-            for candidato in ("verificador-onnx", "verificador-onnx-mini"):
-                if (base / candidato / "config.json").exists():
-                    return VerificadorONNX(str(base / candidato))
+            ruta = _onnx_disponible()
+            if ruta is None:
+                # No torch and no local ONNX: first run — download or die
+                # trying (VerificadorNLI below would just crash on import).
+                from .modelos import asegurar_verificador
+
+                asegurar_verificador()
+                base = Path(os.environ.get("AIDAM_MODELOS", str(base)))
+                ruta = _onnx_disponible()
+            if ruta is not None:
+                return VerificadorONNX(ruta)
     return VerificadorNLI(device=device)
 
 

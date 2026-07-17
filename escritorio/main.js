@@ -23,7 +23,8 @@ let cerrandoAdrede = false;
 
 function rutaBackend() {
   if (process.env.AIDAM_BACKEND_BIN) return process.env.AIDAM_BACKEND_BIN;
-  const empaquetado = path.join(process.resourcesPath || "", "backend", "aidam");
+  const binario = process.platform === "win32" ? "aidam.exe" : "aidam";
+  const empaquetado = path.join(process.resourcesPath || "", "backend", binario);
   if (app.isPackaged && fs.existsSync(empaquetado)) return empaquetado;
   return path.join(__dirname, "..", ".venv", "bin", "aidam");
 }

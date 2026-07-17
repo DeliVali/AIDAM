@@ -1,0 +1,56 @@
+name: release
+
+# Empujar un tag v* construye los instaladores en las tres plataformas y los
+# publica en el release de GitHub:
+#   Linux  → AppImage + .deb
+#   Windows → instalador NSIS (.exe)
+#   macOS  → .dmg (arm64 + x64; sin firma de Apple: Gatekeeper avisará)
+#
+# Cada instalador lleva dentro el backend autocontenido (PyInstaller, backend
+# ONNX de CPU, sin PyTorch). El modelo NO va embebido: se descarga de
+# HuggingFace al primer uso (aidam/modelos.py), ~300 MB.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write # electron-builder sube los artefactos al release
+
+jobs:
+  instaladores:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Backend autocontenido (PyInstaller, ONNX CPU)
+        run: |
+          python -m pip install --upgrade pip
+          pip install ".[verificador-cpu,interfaz,imagen]" pyinstaller
+          python packaging/empaquetar_backend.py
+
+      - name: Humo del backend congelado
+        shell: bash
+        run: |
+          ./escritorio/backend/aidam --version
+          ./escritorio/backend/aidam fuentes | head -5
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Instaladores Electron → release de GitHub
+        working-directory: escritorio
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          npm ci
+          npx electron-builder --publish always

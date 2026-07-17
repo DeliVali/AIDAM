@@ -3,7 +3,11 @@
   "productName": "AIDAM",
   "version": "0.1.0",
   "description": "AIDAM — verificación abierta de información (aplicación de escritorio)",
-  "author": "Jeffrey Romero Del Val",
+  "author": {
+    "name": "Jeffrey Romero Del Val",
+    "email": "delvaljeffrey@gmail.com"
+  },
+  "homepage": "https://github.com/DeliVali/AIDAM",
   "license": "Apache-2.0",
   "main": "main.js",
   "scripts": {
@@ -36,6 +40,25 @@
           "Keywords": "fact-checking;verificación;noticias;"
         }
       }
+    },
+    "win": {
+      "target": ["nsis"],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "license": "../LICENSE"
+    },
+    "mac": {
+      "target": [{ "target": "dmg", "arch": ["arm64", "x64"] }],
+      "icon": "build/icon.png",
+      "category": "public.app-category.utilities"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "DeliVali",
+      "repo": "AIDAM"
     },
     "extraResources": [
       {

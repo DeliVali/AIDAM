@@ -120,16 +120,18 @@ The native-window app lives in `escritorio/` — an Electron shell (Node, not
 Python) that spawns `aidam interfaz` on a free localhost port when opened and
 kills it on close. Its icon is derived from `assets/aidamlogo.svg` (the flat
 bitten apple + signature rule). Development: `cd escritorio && npm install &&
-npm start`. **GitHub releases** are built there too: `npm run empaquetar`
-produces `dist/AIDAM-<version>.AppImage` and `.deb` — those are the artifacts
-to upload; a self-contained package additionally needs the PyInstaller'd
-backend in `escritorio/backend/` (see `escritorio/README.md`).
+npm start`.
+
+**GitHub releases are one command**: `git tag v* && git push --tags` — the
+`release.yml` workflow builds installers on Linux (AppImage/deb), Windows
+(NSIS) and macOS (dmg), each embedding the self-contained backend
+(`packaging/empaquetar_backend.py`: PyInstaller over the ONNX CPU backend, no
+Python/PyTorch needed on the target). The verifier model downloads from
+HuggingFace on first use (`aidam/modelos.py`). Details and honest caveats in
+`escritorio/README.md`.
 
 ## Deliberately not done yet
 
-- **Self-contained backend binary** (PyInstaller over the ONNX CPU backend)
-  so releases run without Python installed — the `escritorio/backend/`
-  contract is defined; the build recipe is pending.
 - **Spoken verdicts** (TTS): the `voz` extra already ships kokoro-onnx for
   the CLI agent; wiring it to the UI is pending.
 - **`investigar` in the UI**: the cascade orchestrator (`aidam investigar`)
