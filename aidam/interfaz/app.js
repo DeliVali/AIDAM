@@ -30,6 +30,9 @@ const ui = {
   nuevaVerificacion: $("nueva-verificacion"),
   listaHistorial: $("lista-historial"),
   acercaVersion: $("acerca-version"),
+  botonCarpeta: $("boton-carpeta"),
+  carpetaNombre: $("carpeta-nombre"),
+  carpetaQuitar: $("carpeta-quitar"),
 };
 
 const estado = {
@@ -40,6 +43,7 @@ const estado = {
   turno: null,        // elementos DOM del turno activo
   capacidades: { imagen: false, pdf: false },
   tipoAdjunto: null,  // "imagen" | "pdf" | "texto" elegido en el menú
+  carpeta: null,      // carpeta de trabajo del agente (ruta absoluta o null)
 };
 
 const VEREDICTOS = {
@@ -96,6 +100,7 @@ function cargarPreferencias() {
   if (prefs.modo === "permisos") ui.modo.value = "permisos";
   if (prefs.idioma) ui.idioma.value = prefs.idioma;
   ui.memoria.checked = prefs.memoria !== false;
+  if (prefs.carpeta) fijarCarpeta(prefs.carpeta, { guardar: false });
 }
 
 function guardarPreferencias() {
@@ -103,6 +108,7 @@ function guardarPreferencias() {
     modo: ui.modo.value,
     idioma: ui.idioma.value,
     memoria: ui.memoria.checked,
+    carpeta: estado.carpeta,
   }));
 }
 
@@ -150,6 +156,44 @@ function manejarMensaje(m) {
     case "error": return mostrarError(m.mensaje);
   }
 }
+
+// -------------------------------------------------------- carpeta de trabajo ----
+
+function fijarCarpeta(ruta, opciones = {}) {
+  estado.carpeta = ruta || null;
+  const hay = Boolean(estado.carpeta);
+  ui.botonCarpeta.classList.toggle("con-carpeta", hay);
+  ui.carpetaQuitar.classList.toggle("oculto", !hay);
+  if (hay) {
+    const nombre = estado.carpeta.replace(/\/+$/, "").split(/[/\\]/).pop() || estado.carpeta;
+    ui.carpetaNombre.textContent = nombre;
+    ui.botonCarpeta.title = `Carpeta de trabajo: ${estado.carpeta} (clic para cambiarla)`;
+  } else {
+    ui.carpetaNombre.textContent = "Elegir carpeta…";
+    ui.botonCarpeta.title = "Elegir la carpeta donde trabaja el agente";
+  }
+  if (opciones.guardar !== false) guardarPreferencias();
+}
+
+async function elegirCarpeta() {
+  let ruta = null;
+  if (window.aidamEscritorio?.elegirCarpeta) {
+    ruta = await window.aidamEscritorio.elegirCarpeta(); // diálogo nativo (app de escritorio)
+  } else {
+    // En navegador no hay diálogo con ruta real: entrada manual honesta.
+    ruta = prompt(
+      "Ruta de la carpeta de trabajo del agente (en esta máquina):",
+      estado.carpeta || "~/",
+    );
+  }
+  if (ruta) fijarCarpeta(ruta.trim());
+}
+
+ui.botonCarpeta.addEventListener("click", elegirCarpeta);
+ui.carpetaQuitar.addEventListener("click", (e) => {
+  e.stopPropagation();
+  fijarCarpeta(null);
+});
 
 // ---------------------------------------------------------- conversaciones ----
 
@@ -212,6 +256,7 @@ function enviarVerificacion() {
     lang: ui.idioma.value,
     memoria: ui.memoria.checked,
     modo: ui.modo.value,
+    carpeta: estado.carpeta || undefined,
   }));
 
   quitarBienvenida();

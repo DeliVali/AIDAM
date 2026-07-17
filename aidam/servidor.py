@@ -17,9 +17,12 @@ WebSocket protocol (JSON messages, documented in docs/INTERFAZ.md):
 
   client → server
     {"tipo": "verificar", "afirmacion": str, "lang": str, "max_idiomas": int,
-     "modo": "auto" | "permisos"}
+     "modo": "auto" | "permisos", "carpeta": str?}
     # "preguntas" (bool) is accepted but optional: if absent, the agent
     # decides — LLM-guided search runs whenever the local model is present.
+    # "carpeta" (optional) is the agent's working folder, chosen visually in
+    # the UI; it is validated (must exist) and kept on the session as the
+    # workspace root for file-facing agent tools.
     {"tipo": "permiso_respuesta", "id": int, "aprobado": bool, "todo": bool}
     {"tipo": "cancelar"}
 
@@ -137,6 +140,7 @@ class _Sesion:
         self.buscar_web_fn = buscar_web_fn
         self.loop = asyncio.get_running_loop()
         self.modo = "auto"
+        self.carpeta_trabajo: Path | None = None
         self.tarea: asyncio.Task | None = None
         self.cancelado = threading.Event()
         self._permisos: dict[int, tuple[threading.Event, dict]] = {}
@@ -265,6 +269,22 @@ class _Sesion:
             return
         self.cancelado.clear()
         self.modo = peticion.get("modo", "auto")
+
+        # Working folder: the agent's workspace root, chosen visually in the
+        # UI. Validated here so a typo fails loud, then kept on the session
+        # for the file-facing agent tools (agente/herramientas) to anchor on.
+        carpeta = (peticion.get("carpeta") or "").strip()
+        if carpeta:
+            ruta = Path(carpeta).expanduser()
+            if not ruta.is_dir():
+                await self._enviar_async(
+                    {
+                        "tipo": "error",
+                        "mensaje": f"La carpeta de trabajo no existe: {ruta}",
+                    }
+                )
+                return
+            self.carpeta_trabajo = ruta
 
         # Conversational context: a follow-up («¿y en el contexto de…?»)
         # is rewritten self-contained against the best antecedent turn —

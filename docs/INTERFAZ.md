@@ -59,6 +59,17 @@ prior verdict as context — and re-verifies anyway: a remembered verdict is
 never a substitute (facts change). Uncheck **memoria** to skip both the lookup
 and the save for one run.
 
+## Working folder (📁)
+
+AIDAM is an agent, and agents work somewhere: the sidebar's **Carpeta de
+trabajo** picks the workspace root. In the desktop app it opens the native
+folder dialog (`escritorio/preload.js` → IPC → `dialog.showOpenDialog`); in a
+browser there is no real-path dialog, so the UI falls back to typing the path
+(the server runs on the same machine). The choice persists, travels with each
+`verificar` message, is validated server-side (a typo fails loud, not
+silently) and lives on the session as the anchor for the file-facing agent
+tools (`aidam/agente/herramientas.py`).
+
 ## Documents (📎)
 
 The attach button opens a list of document types; extraction is always local
@@ -81,9 +92,12 @@ One connection per tab, one verification at a time. JSON messages:
 ```
 client → server
   {"tipo": "verificar", "afirmacion": str, "lang": "es", "max_idiomas": 5,
-   "memoria": true, "modo": "auto" | "permisos"}
+   "memoria": true, "modo": "auto" | "permisos", "carpeta": str?}
   # "preguntas" (bool) accepted but optional: absent → the agent decides
   # (LLM-guided search runs whenever the local model is present)
+  # "carpeta" (optional): the agent's working folder — validated server-side
+  # (must exist) and kept on the session as the workspace root for
+  # file-facing agent tools
   {"tipo": "permiso_respuesta", "id": int, "aprobado": bool, "todo": bool}
   {"tipo": "cancelar"}
 

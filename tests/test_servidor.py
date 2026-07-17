@@ -269,6 +269,33 @@ def test_sin_memoria_no_guarda(cliente):
     assert cliente.get("/api/historial").json()["historial"] == []
 
 
+def test_carpeta_de_trabajo_valida_se_acepta(cliente, tmp_path):
+    with cliente.websocket_connect("/ws") as ws:
+        _enviar(
+            ws,
+            tipo="verificar",
+            afirmacion="Una afirmación",
+            carpeta=str(tmp_path),
+            memoria=False,
+        )
+        informe = _recibir_hasta(ws, "informe")["informe"]
+    assert informe["veredicto"] == "sustentado"
+
+
+def test_carpeta_de_trabajo_inexistente_da_error(cliente):
+    with cliente.websocket_connect("/ws") as ws:
+        _enviar(
+            ws,
+            tipo="verificar",
+            afirmacion="Una afirmación",
+            carpeta="/no/existe/en-ningun-sitio",
+            memoria=False,
+        )
+        mensaje = _recibir(ws)
+    assert mensaje["tipo"] == "error"
+    assert "carpeta de trabajo" in mensaje["mensaje"]
+
+
 def test_reabrir_verificacion_guardada(cliente):
     with cliente.websocket_connect("/ws") as ws:
         _enviar(ws, tipo="verificar", afirmacion="La Torre Eiffel está en París")

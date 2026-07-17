@@ -143,6 +143,39 @@ body {
   padding: 0 8px 6px;
 }
 
+/* carpeta de trabajo del agente */
+.boton-carpeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 4px 18px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--contorno);
+  background: var(--vidrio);
+  color: var(--texto);
+  font-family: var(--fuente);
+  font-size: 0.82rem;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.boton-carpeta:hover { background: var(--vidrio-alzado); border-color: rgba(228, 201, 143, 0.5); }
+
+.boton-carpeta.con-carpeta { border-color: rgba(228, 201, 143, 0.45); background: rgba(228, 201, 143, 0.07); }
+
+.carpeta-nombre {
+  flex: 1;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  color: var(--texto-tenue);
+}
+
+.con-carpeta .carpeta-nombre { color: var(--dorado); font-family: var(--mono); font-size: 0.74rem; }
+
+.carpeta-quitar { color: var(--texto-tenue); padding: 0 2px; }
+.carpeta-quitar:hover { color: var(--manzana); }
+
 .lista-historial {
   list-style: none;
   margin: 0;
