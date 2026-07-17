@@ -403,7 +403,7 @@ class _Sesion:
             if cambios:
                 await self._enviar_async(
                     {"tipo": "progreso",
-                     "mensaje": "ortografía interpretada: " + ", ".join(cambios)})
+                     "mensaje": "Ortografía interpretada: " + ", ".join(cambios)})
                 afirmacion = corregida
 
         # Clarification block (Jeffrey's design): if the agent just asked
@@ -434,7 +434,7 @@ class _Sesion:
             excluir = self.dominios_rechazados
             await self._enviar_async(
                 {"tipo": "progreso",
-                 "mensaje": f"entendido — busco otra respuesta para: «{afirmacion}» "
+                 "mensaje": f"Entendido — busco otra respuesta para: «{afirmacion}» "
                             f"(excluyendo {', '.join(sorted(excluir)) or 'nada'})"}
             )
         else:
@@ -442,7 +442,7 @@ class _Sesion:
             if resuelta != afirmacion:
                 await self._enviar_async(
                     {"tipo": "progreso",
-                     "mensaje": f"pregunta interpretada con el contexto: «{resuelta}»"}
+                     "mensaje": f"Pregunta interpretada con el contexto: «{resuelta}»"}
                 )
                 afirmacion = resuelta
             self.pregunta_activa = afirmacion

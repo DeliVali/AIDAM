@@ -133,7 +133,11 @@ function conectar() {
     estado.conectado = true;
     estado.intentoReconexion = 0;
     ui.estadoConexion.className = "estado-conexion conectado";
-    ui.estadoTexto.textContent = "conectado";
+    ui.estadoTexto.textContent = "Conectado";
+    // Los fetch de arranque pueden perder la carrera contra un servidor que
+    // aún despierta; el WS sí reintenta, así que al conectar se recargan.
+    cargarConversaciones();
+    if (ui.acercaVersion.textContent === "—") cargarCapacidades();
   };
 
   ws.onmessage = (evento) => {
@@ -145,7 +149,7 @@ function conectar() {
   ws.onclose = () => {
     estado.conectado = false;
     ui.estadoConexion.className = "estado-conexion desconectado";
-    ui.estadoTexto.textContent = "desconectado";
+    ui.estadoTexto.textContent = "Desconectado";
     if (estado.enCurso) terminarTurno();
     const espera = Math.min(10000, 500 * 2 ** estado.intentoReconexion++);
     setTimeout(conectar, espera);
@@ -341,7 +345,7 @@ function terminarTurno() {
   t.registro.querySelector(".actual")?.classList.remove("actual");
   const plegado = document.createElement("details");
   plegado.className = "registro-plegado";
-  const resumen = crear("summary", null, `ver proceso (${t.pasos} pasos)`);
+  const resumen = crear("summary", null, `Ver el proceso (${t.pasos} pasos)`);
   plegado.appendChild(resumen);
   t.registro.replaceWith(plegado);
   plegado.appendChild(t.registro);
@@ -373,12 +377,12 @@ function pedirPermiso(m) {
   };
 
   const permitir = crear("button", "boton-primario", "Permitir");
-  permitir.onclick = () => responder(true, false, "✓ permitido");
+  permitir.onclick = () => responder(true, false, "✓ Permitido");
   const todo = crear("button", "boton-secundario", "Permitir todo");
   todo.title = "Aprueba esta acción y el resto de la verificación sigue en automático";
-  todo.onclick = () => responder(true, true, "✓ permitido todo — el resto sigue en automático");
+  todo.onclick = () => responder(true, true, "✓ Permitido todo — el resto sigue en automático");
   const denegar = crear("button", "boton-peligro", "Denegar");
-  denegar.onclick = () => responder(false, false, "✗ denegado — esa búsqueda se omite");
+  denegar.onclick = () => responder(false, false, "✗ Denegado — esa búsqueda se omite");
 
   botones.append(permitir, todo, denegar);
   tarjeta.appendChild(botones);
@@ -395,7 +399,7 @@ function mostrarMemoria(previas) {
   const v = VEREDICTOS[ultima.veredicto] || { titulo: ultima.veredicto };
   const chip = crear(
     "div", "chip-memoria",
-    `🕊 ya verificada el ${fechaCorta(ultima.fecha)}: ${v.titulo.toLowerCase()} ` +
+    `🕊 Ya verificada el ${fechaCorta(ultima.fecha)}: ${v.titulo.toLowerCase()} ` +
     `(confianza ${Math.round(ultima.confianza * 100)}%) — se vuelve a verificar igualmente`
   );
   t.contenedor.insertBefore(chip, t.registro);
@@ -591,7 +595,7 @@ async function procesarArchivo(archivo, tipo) {
   const url = esImagen ? "/api/imagen" : "/api/documento";
   const nombre = archivo.name || (esImagen ? "imagen.png" : "documento");
 
-  mostrarAdjunto(`${esImagen ? "🖼" : "📄"} extrayendo texto de ${nombre}…`);
+  mostrarAdjunto(`${esImagen ? "🖼" : "📄"} Extrayendo texto de ${nombre}…`);
   try {
     const datos = new FormData();
     datos.append("archivo", archivo, nombre);
@@ -609,7 +613,7 @@ async function procesarArchivo(archivo, tipo) {
       recorte = ` (recortado a ${MAX_TEXTO_DOCUMENTO} caracteres)`;
     }
     insertarTexto(texto);
-    mostrarAdjunto(`${esImagen ? "🖼" : "📄"} texto extraído de ${nombre}${recorte} — revísalo antes de verificar`);
+    mostrarAdjunto(`${esImagen ? "🖼" : "📄"} Texto extraído de ${nombre}${recorte} — revísalo antes de verificar`);
   } catch (err) {
     mostrarAdjunto("");
     avisar(`No se pudo leer ${nombre}: ${err.message}`, true);
@@ -647,7 +651,7 @@ async function cargarConversaciones() {
     for (const fila of conversaciones) {
       const item = crear("li");
       item.dataset.id = String(fila.id);
-      item.appendChild(crear("span", "historial-afirmacion", fila.titulo || "(sin título)"));
+      item.appendChild(crear("span", "historial-afirmacion", fila.titulo || "(Sin título)"));
       const turnos = `${fila.turnos} turno${fila.turnos === 1 ? "" : "s"}`;
       item.appendChild(crear("span", "historial-meta",
         `${turnos} · ${fechaCorta(fila.ultima)}`));
@@ -734,13 +738,7 @@ ui.nuevaVerificacion.addEventListener("click", nuevaConversacion);
 
 // ------------------------------------------------------------------ inicio ----
 
-async function iniciar() {
-  cargarPreferencias();
-  ui.conversacion.appendChild(ui.plantillaBienvenida.content.cloneNode(true));
-  conectarEjemplos();
-  conectar();
-  renderEspacios();
-  cargarConversaciones();
+async function cargarCapacidades() {
   try {
     const respuesta = await fetch("/api/capacidades");
     estado.capacidades = await respuesta.json();
@@ -748,6 +746,16 @@ async function iniciar() {
   } catch {
     /* sin capacidades opcionales; los botones lo explican al usarse */
   }
+}
+
+async function iniciar() {
+  cargarPreferencias();
+  ui.conversacion.appendChild(ui.plantillaBienvenida.content.cloneNode(true));
+  conectarEjemplos();
+  conectar();
+  renderEspacios();
+  cargarConversaciones();
+  cargarCapacidades();
   ui.entrada.focus();
 }
 
