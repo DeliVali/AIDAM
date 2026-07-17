@@ -42,6 +42,11 @@ interfaz = [
     "uvicorn[standard]>=0.29",
     "python-multipart>=0.0.9",
     "pypdf>=4.0",
+    # Conservative question spelling cleanup (11 dictionary languages;
+    # gracefully absent otherwise). The es diacritics use a curated map
+    # in aidam/agente/ortografia.py: the package's es dictionary is
+    # mojibake-corrupted (measured 2026-07-16).
+    "pyspellchecker>=0.8",
 ]
 # Local voice recognition (private: audio never leaves the machine).
 # STT: faster-whisper (MIT). Capture/VAD: RealtimeSTT (MIT, bundles Silero

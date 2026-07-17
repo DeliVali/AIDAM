@@ -310,6 +310,20 @@ class _Sesion:
             })
             return
 
+        # Spelling cleanup, questions only, always shown (never claims:
+        # their exact wording is what gets verified).
+        from .agente.ortografia import corregir_pregunta
+        from .agente.sintesis import es_pregunta
+
+        if es_pregunta(afirmacion):
+            corregida, cambios = corregir_pregunta(
+                afirmacion, peticion.get("lang", "es"))
+            if cambios:
+                await self._enviar_async(
+                    {"tipo": "progreso",
+                     "mensaje": "ortografía interpretada: " + ", ".join(cambios)})
+                afirmacion = corregida
+
         excluir: set[str] = set()
         if es_rechazo(afirmacion) and self.pregunta_activa:
             # «no, no es esa» is a dialogue act, not a claim: re-answer the
