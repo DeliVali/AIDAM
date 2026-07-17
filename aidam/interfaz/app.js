@@ -19,7 +19,9 @@ const TEXTOS = {
   es: {
     nuevaVerificacion: "＋ Nueva verificación",
     espacios: "Espacios de trabajo",
+    general: "General",
     generalTitulo: "Espacio general: siempre disponible, sin carpeta que elegir",
+    ejemplos: ["La Torre Eiffel está en París", "El aluminio de las vacunas causa autismo", "La Gran Muralla China se ve desde el espacio"],
     anadirCarpeta: "Añadir carpeta…",
     anadirCarpetaTitulo: "Añadir una carpeta como espacio de trabajo",
     quitarEspacio: "Quitar este espacio de la lista (sus conversaciones no se borran)",
@@ -87,7 +89,9 @@ const TEXTOS = {
   en: {
     nuevaVerificacion: "＋ New verification",
     espacios: "Workspaces",
+    general: "General",
     generalTitulo: "General workspace: always available, no folder needed",
+    ejemplos: ["The Eiffel Tower is in Paris", "Vaccine aluminum causes autism", "The Great Wall of China is visible from space"],
     anadirCarpeta: "Add folder…",
     anadirCarpetaTitulo: "Add a folder as a workspace",
     quitarEspacio: "Remove this workspace from the list (its conversations are kept)",
@@ -155,6 +159,8 @@ const TEXTOS = {
   fr: {
     nuevaVerificacion: "＋ Nouvelle vérification",
     espacios: "Espaces de travail",
+    general: "Général",
+    ejemplos: ["La tour Eiffel est à Paris", "L'aluminium des vaccins cause l'autisme", "La Grande Muraille de Chine est visible depuis l'espace"],
     generalTitulo: "Espace général : toujours disponible, aucun dossier à choisir",
     anadirCarpeta: "Ajouter un dossier…",
     anadirCarpetaTitulo: "Ajouter un dossier comme espace de travail",
@@ -223,6 +229,8 @@ const TEXTOS = {
   de: {
     nuevaVerificacion: "＋ Neue Überprüfung",
     espacios: "Arbeitsbereiche",
+    general: "Allgemein",
+    ejemplos: ["Der Eiffelturm steht in Paris", "Aluminium in Impfstoffen verursacht Autismus", "Die Chinesische Mauer ist aus dem All sichtbar"],
     generalTitulo: "Allgemeiner Bereich: immer verfügbar, kein Ordner nötig",
     anadirCarpeta: "Ordner hinzufügen…",
     anadirCarpetaTitulo: "Einen Ordner als Arbeitsbereich hinzufügen",
@@ -291,6 +299,8 @@ const TEXTOS = {
   pt: {
     nuevaVerificacion: "＋ Nova verificação",
     espacios: "Espaços de trabalho",
+    general: "Geral",
+    ejemplos: ["A Torre Eiffel fica em Paris", "O alumínio das vacinas causa autismo", "A Grande Muralha da China é visível do espaço"],
     generalTitulo: "Espaço geral: sempre disponível, sem pasta para escolher",
     anadirCarpeta: "Adicionar pasta…",
     anadirCarpetaTitulo: "Adicionar uma pasta como espaço de trabalho",
@@ -359,6 +369,8 @@ const TEXTOS = {
   it: {
     nuevaVerificacion: "＋ Nuova verifica",
     espacios: "Spazi di lavoro",
+    general: "Generale",
+    ejemplos: ["La Torre Eiffel è a Parigi", "L'alluminio nei vaccini causa l'autismo", "La Grande Muraglia cinese è visibile dallo spazio"],
     generalTitulo: "Spazio generale: sempre disponibile, nessuna cartella da scegliere",
     anadirCarpeta: "Aggiungi cartella…",
     anadirCarpetaTitulo: "Aggiungi una cartella come spazio di lavoro",
@@ -570,11 +582,24 @@ function aplicarIdioma() {
   const plantilla = ui.plantillaBienvenida.content;
   plantilla.querySelector("h1").textContent = t("bienvenidaTitulo");
   plantilla.querySelector("p").textContent = t("bienvenidaTexto");
+  const ejemplos = t("ejemplos");
+  const traducirEjemplos = (raiz) => {
+    raiz.querySelectorAll(".ejemplo").forEach((boton, i) => {
+      if (ejemplos[i]) boton.textContent = ejemplos[i];
+    });
+  };
+  traducirEjemplos(plantilla);
   const visible = ui.conversacion.querySelector(".bienvenida");
   if (visible) {
     visible.querySelector("h1").textContent = t("bienvenidaTitulo");
     visible.querySelector("p").textContent = t("bienvenidaTexto");
+    traducirEjemplos(visible);
   }
+
+  // El marcador estático de lista vacía también habla el idioma elegido
+  // (cargarConversaciones lo reemplaza en cuanto el servidor responde).
+  const vacio = ui.listaConversaciones.querySelector(".historial-vacio");
+  if (vacio) vacio.textContent = t("sinConversaciones");
 
   renderEspacios();
   cargarConversaciones();
@@ -710,7 +735,7 @@ function renderEspacios() {
 
   const general = crear("li");
   general.appendChild(crear("span", null, "🏠"));
-  general.appendChild(crear("span", "espacio-nombre", "General"));
+  general.appendChild(crear("span", "espacio-nombre", t("general")));
   general.title = t("generalTitulo");
   general.classList.toggle("activa", estado.espacio === null);
   general.onclick = () => seleccionarEspacio(null);
