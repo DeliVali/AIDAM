@@ -17,17 +17,22 @@ WebSocket protocol (JSON messages, documented in docs/INTERFAZ.md):
 
   client → server
     {"tipo": "verificar", "afirmacion": str, "lang": str, "max_idiomas": int,
-     "modo": "auto" | "permisos", "carpeta": str?}
+     "modo": "auto" | "permisos", "carpeta": str?, "conversacion": int?}
     # "preguntas" (bool) is accepted but optional: if absent, the agent
     # decides — LLM-guided search runs whenever the local model is present.
-    # "carpeta" (optional) is the agent's working folder, chosen visually in
-    # the UI; it is validated (must exist) and kept on the session as the
-    # workspace root for file-facing agent tools.
+    # "carpeta" (optional) is the agent's workspace folder, chosen visually
+    # in the UI; absent → the General workspace (a real per-OS data folder
+    # that always exists). Validated (must exist) and kept on the session as
+    # the root for file-facing agent tools.
+    # "conversacion" (optional) threads turns: absent → a new conversation is
+    # created in the workspace and announced via {"tipo": "conversacion"};
+    # a stored id → that thread is reopened and CONTINUED (context rebuilt).
     {"tipo": "permiso_respuesta", "id": int, "aprobado": bool, "todo": bool}
     {"tipo": "cancelar"}
 
   server → client
     {"tipo": "progreso", "mensaje": str}
+    {"tipo": "conversacion", "id": int}   # nueva conversación creada
     {"tipo": "permiso", "id": int, "accion": str, "detalle": str}
     {"tipo": "memoria", "previas": [{"veredicto", "confianza", "fecha"}, …]}
     {"tipo": "informe", "informe": {…}}      # models.informe_a_dict shape
@@ -46,6 +51,7 @@ import io
 import itertools
 import json
 import os
+import re
 import threading
 import webbrowser
 from functools import lru_cache
@@ -141,6 +147,7 @@ class _Sesion:
         self.loop = asyncio.get_running_loop()
         self.modo = "auto"
         self.carpeta_trabajo: Path | None = None
+        self.conversacion_id: int | None = None
         self.tarea: asyncio.Task | None = None
         self.cancelado = threading.Event()
         self._permisos: dict[int, tuple[threading.Event, dict]] = {}
@@ -270,9 +277,12 @@ class _Sesion:
         self.cancelado.clear()
         self.modo = peticion.get("modo", "auto")
 
-        # Working folder: the agent's workspace root, chosen visually in the
-        # UI. Validated here so a typo fails loud, then kept on the session
-        # for the file-facing agent tools (agente/herramientas) to anchor on.
+        # Working folder = workspace. Chosen visually in the UI and validated
+        # here so a typo fails loud. Absent → the «General» workspace: a real
+        # per-OS data folder that always exists (aidam/plataforma.py); its
+        # sentinel in the database is ''.
+        from .plataforma import carpeta_general
+
         carpeta = (peticion.get("carpeta") or "").strip()
         if carpeta:
             ruta = Path(carpeta).expanduser()
@@ -285,6 +295,10 @@ class _Sesion:
                 )
                 return
             self.carpeta_trabajo = ruta
+            carpeta_bd = str(ruta)
+        else:
+            self.carpeta_trabajo = carpeta_general()
+            carpeta_bd = ""
 
         # Conversational context: a follow-up («¿y en el contexto de…?»)
         # is rewritten self-contained against the best antecedent turn —
@@ -296,6 +310,41 @@ class _Sesion:
             self.contexto = ContextoConversacion()
             self.pregunta_activa: str | None = None
             self.dominios_rechazados: set[str] = set()
+
+        # Conversation threading: every saved turn belongs to a conversation
+        # (a `sesiones` row) of the active workspace. Absent id → fresh
+        # conversation (announced back so the client binds to it); a
+        # different id → reopen and CONTINUE: the RAM-only context is rebuilt
+        # from the stored turns, so follow-ups keep resolving.
+        memoria = (
+            self.obtener_memoria() if bool(peticion.get("memoria", True)) else None
+        )
+        if memoria is not None:
+            try:
+                pedido = peticion.get("conversacion")
+                if pedido is None:
+                    self.conversacion_id = memoria.nueva_sesion(carpeta_bd)
+                    self.contexto = ContextoConversacion()
+                    self.pregunta_activa = None
+                    self.dominios_rechazados = set()
+                    await self._enviar_async(
+                        {"tipo": "conversacion", "id": self.conversacion_id}
+                    )
+                elif int(pedido) != self.conversacion_id:
+                    self.conversacion_id = int(pedido)
+                    hilo = memoria.hilo(self.conversacion_id)
+                    self.contexto = ContextoConversacion()
+                    for turno in hilo:
+                        self.contexto.agregar(turno["afirmacion"])
+                    self.pregunta_activa = (
+                        hilo[-1]["afirmacion"] if hilo else None
+                    )
+                    self.ultima_respuesta = (
+                        hilo[-1]["informe"].get("respuesta", "") if hilo else ""
+                    )
+                    self.dominios_rechazados = set()
+            except Exception:
+                self.conversacion_id = None  # memoria coja: se verifica igual
 
         # Native file control (Jeffrey, 2026-07-16): «mueve X a Y» typed in
         # the chat. Detect → permission card with the EXACT action →
@@ -357,6 +406,23 @@ class _Sesion:
                      "mensaje": "ortografía interpretada: " + ", ".join(cambios)})
                 afirmacion = corregida
 
+        # Clarification block (Jeffrey's design): if the agent just asked
+        # «¿a qué te refieres…?», this message is the user's clarification —
+        # it joins the SAME context block and the refined question re-runs.
+        pendiente = getattr(self, "bloque_pendiente", None)
+        if pendiente and not es_rechazo(afirmacion) and len(afirmacion) < 90:
+            base = pendiente.strip(" ¿?")
+            terminos = {t.casefold() for t in base.split() if len(t) > 3}
+            contiene = any(t in afirmacion.casefold() for t in terminos)
+            refinada = afirmacion if contiene else f"{base}: {afirmacion}"
+            if not refinada.endswith("?"):
+                refinada += "?"
+            await self._enviar_async(
+                {"tipo": "progreso",
+                 "mensaje": f"bloque de contexto completado: «{refinada}»"})
+            afirmacion = refinada
+            self.bloque_pendiente = None
+
         excluir: set[str] = set()
         if es_rechazo(afirmacion) and self.pregunta_activa:
             # «no, no es esa» is a dialogue act, not a claim: re-answer the
@@ -384,9 +450,6 @@ class _Sesion:
 
         # Remembered verdicts are CONTEXT for the user, never a shortcut:
         # the claim is re-verified below regardless (same rule as the CLI).
-        memoria = (
-            self.obtener_memoria() if bool(peticion.get("memoria", True)) else None
-        )
         if memoria is not None:
             try:
                 previas = [
@@ -412,9 +475,12 @@ class _Sesion:
                 excluir or None,
             )
             self.ultima_respuesta = informe.respuesta or ""
+            self.bloque_pendiente = (
+                afirmacion if getattr(informe, "tipo", "") == "aclaracion" else None
+            )
             if memoria is not None:
                 try:
-                    memoria.guardar(informe)
+                    memoria.guardar(informe, sesion_id=self.conversacion_id)
                 except Exception:
                     pass  # a memory failure must never eat the verdict
             await self._enviar_async(
@@ -598,6 +664,44 @@ def crear_app(
             return {"historial": memoria.historial(limite)}
         except Exception:
             return {"historial": []}
+
+    @app.get("/api/carpetas")
+    async def api_carpetas():
+        """Workspaces with activity (General is implicit: always exists)."""
+        memoria = obtener_memoria()
+        if memoria is None:
+            return {"carpetas": []}
+        try:
+            return {"carpetas": memoria.carpetas()}
+        except Exception:
+            return {"carpetas": []}
+
+    @app.get("/api/conversaciones")
+    async def api_conversaciones(carpeta: str = "", limite: int = 30):
+        """Conversations of one workspace ('' = General), for the sidebar."""
+        memoria = obtener_memoria()
+        if memoria is None:
+            return {"conversaciones": []}
+        try:
+            return {"conversaciones": memoria.conversaciones(carpeta, limite)}
+        except Exception:
+            return {"conversaciones": []}
+
+    @app.get("/api/conversacion/{id_conversacion}")
+    async def api_conversacion(id_conversacion: int):
+        """Full thread of one conversation: reopen it and keep chatting."""
+        memoria = obtener_memoria()
+        hilo = []
+        if memoria is not None:
+            try:
+                hilo = memoria.hilo(id_conversacion)
+            except Exception:
+                hilo = []
+        if not hilo:
+            return JSONResponse(
+                status_code=404, content={"error": "Conversación no encontrada."}
+            )
+        return {"id": id_conversacion, "turnos": hilo}
 
     @app.get("/api/verificacion/{id_verificacion}")
     async def api_verificacion(id_verificacion: int):

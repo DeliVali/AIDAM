@@ -90,6 +90,18 @@ def verificar(
 
         hecho_q = HechoAtomico(texto=afirmacion, origen="pregunta")
         evidencias = buscar(hecho_q, lang=lang, max_idiomas=max_idiomas, categoria=None)
+        # Jeffrey's clarification loop: measured ambiguity (evidence
+        # splitting into distinct senses) means ASK, not guess. The
+        # caller binds the user's next message to this context block.
+        from .agente.sintesis import aclaracion_necesaria
+
+        aclaracion = aclaracion_necesaria(afirmacion, evidencias)
+        if aclaracion is not None:
+            avisar("Evidencia ambigua: pido aclaración en vez de adivinar")
+            return Informe(
+                afirmacion=afirmacion, veredicto=Veredicto.INSUFICIENTE,
+                confianza=0.0, hechos=[], tipo="aclaracion", respuesta=aclaracion,
+            )
         return Informe(
             afirmacion=afirmacion,
             veredicto=Veredicto.INSUFICIENTE,

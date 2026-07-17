@@ -28,11 +28,10 @@ const ui = {
   estadoTexto: $("estado-texto"),
   avisos: $("avisos"),
   nuevaVerificacion: $("nueva-verificacion"),
-  listaHistorial: $("lista-historial"),
+  listaEspacios: $("lista-espacios"),
+  anadirCarpeta: $("boton-anadir-carpeta"),
+  listaConversaciones: $("lista-conversaciones"),
   acercaVersion: $("acerca-version"),
-  botonCarpeta: $("boton-carpeta"),
-  carpetaNombre: $("carpeta-nombre"),
-  carpetaQuitar: $("carpeta-quitar"),
 };
 
 const estado = {
@@ -42,8 +41,10 @@ const estado = {
   enCurso: false,     // hay una verificación corriendo
   turno: null,        // elementos DOM del turno activo
   capacidades: { imagen: false, pdf: false },
-  tipoAdjunto: null,  // "imagen" | "pdf" | "texto" elegido en el menú
-  carpeta: null,      // carpeta de trabajo del agente (ruta absoluta o null)
+  tipoAdjunto: null,   // "imagen" | "pdf" | "texto" elegido en el menú
+  carpetas: [],        // espacios añadidos por el usuario (rutas absolutas)
+  espacio: null,       // espacio activo: null = General, o una ruta de carpetas
+  conversacion: null,  // id de la conversación activa (null = aún sin crear)
 };
 
 const VEREDICTOS = {
@@ -100,7 +101,11 @@ function cargarPreferencias() {
   if (prefs.modo === "permisos") ui.modo.value = "permisos";
   if (prefs.idioma) ui.idioma.value = prefs.idioma;
   ui.memoria.checked = prefs.memoria !== false;
-  if (prefs.carpeta) fijarCarpeta(prefs.carpeta, { guardar: false });
+  estado.carpetas = Array.isArray(prefs.carpetas) ? prefs.carpetas : [];
+  if (prefs.carpeta && !estado.carpetas.includes(prefs.carpeta)) {
+    estado.carpetas.push(prefs.carpeta); // migración: carpeta única → lista
+  }
+  estado.espacio = estado.carpetas.includes(prefs.espacio) ? prefs.espacio : null;
 }
 
 function guardarPreferencias() {
@@ -108,7 +113,8 @@ function guardarPreferencias() {
     modo: ui.modo.value,
     idioma: ui.idioma.value,
     memoria: ui.memoria.checked,
-    carpeta: estado.carpeta,
+    carpetas: estado.carpetas,
+    espacio: estado.espacio,
   }));
 }
 
@@ -149,6 +155,7 @@ function conectar() {
 function manejarMensaje(m) {
   switch (m.tipo) {
     case "progreso": return anotarProgreso(m.mensaje);
+    case "conversacion": return engancharConversacion(m.id);
     case "permiso": return pedirPermiso(m);
     case "memoria": return mostrarMemoria(m.previas);
     case "informe": return mostrarInforme(m.informe);
@@ -157,52 +164,81 @@ function manejarMensaje(m) {
   }
 }
 
-// -------------------------------------------------------- carpeta de trabajo ----
-
-function fijarCarpeta(ruta, opciones = {}) {
-  estado.carpeta = ruta || null;
-  const hay = Boolean(estado.carpeta);
-  ui.botonCarpeta.classList.toggle("con-carpeta", hay);
-  ui.carpetaQuitar.classList.toggle("oculto", !hay);
-  if (hay) {
-    const nombre = estado.carpeta.replace(/\/+$/, "").split(/[/\\]/).pop() || estado.carpeta;
-    ui.carpetaNombre.textContent = nombre;
-    ui.botonCarpeta.title = `Carpeta de trabajo: ${estado.carpeta} (clic para cambiarla)`;
-  } else {
-    ui.carpetaNombre.textContent = "Elegir carpeta…";
-    ui.botonCarpeta.title = "Elegir la carpeta donde trabaja el agente";
-  }
-  if (opciones.guardar !== false) guardarPreferencias();
+function engancharConversacion(id) {
+  // El servidor creó el hilo para este turno: los siguientes siguen en él.
+  estado.conversacion = id;
 }
 
-async function elegirCarpeta() {
+// ------------------------------------------------------ espacios de trabajo ----
+
+function nombreDeCarpeta(ruta) {
+  return ruta.replace(/[/\\]+$/, "").split(/[/\\]/).pop() || ruta;
+}
+
+function renderEspacios() {
+  ui.listaEspacios.replaceChildren();
+
+  const general = crear("li");
+  general.appendChild(crear("span", null, "🏠"));
+  general.appendChild(crear("span", "espacio-nombre", "General"));
+  general.title = "Espacio general: siempre disponible, sin carpeta que elegir";
+  general.classList.toggle("activa", estado.espacio === null);
+  general.onclick = () => seleccionarEspacio(null);
+  ui.listaEspacios.appendChild(general);
+
+  for (const ruta of estado.carpetas) {
+    const item = crear("li");
+    item.appendChild(crear("span", null, "📁"));
+    item.appendChild(crear("span", "espacio-nombre", nombreDeCarpeta(ruta)));
+    item.title = ruta;
+    item.classList.toggle("activa", estado.espacio === ruta);
+    item.onclick = () => seleccionarEspacio(ruta);
+    const quitar = crear("span", "espacio-quitar", "✕");
+    quitar.title = "Quitar este espacio de la lista (sus conversaciones no se borran)";
+    quitar.onclick = (e) => {
+      e.stopPropagation();
+      estado.carpetas = estado.carpetas.filter((c) => c !== ruta);
+      if (estado.espacio === ruta) seleccionarEspacio(null);
+      else { guardarPreferencias(); renderEspacios(); }
+    };
+    item.appendChild(quitar);
+    ui.listaEspacios.appendChild(item);
+  }
+}
+
+function seleccionarEspacio(ruta) {
+  estado.espacio = ruta;
+  guardarPreferencias();
+  renderEspacios();
+  cargarConversaciones();
+  nuevaConversacion();
+}
+
+async function anadirCarpeta() {
   let ruta = null;
   if (window.aidamEscritorio?.elegirCarpeta) {
     ruta = await window.aidamEscritorio.elegirCarpeta(); // diálogo nativo (app de escritorio)
   } else {
     // En navegador no hay diálogo con ruta real: entrada manual honesta.
-    ruta = prompt(
-      "Ruta de la carpeta de trabajo del agente (en esta máquina):",
-      estado.carpeta || "~/",
-    );
+    ruta = prompt("Ruta de la carpeta a añadir como espacio de trabajo:", "~/");
   }
-  if (ruta) fijarCarpeta(ruta.trim());
+  if (!ruta) return;
+  ruta = ruta.trim();
+  if (!estado.carpetas.includes(ruta)) estado.carpetas.push(ruta);
+  seleccionarEspacio(ruta);
 }
 
-ui.botonCarpeta.addEventListener("click", elegirCarpeta);
-ui.carpetaQuitar.addEventListener("click", (e) => {
-  e.stopPropagation();
-  fijarCarpeta(null);
-});
+ui.anadirCarpeta.addEventListener("click", anadirCarpeta);
 
 // ---------------------------------------------------------- conversaciones ----
 
 function nuevaConversacion() {
   if (estado.enCurso) cancelarVerificacion();
   estado.turno = null;
+  estado.conversacion = null; // el siguiente mensaje abre conversación nueva
   ui.conversacion.replaceChildren(ui.plantillaBienvenida.content.cloneNode(true));
   conectarEjemplos();
-  marcarHistorialActivo(null);
+  marcarConversacionActiva(null);
   ui.entrada.value = "";
   ajustarAltura();
   ui.entrada.focus();
@@ -212,31 +248,35 @@ function quitarBienvenida() {
   ui.conversacion.querySelector(".bienvenida")?.remove();
 }
 
-async function abrirVerificacion(id) {
+async function abrirConversacion(id) {
   if (estado.enCurso) {
     avisar("Espera a que termine la verificación en curso (o cancélala).");
     return;
   }
   try {
-    const respuesta = await fetch(`/api/verificacion/${id}`);
+    const respuesta = await fetch(`/api/conversacion/${id}`);
     const guardada = await respuesta.json();
     if (!respuesta.ok) throw new Error(guardada.error || respuesta.statusText);
 
     ui.conversacion.replaceChildren();
-    const turno = crear("div", "turno");
-    turno.appendChild(crear("span", "chip-fecha", `verificada el ${fechaCorta(guardada.fecha)}`));
-    turno.appendChild(crear("div", "burbuja-usuario", guardada.afirmacion));
-    turno.appendChild(renderInforme(guardada.informe));
-    ui.conversacion.appendChild(turno);
-    marcarHistorialActivo(id);
+    for (const turno of guardada.turnos) {
+      const nodo = crear("div", "turno");
+      nodo.appendChild(crear("span", "chip-fecha", fechaCorta(turno.fecha)));
+      nodo.appendChild(crear("div", "burbuja-usuario", turno.afirmacion));
+      nodo.appendChild(renderInforme(turno.informe));
+      ui.conversacion.appendChild(nodo);
+    }
+    estado.conversacion = id; // seguir escribiendo continúa este hilo
+    marcarConversacionActiva(id);
     bajarConversacion();
+    ui.entrada.focus();
   } catch (err) {
-    avisar(`No se pudo abrir la verificación: ${err.message}`, true);
+    avisar(`No se pudo abrir la conversación: ${err.message}`, true);
   }
 }
 
-function marcarHistorialActivo(id) {
-  ui.listaHistorial.querySelectorAll("li").forEach((li) => {
+function marcarConversacionActiva(id) {
+  ui.listaConversaciones.querySelectorAll("li").forEach((li) => {
     li.classList.toggle("activa", id !== null && li.dataset.id === String(id));
   });
 }
@@ -256,11 +296,11 @@ function enviarVerificacion() {
     lang: ui.idioma.value,
     memoria: ui.memoria.checked,
     modo: ui.modo.value,
-    carpeta: estado.carpeta || undefined,
+    carpeta: estado.espacio || undefined,          // ausente = espacio General
+    conversacion: estado.conversacion ?? undefined, // ausente = hilo nuevo
   }));
 
   quitarBienvenida();
-  marcarHistorialActivo(null);
   mostrarAdjunto("");
 
   const turno = crear("div", "turno");
@@ -397,9 +437,9 @@ function renderRespuesta(texto) {
 function renderInforme(informe) {
   // Una pregunta no se "refuta": el modo respuesta muestra el texto con sus
   // citas y NUNCA una etiqueta de veredicto (fallo medido 2026-07-16).
-  if (informe.tipo === "pregunta") {
+  if (informe.tipo === "pregunta" || informe.tipo === "aclaracion") {
     const tarjeta = crear("div", "tarjeta-veredicto veredicto-respuesta");
-    tarjeta.appendChild(tituloVeredicto({ titulo: "Respuesta" }));
+    tarjeta.appendChild(tituloVeredicto({ titulo: informe.tipo === "aclaracion" ? "Necesito una aclaración" : "Respuesta" }));
     tarjeta.appendChild(renderRespuesta(informe.respuesta || ""));
     for (const hecho of informe.hechos || []) {
       tarjeta.appendChild(renderHecho(hecho, { sinVeredicto: true }));
@@ -433,7 +473,7 @@ function mostrarInforme(informe) {
   terminarTurno();
   contenedor.appendChild(renderInforme(informe));
   bajarConversacion();
-  cargarHistorial(); // la barra lateral recoge la verificación recién guardada
+  cargarConversaciones(); // la barra lateral recoge el turno recién guardado
 }
 
 function renderHecho(vh, opciones = {}) {
@@ -591,27 +631,30 @@ function insertarTexto(texto) {
   ui.entrada.focus();
 }
 
-// --------------------------------------------------------------- historial ----
+// ---------------------------------------------- conversaciones del espacio ----
 
-async function cargarHistorial() {
+async function cargarConversaciones() {
   try {
-    const respuesta = await fetch("/api/historial?limite=40");
-    const { historial } = await respuesta.json();
-    ui.listaHistorial.replaceChildren();
-    if (!historial.length) {
-      ui.listaHistorial.appendChild(crear("li", "historial-vacio", "Sin verificaciones todavía."));
+    const carpeta = encodeURIComponent(estado.espacio || "");
+    const respuesta = await fetch(`/api/conversaciones?carpeta=${carpeta}&limite=40`);
+    const { conversaciones } = await respuesta.json();
+    ui.listaConversaciones.replaceChildren();
+    if (!conversaciones.length) {
+      ui.listaConversaciones.appendChild(
+        crear("li", "historial-vacio", "Sin conversaciones todavía."));
       return;
     }
-    for (const fila of historial) {
+    for (const fila of conversaciones) {
       const item = crear("li");
-      item.dataset.id = String(fila.id ?? "");
-      const v = VEREDICTOS[fila.veredicto] || { icono: "?", titulo: fila.veredicto };
-      item.appendChild(crear("span", "historial-afirmacion", `${v.icono} ${fila.afirmacion}`));
+      item.dataset.id = String(fila.id);
+      item.appendChild(crear("span", "historial-afirmacion", fila.titulo || "(sin título)"));
+      const turnos = `${fila.turnos} turno${fila.turnos === 1 ? "" : "s"}`;
       item.appendChild(crear("span", "historial-meta",
-        `${v.titulo.toLowerCase()} · ${Math.round(fila.confianza * 100)}% · ${fechaCorta(fila.fecha)}`));
-      item.title = "Reabrir esta verificación";
-      item.onclick = () => abrirVerificacion(fila.id);
-      ui.listaHistorial.appendChild(item);
+        `${turnos} · ${fechaCorta(fila.ultima)}`));
+      item.title = "Reabrir y continuar esta conversación";
+      item.onclick = () => abrirConversacion(fila.id);
+      item.classList.toggle("activa", estado.conversacion === fila.id);
+      ui.listaConversaciones.appendChild(item);
     }
   } catch {
     /* la memoria es opcional: sin ella la lista simplemente queda vacía */
@@ -696,7 +739,8 @@ async function iniciar() {
   ui.conversacion.appendChild(ui.plantillaBienvenida.content.cloneNode(true));
   conectarEjemplos();
   conectar();
-  cargarHistorial();
+  renderEspacios();
+  cargarConversaciones();
   try {
     const respuesta = await fetch("/api/capacidades");
     estado.capacidades = await respuesta.json();

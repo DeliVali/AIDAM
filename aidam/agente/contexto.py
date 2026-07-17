@@ -38,6 +38,11 @@ _VACIAS = {
     "cuál", "quien", "quién", "sobre", "entre", "hasta", "desde", "porque",
     "aunque", "según", "segun", "sirve", "funciona", "significa", "contexto",
     "what", "where", "when", "which", "about", "does", "mean", "work",
+    # generic modifiers: they bridge unrelated topics («bajo consumo» vs
+    # «bajo rango» merged the two lora senses — measured 2026-07-16)
+    "bajo", "baja", "bajos", "bajas", "alto", "alta", "altos", "altas",
+    "grande", "grandes", "largo", "larga", "solo", "sola", "nuevo", "nueva",
+    "mediante", "general", "gran", "cada", "otro", "otra", "misma", "mismo",
 }
 
 

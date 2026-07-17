@@ -22,7 +22,7 @@ def _imprimir(informe: Informe) -> None:
     from rich.panel import Panel
 
     consola = Console()
-    if informe.tipo == "pregunta":
+    if informe.tipo in ("pregunta", "aclaracion"):
         consola.print(Panel(
             f"[bold]{informe.afirmacion}[/bold]\n\n{informe.respuesta}",
             title="AIDAM · Respuesta", border_style="cyan",

@@ -115,6 +115,76 @@ def _extraer_codigo(evidencias: list) -> str | None:
     return None
 
 
+def aclaracion_necesaria(pregunta: str, evidencias: list) -> str | None:
+    """Jeffrey's clarification design (2026-07-16): when retrieval is
+    inconclusive, ASK instead of answering off-context. «¿qué es lora?»
+    retrieves passages about DIFFERENT senses (IoT radio vs ML
+    fine-tuning); that split is the ambiguity signal, and the question
+    offered lists the senses actually found.
+
+    Detection is DISTINCTIVE-TERM clustering (Jeffrey's keyword
+    architecture), not embeddings — measured: e5-small puts the two lora
+    senses at cosine 0.90+ because the shared surface term dominates, so
+    the split must come from the words each passage does NOT share with
+    the query: radio/dispositivos vs modelos/rango cluster cleanly with
+    zero cross-overlap. Deterministic, zero models, microseconds.
+    """
+    from .contexto import _terminos_clave
+
+    contenido = re.findall(r"[\wáéíóúñ]{4,}", pregunta)
+    if len(contenido) > 4 or len(evidencias) < 4:
+        return None
+    consulta_planas = {unicodedata_plano(t) for t in contenido}
+
+    firmas: list[set[str]] = []
+    top = [e for e in evidencias[:8] if e.texto.strip()]
+    for e in top:
+        terminos = {
+            unicodedata_plano(t) for t in _terminos_clave(e.texto[:400], maximo=10)
+        }
+        firmas.append({
+            t for t in terminos
+            if not any(q in t or t in q for q in consulta_planas)
+        })
+
+    grupos: list[list[int]] = []
+    for i, firma in enumerate(firmas):
+        if not firma:
+            continue
+        for g in grupos:
+            if any(firmas[j] & firma for j in g):
+                g.append(i)
+                break
+        else:
+            grupos.append([i])
+    grandes = [g for g in grupos if len(g) >= 2]
+    if len(grandes) < 2:
+        return None
+
+    etiquetas = []
+    for g in grandes[:3]:
+        comunes: dict[str, int] = {}
+        for j in g:
+            for t in firmas[j]:
+                comunes[t] = comunes.get(t, 0) + 1
+        mejores = sorted(comunes, key=comunes.get, reverse=True)[:3]
+        if mejores:
+            etiquetas.append(" ".join(mejores))
+    if len(etiquetas) < 2:
+        return None
+    opciones = " · ".join(f"«{e}»" for e in etiquetas)
+    tema = " ".join(contenido) or pregunta.strip("¿?")
+    return (f"Encontré temas distintos para «{tema}»: {opciones}. "
+            "¿A cuál te refieres? Respóndeme y afino la búsqueda.")
+
+
+def unicodedata_plano(texto: str) -> str:
+    import unicodedata
+
+    plano = unicodedata.normalize("NFKD", texto.casefold())
+    return "".join(c for c in plano if not unicodedata.combining(c))
+
+
 def responder_pregunta(pregunta: str, evidencias: list,
                        excluir_dominios: set[str] | None = None) -> str:
     """Evidence-grounded answer to a question, phrased like a person.
