@@ -101,6 +101,11 @@ def _verificar_por_defecto(afirmacion: str, *, progreso, **kwargs) -> Informe:
     from .pipeline import verificar
 
     if _verificador_cacheado.cache_info().currsize == 0:
+        # First-run installs (packaged app, fresh CPU env) may need to fetch
+        # the model from HuggingFace before anything can load.
+        from .modelos import asegurar_verificador
+
+        asegurar_verificador(progreso)
         progreso("Cargando el núcleo verificador…")
     return verificar(
         afirmacion, progreso=progreso, verificador=_verificador_cacheado(), **kwargs
@@ -256,6 +261,20 @@ class _Sesion:
             return
         self.cancelado.clear()
         self.modo = peticion.get("modo", "auto")
+
+        # Conversational context: a follow-up («¿y en el contexto de…?»)
+        # is rewritten self-contained with the previous turn's topic, and
+        # the interpretation is SHOWN — never a silent guess.
+        from .agente.contexto import resolver_seguimiento
+
+        resuelta = resolver_seguimiento(afirmacion, getattr(self, "pregunta_previa", None))
+        if resuelta != afirmacion:
+            await self._enviar_async(
+                {"tipo": "progreso",
+                 "mensaje": f"pregunta interpretada con el contexto: «{resuelta}»"}
+            )
+            afirmacion = resuelta
+        self.pregunta_previa = afirmacion
 
         # Remembered verdicts are CONTEXT for the user, never a shortcut:
         # the claim is re-verified below regardless (same rule as the CLI).
