@@ -118,8 +118,6 @@ def investigar(
         # Answer mode: questions are answered from evidence, never judged
         # (same rule as pipeline.verificar; measured failure 2026-07-16).
         avisar("Pregunta detectada: buscando la respuesta en las fuentes…")
-        from ..models import HechoAtomico
-
         hecho_q = HechoAtomico(texto=afirmacion, origen="pregunta")
         evidencias = _recuperar(hecho_q, lang, max_idiomas, None)
         respuesta = responder_pregunta(afirmacion, evidencias)

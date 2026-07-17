@@ -88,6 +88,54 @@ class ComparacionCodigo:
     evidencias: list[Evidencia] = field(default_factory=list)
 
 
+_ESTILOS_CANDIDATO = (
+    "the most straightforward, readable implementation",
+    "the most efficient implementation using only the standard library",
+    "an algorithmically different approach than the obvious one",
+)
+
+_PROMPT_CANDIDATO = (
+    "Write a complete Python implementation for this task: {tarea}\n"
+    "Approach: {estilo}.\n"
+    "Requirements: define exactly the function(s) the task names; no I/O, "
+    "no comments, no example usage; standard library only. Reply with ONLY "
+    "the code, no explanations."
+)
+
+
+def proponer_candidatos(tarea: str, n: int = 3, generador=None) -> dict[str, str]:
+    """The local LLM proposes N differently-styled implementations.
+
+    The generator writes, the harness judges — same contract as everywhere
+    in AIDAM: candidates that don't even parse are dropped here; correctness
+    and speed are decided by measurement in the sandbox, never by the LLM's
+    own opinion of its code.
+    """
+    if generador is None:
+        from ..pipeline import _generador_preguntas
+
+        generador = _generador_preguntas()
+    if generador is None:
+        return {}
+    candidatos: dict[str, str] = {}
+    for i, estilo in enumerate(_ESTILOS_CANDIDATO[:n]):
+        crudo = generador._responder(
+            _PROMPT_CANDIDATO.format(tarea=tarea, estilo=estilo),
+            max_tokens=600, temperature=0.4,
+        ) or ""
+        codigo = crudo.strip()
+        if "```" in codigo:  # unwrap a markdown fence if the model added one
+            partes = codigo.split("```")
+            codigo = max(partes, key=len)
+            codigo = codigo.removeprefix("python").strip()
+        try:
+            compile(codigo, f"candidato_{i}", "exec")
+        except SyntaxError:
+            continue
+        candidatos[f"candidato-{i + 1}"] = codigo
+    return candidatos
+
+
 def medir_candidato(nombre: str, codigo: str, llamada: str, preparacion: str = "",
                     repeticiones: int = 7, timeout: float = 60.0,
                     nucleo: int | None = None) -> MedicionCandidato:

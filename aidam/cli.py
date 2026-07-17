@@ -175,9 +175,17 @@ def main(argv: list[str] | None = None) -> int:
         "(el ganador sale de datos, no de opiniones)",
     )
     p_codigo.add_argument(
-        "archivos", nargs="+",
-        help="dos o más .py candidatos que definen la misma función",
+        "archivos", nargs="*",
+        help="dos o más .py candidatos que definen la misma función "
+        "(o ninguno, si se usa --tarea)",
     )
+    p_codigo.add_argument(
+        "--tarea", default="",
+        help="descripción de la tarea: el LLM local propone las candidatas "
+        "y el arnés las mide — el cronómetro decide, no el modelo",
+    )
+    p_codigo.add_argument("--candidatos", type=int, default=3,
+                          help="cuántas candidatas propone el LLM con --tarea")
     p_codigo.add_argument(
         "--llamada", required=True,
         help="expresión a medir, p. ej. \"ordenar(datos)\"",
@@ -306,6 +314,15 @@ def main(argv: list[str] | None = None) -> int:
         for ruta in args.archivos:
             p = _Path(ruta)
             candidatos[p.stem] = p.read_text()
+        if args.tarea:
+            from .agente.codigo import proponer_candidatos
+
+            print("[aidam] el LLM local propone candidatas…", file=sys.stderr)
+            candidatos.update(proponer_candidatos(args.tarea, n=args.candidatos))
+        if len(candidatos) < 2:
+            print("[aidam] hacen falta al menos 2 candidatas (archivos y/o --tarea "
+                  "con el LLM local disponible)", file=sys.stderr)
+            return 1
         resultado = comparar_candidatos(
             candidatos, args.llamada,
             preparacion=args.preparacion, repeticiones=args.repeticiones,
