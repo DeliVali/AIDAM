@@ -1183,6 +1183,24 @@ class, the hardest in the benchmark.
       real-eval confirmation run launched for v10 (promotion bar:
       beat 62.6 on the true 500).
 
+### PRE-REGISTERED: verifier v22 — teaching abstention (designed
+2026-07-16, before any training run). The blind-class law says NEI is a
+representation failure: the pair-level NLI output carries no "this
+evidence does not address the claim" signal, so no aggregation knob can
+recover it. v22 attacks it at training time with in-domain non-probative
+pairs built to AVOID the two measured poisons: (a) scidoc's same-document
+NEI taught credulity because abstract halves are redundant — so v22's NEI
+evidence comes from a DIFFERENT claim's evidence set on a nearby topic
+(the AVeriTeC-train generator already pairs claims with their own
+stores); (b) v12's DocNLI relabeling taught anti-refutation — so no label
+mapping: every pair is constructed, never mined-and-relabeled. Recipe:
+~8-10k trios from AVeriTeC-train (claim + own-evidence SUPPORTS/REFUTES
+as today + cross-claim topical evidence as NEI), mixed into the v20
+recipe from the reusable pre-NLI checkpoint. Gates, fixed now: on the
+real 500 — NEI F1 >= 0.25 (from 0.125) AND accuracy >= 62.0 AND
+AggreFact >= 70.5 (no grounding regression). Any miss = documented
+rejection, v20/v10 stand.
+
 ### Goal RAISED (2026-07-13, Jeffrey): 90 general — "ya no será 80 general
 sino 90% general". Recorded with the honest operationalization already
 established: the benchmarks as published cap at ~85-88 (annotation
