@@ -1,12 +1,167 @@
 /* AIDAM — lógica de la interfaz. Vanilla JS, sin dependencias.
  *
  * Protocolo WebSocket documentado en aidam/servidor.py y docs/INTERFAZ.md.
- * Layout tipo chat: barra lateral con historial reabrible + nueva
- * verificación; entrada con documentos (imagen OCR, PDF, texto) y modo de
- * ejecución del agente. Sin voz por diseño.
+ * Layout tipo chat: barra lateral con espacios de trabajo y conversaciones
+ * continuables; modo de ejecución como icono junto a la entrada; idioma y
+ * memoria en el engranaje de configuración. Sin voz por diseño.
+ *
+ * i18n: el idioma elegido cambia TODA la interfaz. Español e inglés son
+ * nativos; fr/de/pt/it caen a inglés (pendiente de traducción completa) y
+ * aun así fijan el idioma de las afirmaciones que se verifican.
  */
 
 "use strict";
+
+// ------------------------------------------------------------------ i18n ----
+
+const TEXTOS = {
+  es: {
+    nuevaVerificacion: "＋ Nueva verificación",
+    espacios: "Espacios de trabajo",
+    generalTitulo: "Espacio general: siempre disponible, sin carpeta que elegir",
+    anadirCarpeta: "Añadir carpeta…",
+    anadirCarpetaTitulo: "Añadir una carpeta como espacio de trabajo",
+    quitarEspacio: "Quitar este espacio de la lista (sus conversaciones no se borran)",
+    rutaCarpeta: "Ruta de la carpeta a añadir como espacio de trabajo:",
+    conversaciones: "Conversaciones",
+    sinConversaciones: "Sin conversaciones todavía.",
+    sinTitulo: "(Sin título)",
+    turnos: (n) => `${n} turno${n === 1 ? "" : "s"}`,
+    reabrir: "Reabrir y continuar esta conversación",
+    conectando: "Conectando…",
+    conectado: "Conectado",
+    desconectado: "Desconectado",
+    estadoTitulo: "Estado de la conexión",
+    configTitulo: "Configuración",
+    idioma: "Idioma",
+    memoria: "Memoria",
+    memoriaTitulo: "Guardar en la memoria del agente y avisar si ya se verificó antes",
+    entradaPlaceholder: "Escribe una afirmación para verificar, o adjunta un documento…",
+    adjuntarTitulo: "Subir un documento",
+    menuAdjuntar: "¿Qué documento subes?",
+    opcionImagen: "🖼 Imagen o captura",
+    opcionPdf: "📄 PDF",
+    opcionTexto: "📃 Texto (.txt, .md)",
+    enviarTitulo: "Verificar (Enter)",
+    detenerTitulo: "Detener la verificación",
+    menuModo: "Modo de ejecución",
+    modoAuto: "⚡ Automático",
+    modoPermisos: "🔒 Pedir permiso",
+    modoTitulo: (m) => `Modo: ${m} (clic para cambiar)`,
+    bienvenidaTitulo: "¿Qué verificamos hoy?",
+    bienvenidaTexto: "AIDAM descompone la afirmación, busca evidencia en fuentes " +
+      "independientes, la juzga con un modelo especializado y responde con sus citas.",
+    sustentado: "Sustentado",
+    refutado: "Refutado",
+    contradictorio: "Evidencia contradictoria",
+    insuficiente: "Evidencia insuficiente",
+    respuesta: "Respuesta",
+    confianza: (n) => `CONFIANZA ${n}%`,
+    citas: (n) => `${n} cita${n === 1 ? "" : "s"}`,
+    aFavor: (n) => `${n} a favor`,
+    enContra: (n) => `${n} en contra`,
+    sinEvidencia: "Sin evidencia concluyente en las fuentes consultadas.",
+    verProceso: (n) => `Ver el proceso (${n} pasos)`,
+    permisoTitulo: "🔒 El agente pide permiso",
+    permitir: "Permitir",
+    permitirTodo: "Permitir todo",
+    permitirTodoTitulo: "Aprueba esta acción y el resto de la verificación sigue en automático",
+    denegar: "Denegar",
+    resPermitido: "✓ Permitido",
+    resPermitidoTodo: "✓ Permitido todo — el resto sigue en automático",
+    resDenegado: "✗ Denegado — esa búsqueda se omite",
+    cancelada: "Verificación cancelada.",
+    chipMemoria: (fecha, veredicto, conf) =>
+      `🕊 Ya verificada el ${fecha}: ${veredicto} (confianza ${conf}%) — se vuelve a verificar igualmente`,
+    esperaEnCurso: "Espera a que termine la verificación en curso (o cancélala).",
+    noAbrir: (e) => `No se pudo abrir la conversación: ${e}`,
+    extrayendo: (n) => `Extrayendo texto de ${n}…`,
+    extraido: (n, r) => `Texto extraído de ${n}${r} — revísalo antes de verificar`,
+    recortado: (n) => ` (recortado a ${n} caracteres)`,
+    sinTextoLegible: (n) => `${n} no contiene texto legible`,
+    noLeer: (n, e) => `No se pudo leer ${n}: ${e}`,
+    ocrFalta: "OCR de imágenes no instalado en el servidor: «uv pip install -e '.[imagen]'» y reinicia AIDAM.",
+    pdfFalta: "Lectura de PDF no instalada: «uv pip install -e '.[interfaz]'» y reinicia AIDAM.",
+  },
+  en: {
+    nuevaVerificacion: "＋ New verification",
+    espacios: "Workspaces",
+    generalTitulo: "General workspace: always available, no folder needed",
+    anadirCarpeta: "Add folder…",
+    anadirCarpetaTitulo: "Add a folder as a workspace",
+    quitarEspacio: "Remove this workspace from the list (its conversations are kept)",
+    rutaCarpeta: "Path of the folder to add as a workspace:",
+    conversaciones: "Conversations",
+    sinConversaciones: "No conversations yet.",
+    sinTitulo: "(Untitled)",
+    turnos: (n) => `${n} turn${n === 1 ? "" : "s"}`,
+    reabrir: "Reopen and continue this conversation",
+    conectando: "Connecting…",
+    conectado: "Connected",
+    desconectado: "Disconnected",
+    estadoTitulo: "Connection status",
+    configTitulo: "Settings",
+    idioma: "Language",
+    memoria: "Memory",
+    memoriaTitulo: "Save to the agent's memory and warn if it was verified before",
+    entradaPlaceholder: "Write a claim to verify, or attach a document…",
+    adjuntarTitulo: "Upload a document",
+    menuAdjuntar: "What are you uploading?",
+    opcionImagen: "🖼 Image or screenshot",
+    opcionPdf: "📄 PDF",
+    opcionTexto: "📃 Text (.txt, .md)",
+    enviarTitulo: "Verify (Enter)",
+    detenerTitulo: "Stop the verification",
+    menuModo: "Execution mode",
+    modoAuto: "⚡ Automatic",
+    modoPermisos: "🔒 Ask permission",
+    modoTitulo: (m) => `Mode: ${m} (click to change)`,
+    bienvenidaTitulo: "What shall we verify today?",
+    bienvenidaTexto: "AIDAM breaks the claim into facts, retrieves evidence from " +
+      "independent sources, judges it with a specialized model and answers with its citations.",
+    sustentado: "Supported",
+    refutado: "Refuted",
+    contradictorio: "Conflicting evidence",
+    insuficiente: "Not enough evidence",
+    respuesta: "Answer",
+    confianza: (n) => `CONFIDENCE ${n}%`,
+    citas: (n) => `${n} citation${n === 1 ? "" : "s"}`,
+    aFavor: (n) => `${n} for`,
+    enContra: (n) => `${n} against`,
+    sinEvidencia: "No conclusive evidence in the consulted sources.",
+    verProceso: (n) => `See the process (${n} steps)`,
+    permisoTitulo: "🔒 The agent asks for permission",
+    permitir: "Allow",
+    permitirTodo: "Allow all",
+    permitirTodoTitulo: "Approve this action; the rest of the run continues automatically",
+    denegar: "Deny",
+    resPermitido: "✓ Allowed",
+    resPermitidoTodo: "✓ All allowed — the rest continues automatically",
+    resDenegado: "✗ Denied — that search is skipped",
+    cancelada: "Verification cancelled.",
+    chipMemoria: (fecha, veredicto, conf) =>
+      `🕊 Already verified on ${fecha}: ${veredicto} (confidence ${conf}%) — it is re-verified anyway`,
+    esperaEnCurso: "Wait for the current verification to finish (or cancel it).",
+    noAbrir: (e) => `Could not open the conversation: ${e}`,
+    extrayendo: (n) => `Extracting text from ${n}…`,
+    extraido: (n, r) => `Text extracted from ${n}${r} — review it before verifying`,
+    recortado: (n) => ` (trimmed to ${n} characters)`,
+    sinTextoLegible: (n) => `${n} contains no readable text`,
+    noLeer: (n, e) => `Could not read ${n}: ${e}`,
+    ocrFalta: "Image OCR is not installed on the server: «uv pip install -e '.[imagen]'» and restart AIDAM.",
+    pdfFalta: "PDF reading is not installed: «uv pip install -e '.[interfaz]'» and restart AIDAM.",
+  },
+};
+
+function idiomaInterfaz() {
+  const elegido = ui.idioma?.value || "es";
+  return TEXTOS[elegido] ? elegido : "en"; // fr/de/pt/it: interfaz en inglés
+}
+
+function t(clave, ...args) {
+  const texto = TEXTOS[idiomaInterfaz()][clave] ?? TEXTOS.es[clave] ?? clave;
+  return typeof texto === "function" ? texto(...args) : texto;
+}
 
 // ---------------------------------------------------------------- estado ----
 
@@ -21,9 +176,12 @@ const ui = {
   menuAdjuntar: $("menu-adjuntar"),
   selectorArchivo: $("selector-archivo"),
   avisoAdjunto: $("aviso-adjunto"),
-  modo: $("modo"),
+  botonModo: $("boton-modo"),
+  menuModo: $("menu-modo"),
   idioma: $("idioma"),
   memoria: $("opcion-memoria"),
+  botonConfig: $("boton-config"),
+  menuConfig: $("menu-config"),
   estadoConexion: $("estado-conexion"),
   estadoTexto: $("estado-texto"),
   avisos: $("avisos"),
@@ -38,21 +196,26 @@ const estado = {
   ws: null,
   conectado: false,
   intentoReconexion: 0,
-  enCurso: false,     // hay una verificación corriendo
-  turno: null,        // elementos DOM del turno activo
+  enCurso: false,      // hay una verificación corriendo
+  turno: null,         // elementos DOM del turno activo
   capacidades: { imagen: false, pdf: false },
   tipoAdjunto: null,   // "imagen" | "pdf" | "texto" elegido en el menú
+  modo: "auto",        // "auto" | "permisos"
   carpetas: [],        // espacios añadidos por el usuario (rutas absolutas)
   espacio: null,       // espacio activo: null = General, o una ruta de carpetas
   conversacion: null,  // id de la conversación activa (null = aún sin crear)
 };
 
-const VEREDICTOS = {
-  sustentado: { clase: "sustentado", icono: "✓", titulo: "Sustentado" },
-  refutado: { clase: "refutado", icono: "✗", titulo: "Refutado" },
-  evidencia_contradictoria: { clase: "contradictorio", icono: "⚡", titulo: "Evidencia contradictoria" },
-  evidencia_insuficiente: { clase: "insuficiente", icono: "?", titulo: "Evidencia insuficiente" },
-};
+function infoVeredicto(veredicto) {
+  const mapa = {
+    sustentado: { clase: "sustentado", icono: "✓", clave: "sustentado" },
+    refutado: { clase: "refutado", icono: "✗", clave: "refutado" },
+    evidencia_contradictoria: { clase: "contradictorio", icono: "⚡", clave: "contradictorio" },
+    evidencia_insuficiente: { clase: "insuficiente", icono: "?", clave: "insuficiente" },
+  };
+  const info = mapa[veredicto] || mapa.evidencia_insuficiente;
+  return { ...info, titulo: t(info.clave) };
+}
 
 const MAX_TEXTO_DOCUMENTO = 4000; // lo que se vuelca al cuadro de entrada
 
@@ -77,7 +240,7 @@ function bajarConversacion() {
 
 function fechaCorta(iso) {
   try {
-    return new Date(iso).toLocaleString(undefined, {
+    return new Date(iso).toLocaleString(ui.idioma?.value || undefined, {
       year: "numeric", month: "2-digit", day: "2-digit",
       hour: "2-digit", minute: "2-digit",
     });
@@ -93,12 +256,63 @@ function tituloVeredicto(v) {
   return titulo;
 }
 
+// ------------------------------------------------- idioma: aplicar a la UI ----
+
+function aplicarIdioma() {
+  document.documentElement.lang = ui.idioma.value;
+
+  ui.nuevaVerificacion.textContent = t("nuevaVerificacion");
+  $("etiqueta-espacios").textContent = t("espacios");
+  $("etiqueta-conversaciones").textContent = t("conversaciones");
+  ui.anadirCarpeta.title = t("anadirCarpetaTitulo");
+  ui.anadirCarpeta.querySelector(".carpeta-nombre").textContent = t("anadirCarpeta");
+
+  ui.entrada.placeholder = t("entradaPlaceholder");
+  ui.adjuntar.title = t("adjuntarTitulo");
+  $("menu-adjuntar-titulo").textContent = t("menuAdjuntar");
+  const opciones = ui.menuAdjuntar.querySelectorAll(".menu-opcion");
+  opciones[0].textContent = t("opcionImagen");
+  opciones[1].textContent = t("opcionPdf");
+  opciones[2].textContent = t("opcionTexto");
+
+  $("menu-modo-titulo").textContent = t("menuModo");
+  ui.menuModo.querySelector('[data-modo="auto"]').textContent = t("modoAuto");
+  ui.menuModo.querySelector('[data-modo="permisos"]').textContent = t("modoPermisos");
+  actualizarBotonModo();
+
+  if (!estado.enCurso) ui.enviar.title = t("enviarTitulo");
+  ui.estadoConexion.title = t("estadoTitulo");
+  ui.estadoTexto.textContent = estado.conectado
+    ? t("conectado")
+    : (estado.intentoReconexion ? t("desconectado") : t("conectando"));
+
+  ui.botonConfig.title = t("configTitulo");
+  $("menu-config-titulo").textContent = t("configTitulo");
+  $("etiqueta-idioma").textContent = t("idioma");
+  $("etiqueta-memoria").textContent = t("memoria");
+  $("control-memoria").title = t("memoriaTitulo");
+
+  // La plantilla de bienvenida se traduce en origen: los clones futuros y el
+  // ejemplar visible (si lo hay) quedan en el idioma elegido.
+  const plantilla = ui.plantillaBienvenida.content;
+  plantilla.querySelector("h1").textContent = t("bienvenidaTitulo");
+  plantilla.querySelector("p").textContent = t("bienvenidaTexto");
+  const visible = ui.conversacion.querySelector(".bienvenida");
+  if (visible) {
+    visible.querySelector("h1").textContent = t("bienvenidaTitulo");
+    visible.querySelector("p").textContent = t("bienvenidaTexto");
+  }
+
+  renderEspacios();
+  cargarConversaciones();
+}
+
 // ---------------------------------------------------------- preferencias ----
 
 function cargarPreferencias() {
   let prefs = {};
   try { prefs = JSON.parse(localStorage.getItem("aidam.prefs") || "{}"); } catch {}
-  if (prefs.modo === "permisos") ui.modo.value = "permisos";
+  if (prefs.modo === "permisos") estado.modo = "permisos";
   if (prefs.idioma) ui.idioma.value = prefs.idioma;
   ui.memoria.checked = prefs.memoria !== false;
   estado.carpetas = Array.isArray(prefs.carpetas) ? prefs.carpetas : [];
@@ -110,7 +324,7 @@ function cargarPreferencias() {
 
 function guardarPreferencias() {
   localStorage.setItem("aidam.prefs", JSON.stringify({
-    modo: ui.modo.value,
+    modo: estado.modo,
     idioma: ui.idioma.value,
     memoria: ui.memoria.checked,
     carpetas: estado.carpetas,
@@ -118,9 +332,48 @@ function guardarPreferencias() {
   }));
 }
 
-ui.modo.addEventListener("change", guardarPreferencias);
-ui.idioma.addEventListener("change", guardarPreferencias);
+ui.idioma.addEventListener("change", () => { guardarPreferencias(); aplicarIdioma(); });
 ui.memoria.addEventListener("change", guardarPreferencias);
+
+// ------------------------------------------------------ modo de ejecución ----
+
+function actualizarBotonModo() {
+  const etiqueta = estado.modo === "permisos" ? t("modoPermisos") : t("modoAuto");
+  ui.botonModo.textContent = etiqueta.slice(0, 2).trim(); // solo el emoji
+  ui.botonModo.title = t("modoTitulo", etiqueta);
+  ui.menuModo.querySelectorAll(".menu-opcion").forEach((boton) => {
+    boton.classList.toggle("elegida", boton.dataset.modo === estado.modo);
+  });
+}
+
+ui.botonModo.addEventListener("click", (e) => {
+  e.stopPropagation();
+  ui.menuModo.classList.toggle("oculto");
+});
+
+ui.menuModo.querySelectorAll(".menu-opcion").forEach((boton) => {
+  boton.addEventListener("click", () => {
+    estado.modo = boton.dataset.modo;
+    guardarPreferencias();
+    actualizarBotonModo();
+    ui.menuModo.classList.add("oculto");
+  });
+});
+
+// ----------------------------------------------------------- configuración ----
+
+ui.botonConfig.addEventListener("click", (e) => {
+  e.stopPropagation();
+  ui.menuConfig.classList.toggle("oculto");
+});
+
+document.addEventListener("click", (e) => {
+  for (const menu of [ui.menuAdjuntar, ui.menuModo, ui.menuConfig]) {
+    if (!menu.classList.contains("oculto") && !menu.contains(e.target)) {
+      menu.classList.add("oculto");
+    }
+  }
+});
 
 // -------------------------------------------------------------- websocket ----
 
@@ -133,7 +386,7 @@ function conectar() {
     estado.conectado = true;
     estado.intentoReconexion = 0;
     ui.estadoConexion.className = "estado-conexion conectado";
-    ui.estadoTexto.textContent = "Conectado";
+    ui.estadoTexto.textContent = t("conectado");
     // Los fetch de arranque pueden perder la carrera contra un servidor que
     // aún despierta; el WS sí reintenta, así que al conectar se recargan.
     cargarConversaciones();
@@ -149,7 +402,7 @@ function conectar() {
   ws.onclose = () => {
     estado.conectado = false;
     ui.estadoConexion.className = "estado-conexion desconectado";
-    ui.estadoTexto.textContent = "Desconectado";
+    ui.estadoTexto.textContent = t("desconectado");
     if (estado.enCurso) terminarTurno();
     const espera = Math.min(10000, 500 * 2 ** estado.intentoReconexion++);
     setTimeout(conectar, espera);
@@ -185,7 +438,7 @@ function renderEspacios() {
   const general = crear("li");
   general.appendChild(crear("span", null, "🏠"));
   general.appendChild(crear("span", "espacio-nombre", "General"));
-  general.title = "Espacio general: siempre disponible, sin carpeta que elegir";
+  general.title = t("generalTitulo");
   general.classList.toggle("activa", estado.espacio === null);
   general.onclick = () => seleccionarEspacio(null);
   ui.listaEspacios.appendChild(general);
@@ -198,7 +451,7 @@ function renderEspacios() {
     item.classList.toggle("activa", estado.espacio === ruta);
     item.onclick = () => seleccionarEspacio(ruta);
     const quitar = crear("span", "espacio-quitar", "✕");
-    quitar.title = "Quitar este espacio de la lista (sus conversaciones no se borran)";
+    quitar.title = t("quitarEspacio");
     quitar.onclick = (e) => {
       e.stopPropagation();
       estado.carpetas = estado.carpetas.filter((c) => c !== ruta);
@@ -224,7 +477,7 @@ async function anadirCarpeta() {
     ruta = await window.aidamEscritorio.elegirCarpeta(); // diálogo nativo (app de escritorio)
   } else {
     // En navegador no hay diálogo con ruta real: entrada manual honesta.
-    ruta = prompt("Ruta de la carpeta a añadir como espacio de trabajo:", "~/");
+    ruta = prompt(t("rutaCarpeta"), "~/");
   }
   if (!ruta) return;
   ruta = ruta.trim();
@@ -254,7 +507,7 @@ function quitarBienvenida() {
 
 async function abrirConversacion(id) {
   if (estado.enCurso) {
-    avisar("Espera a que termine la verificación en curso (o cancélala).");
+    avisar(t("esperaEnCurso"));
     return;
   }
   try {
@@ -275,7 +528,7 @@ async function abrirConversacion(id) {
     bajarConversacion();
     ui.entrada.focus();
   } catch (err) {
-    avisar(`No se pudo abrir la conversación: ${err.message}`, true);
+    avisar(t("noAbrir", err.message), true);
   }
 }
 
@@ -299,7 +552,7 @@ function enviarVerificacion() {
     afirmacion,
     lang: ui.idioma.value,
     memoria: ui.memoria.checked,
-    modo: ui.modo.value,
+    modo: estado.modo,
     carpeta: estado.espacio || undefined,          // ausente = espacio General
     conversacion: estado.conversacion ?? undefined, // ausente = hilo nuevo
   }));
@@ -318,37 +571,37 @@ function enviarVerificacion() {
   ui.entrada.value = "";
   ajustarAltura();
   ui.enviar.textContent = "■";
-  ui.enviar.title = "Detener la verificación";
+  ui.enviar.title = t("detenerTitulo");
   ui.enviar.classList.add("detener");
   bajarConversacion();
 }
 
 function anotarProgreso(mensaje) {
-  const t = estado.turno;
-  if (!t) return;
-  t.registro.querySelector(".actual")?.classList.remove("actual");
-  t.registro.appendChild(crear("div", "actual", mensaje));
-  t.pasos++;
-  t.registro.scrollTop = t.registro.scrollHeight;
+  const turno = estado.turno;
+  if (!turno) return;
+  turno.registro.querySelector(".actual")?.classList.remove("actual");
+  turno.registro.appendChild(crear("div", "actual", mensaje));
+  turno.pasos++;
+  turno.registro.scrollTop = turno.registro.scrollHeight;
   bajarConversacion();
 }
 
 function terminarTurno() {
-  const t = estado.turno;
+  const turno = estado.turno;
   estado.enCurso = false;
   ui.enviar.textContent = "➤";
-  ui.enviar.title = "Verificar (Enter)";
+  ui.enviar.title = t("enviarTitulo");
   ui.enviar.classList.remove("detener");
-  if (!t) return;
+  if (!turno) return;
 
   // El registro en vivo se pliega a un resumen expandible.
-  t.registro.querySelector(".actual")?.classList.remove("actual");
+  turno.registro.querySelector(".actual")?.classList.remove("actual");
   const plegado = document.createElement("details");
   plegado.className = "registro-plegado";
-  const resumen = crear("summary", null, `Ver el proceso (${t.pasos} pasos)`);
+  const resumen = crear("summary", null, t("verProceso", turno.pasos));
   plegado.appendChild(resumen);
-  t.registro.replaceWith(plegado);
-  plegado.appendChild(t.registro);
+  turno.registro.replaceWith(plegado);
+  plegado.appendChild(turno.registro);
   estado.turno = null;
 }
 
@@ -359,11 +612,11 @@ function cancelarVerificacion() {
 // ---------------------------------------------------------------- permisos ----
 
 function pedirPermiso(m) {
-  const t = estado.turno;
-  if (!t) return;
+  const turno = estado.turno;
+  if (!turno) return;
 
   const tarjeta = crear("div", "tarjeta-permiso");
-  tarjeta.appendChild(crear("div", "permiso-titulo", "🔒 El agente pide permiso"));
+  tarjeta.appendChild(crear("div", "permiso-titulo", t("permisoTitulo")));
   tarjeta.appendChild(crear("div", "permiso-detalle", m.detalle));
   const botones = crear("div", "permiso-botones");
 
@@ -376,82 +629,53 @@ function pedirPermiso(m) {
     tarjeta.appendChild(crear("div", "permiso-resultado", etiqueta));
   };
 
-  const permitir = crear("button", "boton-primario", "Permitir");
-  permitir.onclick = () => responder(true, false, "✓ Permitido");
-  const todo = crear("button", "boton-secundario", "Permitir todo");
-  todo.title = "Aprueba esta acción y el resto de la verificación sigue en automático";
-  todo.onclick = () => responder(true, true, "✓ Permitido todo — el resto sigue en automático");
-  const denegar = crear("button", "boton-peligro", "Denegar");
-  denegar.onclick = () => responder(false, false, "✗ Denegado — esa búsqueda se omite");
+  const permitir = crear("button", "boton-primario", t("permitir"));
+  permitir.onclick = () => responder(true, false, t("resPermitido"));
+  const todo = crear("button", "boton-secundario", t("permitirTodo"));
+  todo.title = t("permitirTodoTitulo");
+  todo.onclick = () => responder(true, true, t("resPermitidoTodo"));
+  const denegar = crear("button", "boton-peligro", t("denegar"));
+  denegar.onclick = () => responder(false, false, t("resDenegado"));
 
   botones.append(permitir, todo, denegar);
   tarjeta.appendChild(botones);
-  t.contenedor.appendChild(tarjeta);
+  turno.contenedor.appendChild(tarjeta);
   bajarConversacion();
 }
 
 // ---------------------------------------------------------------- memoria ----
 
 function mostrarMemoria(previas) {
-  const t = estado.turno;
-  if (!t || !previas?.length) return;
+  const turno = estado.turno;
+  if (!turno || !previas?.length) return;
   const ultima = previas[0];
-  const v = VEREDICTOS[ultima.veredicto] || { titulo: ultima.veredicto };
-  const chip = crear(
-    "div", "chip-memoria",
-    `🕊 Ya verificada el ${fechaCorta(ultima.fecha)}: ${v.titulo.toLowerCase()} ` +
-    `(confianza ${Math.round(ultima.confianza * 100)}%) — se vuelve a verificar igualmente`
-  );
-  t.contenedor.insertBefore(chip, t.registro);
+  const v = infoVeredicto(ultima.veredicto);
+  const chip = crear("div", "chip-memoria", t(
+    "chipMemoria",
+    fechaCorta(ultima.fecha),
+    v.titulo.toLowerCase(),
+    Math.round(ultima.confianza * 100),
+  ));
+  turno.contenedor.insertBefore(chip, turno.registro);
   bajarConversacion();
 }
 
 // ---------------------------------------------------------------- informe ----
 
-
-// Respuestas con código: los tramos entre ``` se vuelven bloques <pre>
-// copiables con un clic (pedido de producto 2026-07-16).
-function renderRespuesta(texto) {
-  const cont = crear("div", "respuesta-texto");
-  const partes = String(texto || "").split(/```(?:[a-z]*\n)?/);
-  partes.forEach((parte, i) => {
-    if (!parte.trim()) return;
-    if (i % 2 === 1) {
-      const caja = crear("div", "bloque-codigo");
-      const pre = document.createElement("pre");
-      pre.textContent = parte.replace(/\n$/, "");
-      const boton = crear("button", "boton-copiar", "copiar");
-      boton.addEventListener("click", async () => {
-        try {
-          await navigator.clipboard.writeText(pre.textContent);
-          boton.textContent = "copiado ✓";
-          setTimeout(() => (boton.textContent = "copiar"), 1500);
-        } catch { boton.textContent = "error"; }
-      });
-      caja.appendChild(boton);
-      caja.appendChild(pre);
-      cont.appendChild(caja);
-    } else {
-      cont.appendChild(crear("div", null, parte.trim()));
-    }
-  });
-  return cont;
-}
-
 function renderInforme(informe) {
   // Una pregunta no se "refuta": el modo respuesta muestra el texto con sus
   // citas y NUNCA una etiqueta de veredicto (fallo medido 2026-07-16).
-  if (informe.tipo === "pregunta" || informe.tipo === "aclaracion") {
+  if (informe.tipo === "pregunta") {
     const tarjeta = crear("div", "tarjeta-veredicto veredicto-respuesta");
-    tarjeta.appendChild(tituloVeredicto({ titulo: informe.tipo === "aclaracion" ? "Necesito una aclaración" : "Respuesta" }));
-    tarjeta.appendChild(renderRespuesta(informe.respuesta || ""));
+    tarjeta.appendChild(tituloVeredicto({ titulo: t("respuesta") }));
+    tarjeta.appendChild(crear("div", "respuesta-texto", informe.respuesta || ""));
     for (const hecho of informe.hechos || []) {
       tarjeta.appendChild(renderHecho(hecho, { sinVeredicto: true }));
     }
     return tarjeta;
   }
 
-  const v = VEREDICTOS[informe.veredicto] || VEREDICTOS.evidencia_insuficiente;
+  const v = infoVeredicto(informe.veredicto);
   const tarjeta = crear("div", `tarjeta-veredicto ${v.clase}`);
   tarjeta.appendChild(tituloVeredicto(v));
 
@@ -460,10 +684,11 @@ function renderInforme(informe) {
   relleno.style.width = `${Math.round(informe.confianza * 100)}%`;
   barra.appendChild(relleno);
   tarjeta.appendChild(barra);
-  tarjeta.appendChild(crear("div", "confianza-texto", `CONFIANZA ${Math.round(informe.confianza * 100)}%`));
+  tarjeta.appendChild(crear(
+    "div", "confianza-texto", t("confianza", Math.round(informe.confianza * 100))));
 
   if (informe.respuesta) {
-    tarjeta.appendChild(renderRespuesta(informe.respuesta));
+    tarjeta.appendChild(crear("div", "respuesta-texto", informe.respuesta));
   }
 
   for (const hecho of informe.hechos || []) tarjeta.appendChild(renderHecho(hecho));
@@ -471,9 +696,9 @@ function renderInforme(informe) {
 }
 
 function mostrarInforme(informe) {
-  const t = estado.turno;
-  if (!t) return;
-  const contenedor = t.contenedor;
+  const turno = estado.turno;
+  if (!turno) return;
+  const contenedor = turno.contenedor;
   terminarTurno();
   contenedor.appendChild(renderInforme(informe));
   bajarConversacion();
@@ -485,7 +710,7 @@ function renderHecho(vh, opciones = {}) {
   nodo.appendChild(crear("div", "hecho-texto", vh.hecho.texto));
 
   if (!opciones.sinVeredicto) {
-    const v = VEREDICTOS[vh.veredicto] || VEREDICTOS.evidencia_insuficiente;
+    const v = infoVeredicto(vh.veredicto);
     const linea = crear("div", `hecho-veredicto ${v.clase}`);
     linea.appendChild(tituloVeredicto(v));
     linea.appendChild(crear("span", "confianza-texto", `· ${Math.round(vh.confianza * 100)}%`));
@@ -493,12 +718,12 @@ function renderHecho(vh, opciones = {}) {
   }
 
   const evidencias = [
-    ...(vh.a_favor || []).map((p) => ({ p, lado: "a-favor", etiqueta: "A favor" })),
-    ...(vh.en_contra || []).map((p) => ({ p, lado: "en-contra", etiqueta: "En contra" })),
+    ...(vh.a_favor || []).map((p) => ({ p, lado: "a-favor", clave: "aFavor" })),
+    ...(vh.en_contra || []).map((p) => ({ p, lado: "en-contra", clave: "enContra" })),
   ];
 
   if (!evidencias.length) {
-    nodo.appendChild(crear("div", "sin-evidencia", "Sin evidencia concluyente en las fuentes consultadas."));
+    nodo.appendChild(crear("div", "sin-evidencia", t("sinEvidencia")));
     return nodo;
   }
 
@@ -506,15 +731,13 @@ function renderHecho(vh, opciones = {}) {
   const aFavor = (vh.a_favor || []).length;
   const enContra = (vh.en_contra || []).length;
   const partes = [];
-  if (aFavor) partes.push(`${aFavor} a favor`);
-  if (enContra) partes.push(`${enContra} en contra`);
+  if (aFavor) partes.push(t("aFavor", aFavor));
+  if (enContra) partes.push(t("enContra", enContra));
 
   const citas = document.createElement("details");
   citas.className = "citas";
   citas.appendChild(crear(
-    "summary", null,
-    `${evidencias.length} cita${evidencias.length === 1 ? "" : "s"} · ${partes.join(" · ")}`
-  ));
+    "summary", null, `${t("citas", evidencias.length)} · ${partes.join(" · ")}`));
   const lista = crear("ul", "evidencias");
   for (const e of evidencias) lista.appendChild(renderEvidencia(e));
   citas.appendChild(lista);
@@ -522,18 +745,22 @@ function renderHecho(vh, opciones = {}) {
   return nodo;
 }
 
-function renderEvidencia({ p, lado, etiqueta }) {
+function renderEvidencia({ p, lado, clave }) {
   const item = crear("li", "evidencia");
   const meta = crear("div", "evidencia-meta");
-  meta.appendChild(crear("span", `evidencia-etiqueta ${lado}`, `${etiqueta} ${Math.round(p.prob * 100)}%`));
+  // etiqueta legible: «A favor 93%» / «For 93%»
+  const texto = (clave === "aFavor"
+    ? (idiomaInterfaz() === "es" ? "A favor" : "For")
+    : (idiomaInterfaz() === "es" ? "En contra" : "Against"));
+  meta.appendChild(crear("span", `evidencia-etiqueta ${lado}`, `${texto} ${Math.round(p.prob * 100)}%`));
   meta.appendChild(crear("span", null, p.evidencia.dominio));
   if (p.evidencia.idioma) meta.appendChild(crear("span", null, p.evidencia.idioma));
   item.appendChild(meta);
 
-  const texto = p.evidencia.texto.length > 280
+  const cuerpo = p.evidencia.texto.length > 280
     ? p.evidencia.texto.slice(0, 280) + "…"
     : p.evidencia.texto;
-  item.appendChild(crear("div", "evidencia-texto", `«${texto}»`));
+  item.appendChild(crear("div", "evidencia-texto", `«${cuerpo}»`));
 
   if (p.evidencia.url) {
     const enlace = crear("a", null, p.evidencia.titulo || p.evidencia.url);
@@ -546,16 +773,16 @@ function renderEvidencia({ p, lado, etiqueta }) {
 }
 
 function mostrarCancelado() {
-  const t = estado.turno;
-  const contenedor = t?.contenedor;
+  const turno = estado.turno;
+  const contenedor = turno?.contenedor;
   terminarTurno();
-  contenedor?.appendChild(crear("div", "nota-cancelado", "Verificación cancelada."));
+  contenedor?.appendChild(crear("div", "nota-cancelado", t("cancelada")));
 }
 
 function mostrarError(mensaje) {
-  const t = estado.turno;
-  if (t) {
-    const contenedor = t.contenedor;
+  const turno = estado.turno;
+  if (turno) {
+    const contenedor = turno.contenedor;
     terminarTurno();
     contenedor.appendChild(crear("div", "nota-error", mensaje));
     bajarConversacion();
@@ -566,20 +793,14 @@ function mostrarError(mensaje) {
 
 // -------------------------------------------------------------- documentos ----
 
-function alternarMenuAdjuntar() {
-  ui.menuAdjuntar.classList.toggle("oculto");
-}
-
 function elegirTipoAdjunto(boton) {
   const tipo = boton.dataset.tipo;
   if (tipo === "imagen" && !estado.capacidades.imagen) {
-    avisar("OCR de imágenes no instalado en el servidor: " +
-           "«uv pip install -e '.[imagen]'» y reinicia AIDAM.", true);
+    avisar(t("ocrFalta"), true);
     return;
   }
   if (tipo === "pdf" && !estado.capacidades.pdf) {
-    avisar("Lectura de PDF no instalada: «uv pip install -e '.[interfaz]'» " +
-           "y reinicia AIDAM.", true);
+    avisar(t("pdfFalta"), true);
     return;
   }
   estado.tipoAdjunto = tipo;
@@ -594,8 +815,9 @@ async function procesarArchivo(archivo, tipo) {
   const esImagen = tipo === "imagen";
   const url = esImagen ? "/api/imagen" : "/api/documento";
   const nombre = archivo.name || (esImagen ? "imagen.png" : "documento");
+  const icono = esImagen ? "🖼 " : "📄 ";
 
-  mostrarAdjunto(`${esImagen ? "🖼" : "📄"} Extrayendo texto de ${nombre}…`);
+  mostrarAdjunto(icono + t("extrayendo", nombre));
   try {
     const datos = new FormData();
     datos.append("archivo", archivo, nombre);
@@ -603,20 +825,20 @@ async function procesarArchivo(archivo, tipo) {
     const cuerpo = await respuesta.json();
     if (!respuesta.ok) throw new Error(cuerpo.error || respuesta.statusText);
     if (!cuerpo.texto) {
-      mostrarAdjunto(`${esImagen ? "🖼" : "📄"} ${nombre} no contiene texto legible`);
+      mostrarAdjunto(icono + t("sinTextoLegible", nombre));
       return;
     }
     let texto = cuerpo.texto;
     let recorte = "";
     if (texto.length > MAX_TEXTO_DOCUMENTO) {
       texto = texto.slice(0, MAX_TEXTO_DOCUMENTO);
-      recorte = ` (recortado a ${MAX_TEXTO_DOCUMENTO} caracteres)`;
+      recorte = t("recortado", MAX_TEXTO_DOCUMENTO);
     }
     insertarTexto(texto);
-    mostrarAdjunto(`${esImagen ? "🖼" : "📄"} Texto extraído de ${nombre}${recorte} — revísalo antes de verificar`);
+    mostrarAdjunto(icono + t("extraido", nombre, recorte));
   } catch (err) {
     mostrarAdjunto("");
-    avisar(`No se pudo leer ${nombre}: ${err.message}`, true);
+    avisar(t("noLeer", nombre, err.message), true);
   } finally {
     estado.tipoAdjunto = null;
   }
@@ -645,17 +867,16 @@ async function cargarConversaciones() {
     ui.listaConversaciones.replaceChildren();
     if (!conversaciones.length) {
       ui.listaConversaciones.appendChild(
-        crear("li", "historial-vacio", "Sin conversaciones todavía."));
+        crear("li", "historial-vacio", t("sinConversaciones")));
       return;
     }
     for (const fila of conversaciones) {
       const item = crear("li");
       item.dataset.id = String(fila.id);
-      item.appendChild(crear("span", "historial-afirmacion", fila.titulo || "(Sin título)"));
-      const turnos = `${fila.turnos} turno${fila.turnos === 1 ? "" : "s"}`;
+      item.appendChild(crear("span", "historial-afirmacion", fila.titulo || t("sinTitulo")));
       item.appendChild(crear("span", "historial-meta",
-        `${turnos} · ${fechaCorta(fila.ultima)}`));
-      item.title = "Reabrir y continuar esta conversación";
+        `${t("turnos", fila.turnos)} · ${fechaCorta(fila.ultima)}`));
+      item.title = t("reabrir");
       item.onclick = () => abrirConversacion(fila.id);
       item.classList.toggle("activa", estado.conversacion === fila.id);
       ui.listaConversaciones.appendChild(item);
@@ -716,17 +937,11 @@ ui.enviar.addEventListener("click", () => {
 
 ui.adjuntar.addEventListener("click", (e) => {
   e.stopPropagation();
-  alternarMenuAdjuntar();
+  ui.menuAdjuntar.classList.toggle("oculto");
 });
 
 ui.menuAdjuntar.querySelectorAll(".menu-opcion").forEach((boton) => {
   boton.addEventListener("click", () => elegirTipoAdjunto(boton));
-});
-
-document.addEventListener("click", (e) => {
-  if (!ui.menuAdjuntar.classList.contains("oculto") && !ui.menuAdjuntar.contains(e.target)) {
-    ui.menuAdjuntar.classList.add("oculto");
-  }
 });
 
 ui.selectorArchivo.addEventListener("change", () => {
@@ -752,9 +967,8 @@ async function iniciar() {
   cargarPreferencias();
   ui.conversacion.appendChild(ui.plantillaBienvenida.content.cloneNode(true));
   conectarEjemplos();
+  aplicarIdioma();
   conectar();
-  renderEspacios();
-  cargarConversaciones();
   cargarCapacidades();
   ui.entrada.focus();
 }

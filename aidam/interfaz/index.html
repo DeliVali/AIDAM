@@ -26,19 +26,40 @@
 
     <button id="nueva-verificacion" class="boton-nueva">＋ Nueva verificación</button>
 
-    <div class="lateral-etiqueta">Espacios de trabajo</div>
+    <div class="lateral-etiqueta" id="etiqueta-espacios">Espacios de trabajo</div>
     <ul id="lista-espacios" class="lista-espacios"></ul>
     <button id="boton-anadir-carpeta" class="boton-carpeta" title="Añadir una carpeta como espacio de trabajo">
       <span>📁</span>
       <span class="carpeta-nombre">Añadir carpeta…</span>
     </button>
 
-    <div class="lateral-etiqueta">Conversaciones</div>
+    <div class="lateral-etiqueta" id="etiqueta-conversaciones">Conversaciones</div>
     <ul id="lista-conversaciones" class="lista-historial">
       <li class="historial-vacio">Sin conversaciones todavía.</li>
     </ul>
 
     <div class="lateral-pie">
+      <div class="config">
+        <button id="boton-config" class="boton-icono boton-config" title="Configuración">⚙</button>
+        <div id="menu-config" class="menu-adjuntar menu-config oculto" role="menu">
+          <div class="menu-titulo" id="menu-config-titulo">Configuración</div>
+          <label class="config-fila">
+            <span id="etiqueta-idioma">Idioma</span>
+            <select id="idioma">
+              <option value="es" selected>Español</option>
+              <option value="en">English</option>
+              <option value="fr">Français</option>
+              <option value="de">Deutsch</option>
+              <option value="pt">Português</option>
+              <option value="it">Italiano</option>
+            </select>
+          </label>
+          <label class="config-fila" id="control-memoria" title="Guardar en la memoria del agente y avisar si ya se verificó antes">
+            <span id="etiqueta-memoria">Memoria</span>
+            <input type="checkbox" id="opcion-memoria" checked>
+          </label>
+        </div>
+      </div>
       <span id="estado-conexion" class="estado-conexion" title="Estado de la conexión">
         <span class="punto"></span><span id="estado-texto">Conectando…</span>
       </span>
@@ -56,6 +77,14 @@
       <div id="aviso-adjunto" class="aviso-adjunto oculto"></div>
 
       <div class="caja-entrada">
+        <div class="modo">
+          <button id="boton-modo" class="boton-icono" title="Modo de ejecución">⚡</button>
+          <div id="menu-modo" class="menu-adjuntar menu-modo oculto" role="menu">
+            <div class="menu-titulo" id="menu-modo-titulo">Modo de ejecución</div>
+            <button class="menu-opcion" data-modo="auto">⚡ Automático</button>
+            <button class="menu-opcion" data-modo="permisos">🔒 Pedir permiso</button>
+          </div>
+        </div>
         <textarea id="entrada" rows="1"
           placeholder="Escribe una afirmación para verificar, o adjunta un documento…"
           autocomplete="off" spellcheck="true"></textarea>
@@ -64,7 +93,7 @@
           <div class="adjuntar">
             <button id="boton-adjuntar" class="boton-icono" title="Subir un documento">📎</button>
             <div id="menu-adjuntar" class="menu-adjuntar oculto" role="menu">
-              <div class="menu-titulo">¿Qué documento subes?</div>
+              <div class="menu-titulo" id="menu-adjuntar-titulo">¿Qué documento subes?</div>
               <button class="menu-opcion" data-tipo="imagen" data-accept="image/*">🖼 Imagen o captura</button>
               <button class="menu-opcion" data-tipo="pdf" data-accept=".pdf">📄 PDF</button>
               <button class="menu-opcion" data-tipo="texto" data-accept=".txt,.md,.csv">📃 Texto (.txt, .md)</button>
@@ -72,30 +101,6 @@
           </div>
           <button id="boton-enviar" class="boton-enviar" title="Verificar (Enter)">➤</button>
         </div>
-      </div>
-
-      <div class="controles">
-        <label class="control" title="Automático ejecuta todo el pipeline; Pedir permiso pausa antes de cada búsqueda en la red">
-          Modo
-          <select id="modo">
-            <option value="auto" selected>⚡ Automático</option>
-            <option value="permisos">🔒 Pedir permiso</option>
-          </select>
-        </label>
-        <label class="control" title="Idioma de la afirmación">
-          Idioma
-          <select id="idioma">
-            <option value="es" selected>Español</option>
-            <option value="en">English</option>
-            <option value="fr">Français</option>
-            <option value="de">Deutsch</option>
-            <option value="pt">Português</option>
-            <option value="it">Italiano</option>
-          </select>
-        </label>
-        <label class="control" title="Guardar en la memoria del agente y avisar si ya se verificó antes">
-          <input type="checkbox" id="opcion-memoria" checked> Memoria
-        </label>
       </div>
     </footer>
   </div>

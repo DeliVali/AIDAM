@@ -602,7 +602,56 @@ details.citas > summary:hover { background: var(--vidrio-alzado); border-color: 
 
 .botones-entrada { display: flex; gap: 6px; align-items: flex-end; }
 
-.adjuntar { position: relative; }
+.adjuntar, .modo, .config { position: relative; }
+
+.modo { align-self: flex-end; }
+
+/* menú de modo: se abre sobre el icono, a la izquierda de la entrada */
+.menu-modo { left: 0; right: auto; }
+
+.menu-opcion.elegida {
+  background: rgba(114, 210, 255, 0.10);
+  color: var(--glacial-claro);
+}
+
+/* configuración: engranaje en el pie de la barra lateral */
+.boton-config { width: 30px; height: 30px; font-size: 0.95rem; }
+
+.menu-config {
+  bottom: 40px;
+  left: 0;
+  right: auto;
+  min-width: 210px;
+}
+
+.config-fila {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 10px;
+  font-family: var(--fuente);
+  font-size: 0.84rem;
+  color: var(--texto);
+  cursor: pointer;
+  border-radius: 8px;
+}
+
+.config-fila:hover { background: var(--vidrio-alzado); }
+
+.config-fila select {
+  background: rgba(20, 28, 38, 0.9);
+  color: var(--texto);
+  border: 1px solid var(--contorno);
+  border-radius: 8px;
+  padding: 3px 8px;
+  font-family: var(--fuente);
+  font-size: 0.8rem;
+}
+
+.config-fila select:focus { outline: none; border-color: rgba(114, 210, 255, 0.5); }
+
+.config-fila input[type="checkbox"] { accent-color: var(--glacial); }
 
 .boton-icono, .boton-enviar {
   border: 1px solid var(--contorno);
@@ -669,30 +718,6 @@ details.citas > summary:hover { background: var(--vidrio-alzado); border-color: 
 }
 
 .menu-opcion:hover { background: var(--vidrio-alzado); }
-
-.controles {
-  display: flex; flex-wrap: wrap; gap: 16px; align-items: center;
-  max-width: 780px; margin: 9px auto 0;
-  font-family: var(--mono);
-  font-size: 0.7rem;
-  color: var(--texto-tenue);
-}
-
-.control { display: inline-flex; align-items: center; gap: 7px; }
-
-.control select {
-  background: rgba(20, 28, 38, 0.9);
-  color: var(--texto);
-  border: 1px solid var(--contorno);
-  border-radius: 8px;
-  padding: 3px 8px;
-  font-family: var(--fuente);
-  font-size: 0.78rem;
-}
-
-.control select:focus { outline: none; border-color: rgba(114, 210, 255, 0.5); }
-
-.control input[type="checkbox"] { accent-color: var(--glacial); }
 
 /* ---- botones genéricos ---- */
 
