@@ -267,3 +267,21 @@ def test_sin_memoria_no_guarda(cliente):
         _enviar(ws, tipo="verificar", afirmacion="Efímera", memoria=False)
         _recibir_hasta(ws, "informe")
     assert cliente.get("/api/historial").json()["historial"] == []
+
+
+def test_reabrir_verificacion_guardada(cliente):
+    with cliente.websocket_connect("/ws") as ws:
+        _enviar(ws, tipo="verificar", afirmacion="La Torre Eiffel está en París")
+        _recibir_hasta(ws, "informe")
+
+    fila = cliente.get("/api/historial").json()["historial"][0]
+    assert isinstance(fila["id"], int)
+
+    guardada = cliente.get(f"/api/verificacion/{fila['id']}")
+    assert guardada.status_code == 200
+    cuerpo = guardada.json()
+    assert cuerpo["afirmacion"] == "La Torre Eiffel está en París"
+    assert cuerpo["informe"]["veredicto"] == "sustentado"
+    assert cuerpo["informe"]["hechos"][0]["a_favor"]  # las citas viajan enteras
+
+    assert cliente.get("/api/verificacion/99999").status_code == 404

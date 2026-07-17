@@ -1,8 +1,9 @@
 /* AIDAM — lógica de la interfaz. Vanilla JS, sin dependencias.
  *
  * Protocolo WebSocket documentado en aidam/servidor.py y docs/INTERFAZ.md.
- * Sin voz por diseño (decisión de producto para la app de escritorio); la
- * entrada es texto y documentos (imagen OCR, PDF, texto plano).
+ * Layout tipo chat: barra lateral con historial reabrible + nueva
+ * verificación; entrada con documentos (imagen OCR, PDF, texto) y modo de
+ * ejecución del agente. Sin voz por diseño.
  */
 
 "use strict";
@@ -13,7 +14,7 @@ const $ = (id) => document.getElementById(id);
 
 const ui = {
   conversacion: $("conversacion"),
-  bienvenida: $("bienvenida"),
+  plantillaBienvenida: $("plantilla-bienvenida"),
   entrada: $("entrada"),
   enviar: $("boton-enviar"),
   adjuntar: $("boton-adjuntar"),
@@ -26,11 +27,8 @@ const ui = {
   estadoConexion: $("estado-conexion"),
   estadoTexto: $("estado-texto"),
   avisos: $("avisos"),
-  botonLateral: $("boton-lateral"),
-  barraLateral: $("barra-lateral"),
-  cerrarLateral: $("cerrar-lateral"),
+  nuevaVerificacion: $("nueva-verificacion"),
   listaHistorial: $("lista-historial"),
-  listaFuentes: $("lista-fuentes"),
   acercaVersion: $("acerca-version"),
 };
 
@@ -81,6 +79,13 @@ function fechaCorta(iso) {
   } catch {
     return iso;
   }
+}
+
+function tituloVeredicto(v) {
+  const titulo = crear("div", "veredicto-titulo");
+  titulo.appendChild(crear("span", "punto-veredicto"));
+  titulo.appendChild(crear("span", null, v.titulo.toUpperCase()));
+  return titulo;
 }
 
 // ---------------------------------------------------------- preferencias ----
@@ -146,6 +151,52 @@ function manejarMensaje(m) {
   }
 }
 
+// ---------------------------------------------------------- conversaciones ----
+
+function nuevaConversacion() {
+  if (estado.enCurso) cancelarVerificacion();
+  estado.turno = null;
+  ui.conversacion.replaceChildren(ui.plantillaBienvenida.content.cloneNode(true));
+  conectarEjemplos();
+  marcarHistorialActivo(null);
+  ui.entrada.value = "";
+  ajustarAltura();
+  ui.entrada.focus();
+}
+
+function quitarBienvenida() {
+  ui.conversacion.querySelector(".bienvenida")?.remove();
+}
+
+async function abrirVerificacion(id) {
+  if (estado.enCurso) {
+    avisar("Espera a que termine la verificación en curso (o cancélala).");
+    return;
+  }
+  try {
+    const respuesta = await fetch(`/api/verificacion/${id}`);
+    const guardada = await respuesta.json();
+    if (!respuesta.ok) throw new Error(guardada.error || respuesta.statusText);
+
+    ui.conversacion.replaceChildren();
+    const turno = crear("div", "turno");
+    turno.appendChild(crear("span", "chip-fecha", `verificada el ${fechaCorta(guardada.fecha)}`));
+    turno.appendChild(crear("div", "burbuja-usuario", guardada.afirmacion));
+    turno.appendChild(renderInforme(guardada.informe));
+    ui.conversacion.appendChild(turno);
+    marcarHistorialActivo(id);
+    bajarConversacion();
+  } catch (err) {
+    avisar(`No se pudo abrir la verificación: ${err.message}`, true);
+  }
+}
+
+function marcarHistorialActivo(id) {
+  ui.listaHistorial.querySelectorAll("li").forEach((li) => {
+    li.classList.toggle("activa", id !== null && li.dataset.id === String(id));
+  });
+}
+
 // ------------------------------------------------------- envío y progreso ----
 
 function enviarVerificacion() {
@@ -163,8 +214,8 @@ function enviarVerificacion() {
     modo: ui.modo.value,
   }));
 
-  ui.bienvenida?.remove();
-  ui.bienvenida = null;
+  quitarBienvenida();
+  marcarHistorialActivo(null);
   mostrarAdjunto("");
 
   const turno = crear("div", "turno");
@@ -268,54 +319,46 @@ function mostrarMemoria(previas) {
 
 // ---------------------------------------------------------------- informe ----
 
-function mostrarInforme(informe) {
-  const t = estado.turno;
-  if (!t) return;
-  const contenedor = t.contenedor;
-  terminarTurno();
-
+function renderInforme(informe) {
   // Una pregunta no se "refuta": el modo respuesta muestra el texto con sus
   // citas y NUNCA una etiqueta de veredicto (fallo medido 2026-07-16).
   if (informe.tipo === "pregunta") {
     const tarjeta = crear("div", "tarjeta-veredicto veredicto-respuesta");
-    const titulo = crear("div", "veredicto-titulo");
-    titulo.appendChild(crear("span", "icono", "💬"));
-    titulo.appendChild(crear("span", null, "RESPUESTA"));
-    tarjeta.appendChild(titulo);
+    tarjeta.appendChild(tituloVeredicto({ titulo: "Respuesta" }));
     tarjeta.appendChild(crear("div", "respuesta-texto", informe.respuesta || ""));
     for (const hecho of informe.hechos || []) {
       tarjeta.appendChild(renderHecho(hecho, { sinVeredicto: true }));
     }
-    contenedor.appendChild(tarjeta);
-    bajarConversacion();
-    cargarHistorial();
-    return;
+    return tarjeta;
   }
 
   const v = VEREDICTOS[informe.veredicto] || VEREDICTOS.evidencia_insuficiente;
   const tarjeta = crear("div", `tarjeta-veredicto ${v.clase}`);
-
-  const titulo = crear("div", "veredicto-titulo");
-  titulo.appendChild(crear("span", "icono", v.icono));
-  titulo.appendChild(crear("span", null, v.titulo.toUpperCase()));
-  tarjeta.appendChild(titulo);
+  tarjeta.appendChild(tituloVeredicto(v));
 
   const barra = crear("div", "barra-confianza");
   const relleno = crear("div");
   relleno.style.width = `${Math.round(informe.confianza * 100)}%`;
   barra.appendChild(relleno);
   tarjeta.appendChild(barra);
-  tarjeta.appendChild(crear("div", "confianza-texto", `confianza ${Math.round(informe.confianza * 100)}%`));
+  tarjeta.appendChild(crear("div", "confianza-texto", `CONFIANZA ${Math.round(informe.confianza * 100)}%`));
 
   if (informe.respuesta) {
     tarjeta.appendChild(crear("div", "respuesta-texto", informe.respuesta));
   }
 
   for (const hecho of informe.hechos || []) tarjeta.appendChild(renderHecho(hecho));
+  return tarjeta;
+}
 
-  contenedor.appendChild(tarjeta);
+function mostrarInforme(informe) {
+  const t = estado.turno;
+  if (!t) return;
+  const contenedor = t.contenedor;
+  terminarTurno();
+  contenedor.appendChild(renderInforme(informe));
   bajarConversacion();
-  cargarHistorial(); // refresca la barra lateral con la verificación recién guardada
+  cargarHistorial(); // la barra lateral recoge la verificación recién guardada
 }
 
 function renderHecho(vh, opciones = {}) {
@@ -325,8 +368,8 @@ function renderHecho(vh, opciones = {}) {
   if (!opciones.sinVeredicto) {
     const v = VEREDICTOS[vh.veredicto] || VEREDICTOS.evidencia_insuficiente;
     const linea = crear("div", `hecho-veredicto ${v.clase}`);
-    linea.appendChild(crear("span", "veredicto-titulo", `${v.icono} ${v.titulo}`));
-    linea.appendChild(crear("span", "confianza-texto", ` · confianza ${Math.round(vh.confianza * 100)}%`));
+    linea.appendChild(tituloVeredicto(v));
+    linea.appendChild(crear("span", "confianza-texto", `· ${Math.round(vh.confianza * 100)}%`));
     nodo.appendChild(linea);
   }
 
@@ -473,30 +516,26 @@ function insertarTexto(texto) {
   ui.entrada.focus();
 }
 
-// ------------------------------------------------------------ barra lateral ----
+// --------------------------------------------------------------- historial ----
 
 async function cargarHistorial() {
   try {
-    const respuesta = await fetch("/api/historial?limite=30");
+    const respuesta = await fetch("/api/historial?limite=40");
     const { historial } = await respuesta.json();
     ui.listaHistorial.replaceChildren();
     if (!historial.length) {
-      ui.listaHistorial.appendChild(crear("li", "historial-vacio", "Sin verificaciones guardadas todavía."));
+      ui.listaHistorial.appendChild(crear("li", "historial-vacio", "Sin verificaciones todavía."));
       return;
     }
     for (const fila of historial) {
       const item = crear("li");
+      item.dataset.id = String(fila.id ?? "");
       const v = VEREDICTOS[fila.veredicto] || { icono: "?", titulo: fila.veredicto };
       item.appendChild(crear("span", "historial-afirmacion", `${v.icono} ${fila.afirmacion}`));
       item.appendChild(crear("span", "historial-meta",
         `${v.titulo.toLowerCase()} · ${Math.round(fila.confianza * 100)}% · ${fechaCorta(fila.fecha)}`));
-      item.title = "Copiar al cuadro de entrada";
-      item.onclick = () => {
-        ui.entrada.value = fila.afirmacion;
-        ajustarAltura();
-        ui.barraLateral.classList.add("oculto");
-        ui.entrada.focus();
-      };
+      item.title = "Reabrir esta verificación";
+      item.onclick = () => abrirVerificacion(fila.id);
       ui.listaHistorial.appendChild(item);
     }
   } catch {
@@ -504,38 +543,21 @@ async function cargarHistorial() {
   }
 }
 
-async function cargarFuentes() {
-  if (ui.listaFuentes.childElementCount) return; // el registro no cambia en caliente
-  try {
-    const respuesta = await fetch("/api/fuentes");
-    const { fuentes } = await respuesta.json();
-    for (const fuente of fuentes) {
-      const item = crear("li");
-      item.appendChild(crear("span", "fuente-nombre", fuente.nombre));
-      const ambito = fuente.categorias.length ? fuente.categorias.join(", ") : "todas las categorías";
-      item.appendChild(crear("span", "fuente-descripcion", `${fuente.descripcion} [${ambito}]`));
-      ui.listaFuentes.appendChild(item);
-    }
-  } catch {
-    /* sin backend no hay lista; el resto de la barra sigue siendo útil */
-  }
-}
-
-ui.botonLateral.addEventListener("click", () => {
-  const abrir = ui.barraLateral.classList.contains("oculto");
-  ui.barraLateral.classList.toggle("oculto");
-  if (abrir) {
-    cargarHistorial();
-    cargarFuentes();
-  }
-});
-ui.cerrarLateral.addEventListener("click", () => ui.barraLateral.classList.add("oculto"));
-
 // ---------------------------------------------------------------- entrada ----
 
 function ajustarAltura() {
   ui.entrada.style.height = "auto";
   ui.entrada.style.height = `${Math.min(ui.entrada.scrollHeight, 160)}px`;
+}
+
+function conectarEjemplos() {
+  ui.conversacion.querySelectorAll(".ejemplo").forEach((boton) => {
+    boton.addEventListener("click", () => {
+      ui.entrada.value = boton.textContent;
+      ajustarAltura();
+      ui.entrada.focus();
+    });
+  });
 }
 
 ui.entrada.addEventListener("input", ajustarAltura);
@@ -590,18 +612,14 @@ ui.selectorArchivo.addEventListener("change", () => {
   ui.selectorArchivo.value = "";
 });
 
-document.querySelectorAll(".ejemplo").forEach((boton) => {
-  boton.addEventListener("click", () => {
-    ui.entrada.value = boton.textContent;
-    ajustarAltura();
-    ui.entrada.focus();
-  });
-});
+ui.nuevaVerificacion.addEventListener("click", nuevaConversacion);
 
 // ------------------------------------------------------------------ inicio ----
 
 async function iniciar() {
   cargarPreferencias();
+  ui.conversacion.appendChild(ui.plantillaBienvenida.content.cloneNode(true));
+  conectarEjemplos();
   conectar();
   cargarHistorial();
   try {

@@ -96,7 +96,7 @@ async function crearVentana() {
     height: 780,
     minWidth: 720,
     minHeight: 520,
-    backgroundColor: "#0f1115",
+    backgroundColor: "#05070a",
     autoHideMenuBar: true,
     icon: path.join(__dirname, "build", "icon.png"),
     webPreferences: {

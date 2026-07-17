@@ -1183,6 +1183,20 @@ class, the hardest in the benchmark.
       real-eval confirmation run launched for v10 (promotion bar:
       beat 62.6 on the true 500).
 
+- [x] **DOMINANCIA 1.5: REJECTED on the real 500 — and a meta-law about
+      the cache (2026-07-16).** The in-cache +0.8 became a real -1.8
+      (60.8 vs production's 62.6; bar was >62.6). In-cache sweep deltas
+      are direction-finders, NOT promotion evidence: the cache path
+      approximates the pipeline and its deltas do not transfer — this
+      confirmation run saved production from a silent regression. Honest
+      nuance: the softer gate did lift the blind classes (Conflicting
+      0.10→0.15, NEI 0.09→0.15, macro F1 +0.05) at the cost of global
+      accuracy — a trade-off, not a cure, consistent with the
+      representation-failure law. DOMINANCIA stays 2.0; v10 stands at
+      62.6. Also caught this session: the eval's silent resume reused
+      the previous model's 500 results — archived and refreshed; always
+      check the "ya evaluadas" line.
+
 ### PRE-REGISTERED: verifier v22 — teaching abstention (designed
 2026-07-16, before any training run). The blind-class law says NEI is a
 representation failure: the pair-level NLI output carries no "this
