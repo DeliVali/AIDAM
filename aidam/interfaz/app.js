@@ -319,13 +319,43 @@ function mostrarMemoria(previas) {
 
 // ---------------------------------------------------------------- informe ----
 
+
+// Respuestas con código: los tramos entre ``` se vuelven bloques <pre>
+// copiables con un clic (pedido de producto 2026-07-16).
+function renderRespuesta(texto) {
+  const cont = crear("div", "respuesta-texto");
+  const partes = String(texto || "").split(/```(?:[a-z]*\n)?/);
+  partes.forEach((parte, i) => {
+    if (!parte.trim()) return;
+    if (i % 2 === 1) {
+      const caja = crear("div", "bloque-codigo");
+      const pre = document.createElement("pre");
+      pre.textContent = parte.replace(/\n$/, "");
+      const boton = crear("button", "boton-copiar", "copiar");
+      boton.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(pre.textContent);
+          boton.textContent = "copiado ✓";
+          setTimeout(() => (boton.textContent = "copiar"), 1500);
+        } catch { boton.textContent = "error"; }
+      });
+      caja.appendChild(boton);
+      caja.appendChild(pre);
+      cont.appendChild(caja);
+    } else {
+      cont.appendChild(crear("div", null, parte.trim()));
+    }
+  });
+  return cont;
+}
+
 function renderInforme(informe) {
   // Una pregunta no se "refuta": el modo respuesta muestra el texto con sus
   // citas y NUNCA una etiqueta de veredicto (fallo medido 2026-07-16).
   if (informe.tipo === "pregunta") {
     const tarjeta = crear("div", "tarjeta-veredicto veredicto-respuesta");
     tarjeta.appendChild(tituloVeredicto({ titulo: "Respuesta" }));
-    tarjeta.appendChild(crear("div", "respuesta-texto", informe.respuesta || ""));
+    tarjeta.appendChild(renderRespuesta(informe.respuesta || ""));
     for (const hecho of informe.hechos || []) {
       tarjeta.appendChild(renderHecho(hecho, { sinVeredicto: true }));
     }
@@ -344,7 +374,7 @@ function renderInforme(informe) {
   tarjeta.appendChild(crear("div", "confianza-texto", `CONFIANZA ${Math.round(informe.confianza * 100)}%`));
 
   if (informe.respuesta) {
-    tarjeta.appendChild(crear("div", "respuesta-texto", informe.respuesta));
+    tarjeta.appendChild(renderRespuesta(informe.respuesta));
   }
 
   for (const hecho of informe.hechos || []) tarjeta.appendChild(renderHecho(hecho));

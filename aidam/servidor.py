@@ -194,10 +194,12 @@ class _Sesion:
     def _recuperador(self, hecho, lang="es", max_idiomas=5, categoria=None):
         if self.cancelado.is_set():
             raise _Cancelado()
+        # Router slugs are identifiers; the user reads proper Spanish.
+        legible = {"programacion": "programación", "matematicas": "matemáticas"}
         permitido = self.pedir_permiso(
             "buscar_evidencia",
             f"Buscar evidencia sobre «{hecho.texto}» "
-            f"(fuentes de la categoría: {categoria or 'todas'})",
+            f"(fuentes de la categoría: {legible.get(categoria, categoria) or 'todas'})",
         )
         if not permitido:
             self._enviar(

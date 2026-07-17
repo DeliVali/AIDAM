@@ -85,6 +85,36 @@ def es_pregunta(texto: str) -> bool:
     return bool(_INTERROGATIVOS.match(limpio)) and len(limpio) < 140 and not limpio.endswith(".")
 
 
+_P_PREGUNTA_CODIGO = re.compile(
+    r"\b(en (python|java(script)?|c\+\+|rust|go|típescript|typescript|php|sql)"
+    r"|c[oó]mo se (itera|recorre|declara|ordena|crea|define|invierte|filtra)"
+    r"|array|arreglo|lista|diccionario|funci[oó]n|bucle|loop|regex|c[oó]digo)\b",
+    re.IGNORECASE,
+)
+_P_LINEA_CODIGO = re.compile(
+    r"^\s{4,}\S|^\s*(for|while|def|class|import|from|if|print|return|let|const|var)\b"
+    r"|=\s*\[|\.append\(|=>|;\s*$",
+)
+
+
+def _extraer_codigo(evidencias: list) -> str | None:
+    """First plausible code run found in the evidence passages (Stack
+    Overflow / official docs text often embeds it verbatim)."""
+    for e in evidencias:
+        lineas = e.texto.splitlines()
+        corrida: list[str] = []
+        for linea in lineas:
+            if _P_LINEA_CODIGO.search(linea):
+                corrida.append(linea.rstrip())
+            elif corrida:
+                if len(corrida) >= 2:
+                    return "\n".join(corrida[:12])
+                corrida = []
+        if len(corrida) >= 2:
+            return "\n".join(corrida[:12])
+    return None
+
+
 def responder_pregunta(pregunta: str, evidencias: list,
                        excluir_dominios: set[str] | None = None) -> str:
     """Evidence-grounded answer to a question, phrased like a person.
@@ -108,7 +138,8 @@ def responder_pregunta(pregunta: str, evidencias: list,
     for e in utiles:
         for frase in re.split(r"(?<=[.!?»])\s+", e.texto):
             frase = frase.strip()
-            if 25 <= len(frase) <= 300 and not frase.endswith("?"):
+            if (25 <= len(frase) <= 300 and not frase.endswith("?")
+                    and not _P_LINEA_CODIGO.search(frase)):
                 candidatas.append((frase, e))
     if not candidatas:
         candidatas = [(e.texto[:220].strip(), e) for e in utiles[:3]]
@@ -126,8 +157,16 @@ def responder_pregunta(pregunta: str, evidencias: list,
     except Exception:
         pass
     frase, fuente = orden[0]
-    lineas = [frase if frase.endswith((".", "!", "»")) else frase + ".",
-              f"Fuente: {fuente.dominio} — {fuente.url}"]
+    lineas = [frase if frase.endswith((".", "!", "»")) else frase + "."]
+    # Code questions deserve a copy-ready example, not prose about loops
+    # (Jeffrey, 2026-07-16). Extracted verbatim from the evidence; the UI
+    # renders the fence as a copyable block.
+    if _P_PREGUNTA_CODIGO.search(pregunta):
+        fuentes_top = [fuente] + [e for _, e in orden[1:5] if e is not fuente]
+        codigo = _extraer_codigo(fuentes_top)
+        if codigo:
+            lineas.append(f"```python\n{codigo}\n```")
+    lineas.append(f"Fuente: {fuente.dominio} — {fuente.url}")
     otras = []
     for f2, e2 in orden[1:]:
         if e2.dominio != fuente.dominio and e2.dominio not in otras:

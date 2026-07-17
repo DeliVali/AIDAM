@@ -12,7 +12,7 @@
 
 "use strict";
 
-const { app, BrowserWindow, dialog, net: electronNet } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, net: electronNet } = require("electron");
 const { spawn } = require("node:child_process");
 const net = require("node:net");
 const fs = require("node:fs");
@@ -101,10 +101,21 @@ async function crearVentana() {
     autoHideMenuBar: true,
     icon: path.join(__dirname, "build", "icon.png"),
     webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
     },
   });
+
+  // Carpeta de trabajo del agente: diálogo nativo, pedido desde la UI.
+  ipcMain.handle("elegir-carpeta", async () => {
+    const eleccion = await dialog.showOpenDialog(ventana, {
+      title: "Carpeta de trabajo del agente",
+      properties: ["openDirectory", "createDirectory"],
+    });
+    return eleccion.canceled ? null : eleccion.filePaths[0];
+  });
+
   ventana.loadURL(base);
 }
 

@@ -19,6 +19,7 @@
     "productName": "AIDAM",
     "files": [
       "main.js",
+      "preload.js",
       "icono.svg",
       "build/icon.png"
     ],
