@@ -466,6 +466,70 @@ def crear_app(
                 return None
         return app.state.memoria
 
+
+    @app.post("/v1/chat/completions")
+    async def chat_completions(peticion: dict):
+        """OpenAI-compatible endpoint: AIDAM as a provider for assistant
+        infrastructure (OpenClaw gateways, and any OpenAI-style client).
+        Jeffrey's integration path (2026-07-16): instead of building 29
+        messenger bridges, expose the standard surface those gateways
+        already speak — verification from WhatsApp/Telegram/Discord comes
+        free through them. Non-streaming; the verdict/answer text is the
+        assistant message, with the same dialogue routing as the UI
+        (social, computable, question, claim)."""
+        mensajes = peticion.get("messages") or []
+        usuario = next(
+            (m.get("content", "") for m in reversed(mensajes)
+             if m.get("role") == "user" and (m.get("content") or "").strip()),
+            "",
+        )
+        if not usuario:
+            return JSONResponse({"error": {"message": "sin mensaje de usuario"}}, status_code=400)
+
+        from .agente.contexto import respuesta_social
+
+        social = respuesta_social(usuario)
+        if social is not None:
+            texto = social
+        else:
+            def progreso(_m: str) -> None:
+                pass
+
+            informe = await asyncio.to_thread(
+                verificar_fn, usuario, progreso=progreso,
+            )
+            if informe.tipo == "pregunta":
+                texto = informe.respuesta
+            else:
+                estilo = {
+                    "sustentado": "✓ SUSTENTADO",
+                    "refutado": "✗ REFUTADO",
+                    "evidencia_contradictoria": "⚡ EVIDENCIA CONTRADICTORIA",
+                    "evidencia_insuficiente": "? EVIDENCIA INSUFICIENTE",
+                }.get(informe.veredicto.value, informe.veredicto.value)
+                texto = f"{estilo} · confianza {informe.confianza:.0%}\n{informe.respuesta}"
+            try:
+                memoria = obtener_memoria()
+                if memoria is not None and social is None:
+                    memoria.guardar(informe)
+            except Exception:
+                pass
+
+        import time as _t
+
+        return {
+            "id": "aidam-chat",
+            "object": "chat.completion",
+            "created": int(_t.time()),
+            "model": peticion.get("model", "aidam-verificador"),
+            "choices": [{
+                "index": 0,
+                "message": {"role": "assistant", "content": texto},
+                "finish_reason": "stop",
+            }],
+            "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+        }
+
     @app.get("/api/capacidades")
     def capacidades():
         return {
