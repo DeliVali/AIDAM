@@ -30,6 +30,7 @@ from __future__ import annotations
 import argparse
 import json
 import random
+import re
 from collections import defaultdict
 from pathlib import Path
 
@@ -57,6 +58,70 @@ def _texto_qa(pregunta: dict) -> str:
     return " ".join(p for p in partes if p)
 
 
+SALIDA_NEI = Path("data/local/averitec_nei_pairs.jsonl")
+
+
+def _generar_nei_cruzado(datos: list[dict], n: int) -> None:
+    """Abstention pairs: claim_i vs the gold evidence of a nearby claim_j.
+
+    Sampling is verified per pair: the neighbor must be topical (e5 cosine
+    in [0.78, 0.90)) and must NOT share a majority of content words with
+    claim_i's own evidence — a cheap guard against the same-event case
+    where j's evidence WOULD be probative for i (the label-noise failure
+    scidoc taught us to fear).
+    """
+    import numpy as np
+
+    from aidam.vectores import _codificador
+
+    ejemplos = []
+    for ejemplo in datos:
+        lineas = [_texto_qa(p) for p in ejemplo.get("questions", [])]
+        evidencia = " ".join(l for l in lineas if len(l) > 10)
+        if len(evidencia) >= 40:
+            ejemplos.append({"claim": ejemplo["claim"], "evidence": evidencia[:4000]})
+    print(f"[nei-cruzado] {len(ejemplos)} claims con evidencia; emparejando por significado…")
+
+    codificar = _codificador()
+    vectores = np.vstack([
+        codificar([f"query: {e['claim']}" for e in ejemplos[i:i + 64]])
+        for i in range(0, len(ejemplos), 64)
+    ])
+    similitud = vectores @ vectores.T
+    np.fill_diagonal(similitud, -1.0)
+
+    aleatorio = random.Random(SEMILLA)
+    indices = list(range(len(ejemplos)))
+    aleatorio.shuffle(indices)
+    filas, usados = [], set()
+    for i in indices:
+        if len(filas) >= n:
+            break
+        candidatos_j = np.argsort(-similitud[i])
+        for j in candidatos_j[:20]:
+            s = similitud[i, j]
+            if not (0.78 <= s < 0.90) or (i, j) in usados:
+                continue
+            palabras_i = set(re.findall(r"\w{5,}", ejemplos[i]["evidence"].lower()))
+            palabras_j = set(re.findall(r"\w{5,}", ejemplos[j]["evidence"].lower()))
+            if palabras_i and len(palabras_i & palabras_j) / len(palabras_i) > 0.4:
+                continue  # same event: j's evidence could be probative for i
+            filas.append({
+                "claim": ejemplos[i]["claim"],
+                "evidence": ejemplos[j]["evidence"],
+                "label": "NOT ENOUGH INFO",
+            })
+            usados.add((i, j))
+            break
+
+    SALIDA_NEI.parent.mkdir(parents=True, exist_ok=True)
+    with SALIDA_NEI.open("w") as salida:
+        for fila in filas:
+            salida.write(json.dumps(
+                {**fila, "origen": "averitec-nei-cruzado"}, ensure_ascii=False) + "\n")
+    print(f"[nei-cruzado] {len(filas)} pares NEI → {SALIDA_NEI}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--entrada", type=Path, default=ENTRADA)
@@ -67,6 +132,15 @@ def main() -> None:
         help="cap each label at the minority class count (default on)",
     )
     parser.add_argument("--no-balancear", dest="balancear", action="store_false")
+    parser.add_argument(
+        "--nei-cruzado", type=int, default=0, metavar="N",
+        help="v22 abstention pairs: N rows labeling claim_i against the gold "
+        "evidence of a TOPICALLY NEARBY claim_j as NOT ENOUGH INFO. Neighbor "
+        "band by e5 cosine [0.78, 0.90): same topic, different event — high "
+        "enough to be hard, low enough that j's evidence is genuinely not "
+        "probative for i (the scidoc lesson: same-document halves are "
+        "redundant and teach credulity, so neighbors come from OTHER claims)",
+    )
     args = parser.parse_args()
 
     datos = json.loads(args.entrada.read_text())
@@ -92,6 +166,9 @@ def main() -> None:
         tope = min(len(filas) for filas in por_etiqueta.values())
         por_etiqueta = {etiqueta: filas[:tope] for etiqueta, filas in por_etiqueta.items()}
         print(f"[averitec-pares] balanceado a {tope} por clase (minoría)")
+
+    if args.nei_cruzado:
+        _generar_nei_cruzado(datos, args.nei_cruzado)
 
     generados = 0
     with args.salida.open("w") as salida:

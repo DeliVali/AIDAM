@@ -180,6 +180,15 @@ def main() -> None:
         "named as the biggest crater (ExpertQA 57.6, SciFact 63.0)",
     )
     parser.add_argument(
+        "--averitec-nei",
+        type=Path,
+        default=Path("data/local/averitec_nei_pairs.jsonl"),
+        help="cross-claim abstention pairs (generate_averitec_pairs.py "
+        "--nei-cruzado): claim vs a NEARBY claim's gold evidence, labeled "
+        "NEI — the v22 answer to the measured representation failure "
+        "behind AVeriTeC's blind classes",
+    )
+    parser.add_argument(
         "--multisent",
         type=Path,
         default=Path("data/local/multisent_pairs.jsonl"),
@@ -289,6 +298,7 @@ def main() -> None:
             (args.longdoc, "longdoc-d2c"),
             (args.scidoc, "scidoc-d2c"),
             (args.multisent, "multisent-d2c"),
+            (args.averitec_nei, "averitec-nei-cruzado"),
         )):
             if ruta.exists():
                 extra = load_dataset("json", data_files=str(ruta), split="train").map(
