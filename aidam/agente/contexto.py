@@ -64,6 +64,68 @@ def es_seguimiento(texto: str) -> bool:
     return len(limpio) < 60 and bool(_DEICTICOS.search(limpio))
 
 
+class ContextoConversacion:
+    """Multi-turn conversational state — RAM only, dies with the session.
+
+    Jeffrey's requirements (2026-07-16): follow-ups may point several
+    turns back («volviendo a lo de la muralla…»), the mechanism must be
+    light, and context is temporary state — it never touches the repo or
+    disk. How the big systems do it, in miniature: recency is the default
+    antecedent, but every turn is embedded once (computed-once e5, CPU)
+    and a follow-up that semantically matches an OLDER turn resolves
+    against that turn instead. Without the embedder, graceful recency-only.
+    """
+
+    _MAX_TURNOS = 20
+    _UMBRAL_ANTECEDENTE = 0.82  # must beat the recency default clearly
+
+    def __init__(self) -> None:
+        self.turnos: list[str] = []
+        self._vectores: list = []  # one embedding per turn (lazy, best effort)
+
+    def _codificar(self, textos: list[str]):
+        from ..vectores import _codificador
+
+        return _codificador()(textos)
+
+    def agregar(self, pregunta: str) -> None:
+        self.turnos.append(pregunta)
+        try:
+            self._vectores.append(self._codificar([f"query: {pregunta}"])[0])
+        except Exception:
+            self._vectores.append(None)
+        if len(self.turnos) > self._MAX_TURNOS:
+            self.turnos.pop(0)
+            self._vectores.pop(0)
+
+    def _antecedente(self, entrada: str) -> str | None:
+        """Most recent turn by default; an older turn if it matches the
+        follow-up's meaning clearly better."""
+        if not self.turnos:
+            return None
+        eleccion = self.turnos[-1]
+        try:
+            consulta = self._codificar([f"query: {entrada}"])[0]
+            mejor, mejor_p = None, self._UMBRAL_ANTECEDENTE
+            for turno, vector in zip(self.turnos[:-1], self._vectores[:-1]):
+                if vector is None:
+                    continue
+                p = float(vector @ consulta)
+                if p > mejor_p:
+                    mejor, mejor_p = turno, p
+            if mejor is not None:
+                eleccion = mejor
+        except Exception:
+            pass
+        return eleccion
+
+    def resolver(self, entrada: str) -> str:
+        """Self-contained rewrite against the best antecedent turn."""
+        resuelta = resolver_seguimiento(entrada, self._antecedente(entrada))
+        self.agregar(resuelta)
+        return resuelta
+
+
 def resolver_seguimiento(entrada: str, pregunta_previa: str | None) -> str:
     """Returns the self-contained question (or the input untouched).
 
