@@ -59,6 +59,9 @@ const TEXTOS = {
     contradictorio: "Evidencia contradictoria",
     insuficiente: "Evidencia insuficiente",
     respuesta: "Respuesta",
+    tarea: "Tarea completada",
+    modoTarea: "Modo tarea",
+    modoTareaTitulo: "El razonador local ejecuta tareas con herramientas y permisos (experimental)",
     confianza: (n) => `CONFIANZA ${n}%`,
     citas: (n) => `${n} cita${n === 1 ? "" : "s"}`,
     aFavor: (n) => `${n} a favor`,
@@ -129,6 +132,9 @@ const TEXTOS = {
     contradictorio: "Conflicting evidence",
     insuficiente: "Not enough evidence",
     respuesta: "Answer",
+    tarea: "Task completed",
+    modoTarea: "Task mode",
+    modoTareaTitulo: "The local reasoner runs tasks with tools and permissions (experimental)",
     confianza: (n) => `CONFIDENCE ${n}%`,
     citas: (n) => `${n} citation${n === 1 ? "" : "s"}`,
     aFavor: (n) => `${n} for`,
@@ -199,6 +205,9 @@ const TEXTOS = {
     contradictorio: "Preuves contradictoires",
     insuficiente: "Preuves insuffisantes",
     respuesta: "Réponse",
+    tarea: "Tâche terminée",
+    modoTarea: "Mode tâche",
+    modoTareaTitulo: "Le raisonneur local exécute des tâches avec outils et permissions (expérimental)",
     confianza: (n) => `CONFIANCE ${n}%`,
     citas: (n) => `${n} citation${n === 1 ? "" : "s"}`,
     aFavor: (n) => `${n} pour`,
@@ -269,6 +278,9 @@ const TEXTOS = {
     contradictorio: "Widersprüchliche Belege",
     insuficiente: "Unzureichende Belege",
     respuesta: "Antwort",
+    tarea: "Aufgabe abgeschlossen",
+    modoTarea: "Aufgabenmodus",
+    modoTareaTitulo: "Der lokale Reasoner führt Aufgaben mit Werkzeugen und Berechtigungen aus (experimentell)",
     confianza: (n) => `KONFIDENZ ${n}%`,
     citas: (n) => `${n} Zitat${n === 1 ? "" : "e"}`,
     aFavor: (n) => `${n} dafür`,
@@ -339,6 +351,9 @@ const TEXTOS = {
     contradictorio: "Evidências contraditórias",
     insuficiente: "Evidências insuficientes",
     respuesta: "Resposta",
+    tarea: "Tarefa concluída",
+    modoTarea: "Modo tarefa",
+    modoTareaTitulo: "O raciocinador local executa tarefas com ferramentas e permissões (experimental)",
     confianza: (n) => `CONFIANÇA ${n}%`,
     citas: (n) => `${n} citaç${n === 1 ? "ão" : "ões"}`,
     aFavor: (n) => `${n} a favor`,
@@ -409,6 +424,9 @@ const TEXTOS = {
     contradictorio: "Prove contrastanti",
     insuficiente: "Prove insufficienti",
     respuesta: "Risposta",
+    tarea: "Attività completata",
+    modoTarea: "Modalità attività",
+    modoTareaTitulo: "Il ragionatore locale esegue attività con strumenti e permessi (sperimentale)",
     confianza: (n) => `FIDUCIA ${n}%`,
     citas: (n) => `${n} citazion${n === 1 ? "e" : "i"}`,
     aFavor: (n) => `${n} a favore`,
@@ -465,6 +483,7 @@ const ui = {
   menuModo: $("menu-modo"),
   idioma: $("idioma"),
   memoria: $("opcion-memoria"),
+  tareas: $("opcion-tareas"),
   botonConfig: $("boton-config"),
   menuConfig: $("menu-config"),
   estadoConexion: $("estado-conexion"),
@@ -576,6 +595,8 @@ function aplicarIdioma() {
   $("etiqueta-idioma").textContent = t("idioma");
   $("etiqueta-memoria").textContent = t("memoria");
   $("control-memoria").title = t("memoriaTitulo");
+  $("etiqueta-tareas").textContent = t("modoTarea");
+  $("control-tareas").title = t("modoTareaTitulo");
 
   // La plantilla de bienvenida se traduce en origen: los clones futuros y el
   // ejemplar visible (si lo hay) quedan en el idioma elegido.
@@ -850,6 +871,7 @@ function enviarVerificacion() {
     afirmacion,
     lang: ui.idioma.value,
     memoria: ui.memoria.checked,
+    tareas: ui.tareas.checked,
     modo: estado.modo,
     carpeta: estado.espacio || undefined,          // ausente = espacio General
     conversacion: estado.conversacion ?? undefined, // ausente = hilo nuevo
@@ -960,13 +982,39 @@ function mostrarMemoria(previas) {
 
 // ---------------------------------------------------------------- informe ----
 
+function renderRespuesta(texto) {
+  // Answer text with ``` fences rendered as copyable code blocks (the
+  // feature the 2026-07-16 screenshot asked for; classes live in estilo.css).
+  const contenedor = crear("div", "respuesta-texto");
+  const partes = String(texto).split(/```(?:[a-zA-Z]*\n)?/);
+  partes.forEach((parte, indice) => {
+    if (!parte.trim()) return;
+    if (indice % 2 === 1) {
+      const bloque = crear("div", "bloque-codigo");
+      const pre = document.createElement("pre");
+      pre.textContent = parte.replace(/\n$/, "");
+      const boton = crear("button", "boton-copiar", "⧉");
+      boton.title = "Copiar";
+      boton.addEventListener("click", () => navigator.clipboard.writeText(pre.textContent));
+      bloque.appendChild(boton);
+      bloque.appendChild(pre);
+      contenedor.appendChild(bloque);
+    } else {
+      contenedor.appendChild(crear("div", "", parte.trim()));
+    }
+  });
+  return contenedor;
+}
+
 function renderInforme(informe) {
   // Una pregunta no se "refuta": el modo respuesta muestra el texto con sus
   // citas y NUNCA una etiqueta de veredicto (fallo medido 2026-07-16).
-  if (informe.tipo === "pregunta") {
+  if (informe.tipo === "pregunta" || informe.tipo === "tarea") {
     const tarjeta = crear("div", "tarjeta-veredicto veredicto-respuesta");
-    tarjeta.appendChild(tituloVeredicto({ titulo: t("respuesta") }));
-    tarjeta.appendChild(crear("div", "respuesta-texto", informe.respuesta || ""));
+    tarjeta.appendChild(tituloVeredicto({
+      titulo: t(informe.tipo === "tarea" ? "tarea" : "respuesta"),
+    }));
+    tarjeta.appendChild(renderRespuesta(informe.respuesta || ""));
     for (const hecho of informe.hechos || []) {
       tarjeta.appendChild(renderHecho(hecho, { sinVeredicto: true }));
     }
@@ -986,7 +1034,7 @@ function renderInforme(informe) {
     "div", "confianza-texto", t("confianza", Math.round(informe.confianza * 100))));
 
   if (informe.respuesta) {
-    tarjeta.appendChild(crear("div", "respuesta-texto", informe.respuesta));
+    tarjeta.appendChild(renderRespuesta(informe.respuesta));
   }
 
   for (const hecho of informe.hechos || []) tarjeta.appendChild(renderHecho(hecho));

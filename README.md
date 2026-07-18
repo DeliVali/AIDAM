@@ -2,9 +2,16 @@
 
 # AIDAM
 
-An open fact-checking agent. Instead of trusting what a model remembers, AIDAM
-retrieves live evidence from many sources and lets a small specialized model
-compare it against the claim. Every verdict cites its sources.
+An open **general-purpose local agent**: it reasons, acts and verifies on your
+machine — as close to a Claude Code as free, open-source, local pieces allow,
+with as little hallucination as measurement can enforce. Its distinguishing
+architecture is the **trust layer**: a small specialized fact-checking core (a
+280M NLI verifier plus auditable aggregation) that the reasoning models
+**consult many times** while they work. That core is a fundamental component —
+verdicts always come from it, never from an LLM — but it does not dictate the
+whole project: tasks, code, files and conversation are driven by a quantized
+local reasoning model that checks its facts against evidence before asserting
+them. Every verdict cites its sources.
 
 ## How it works
 
@@ -74,6 +81,11 @@ from a measured product failure — see [docs/AGENT.md](docs/AGENT.md)):
 - **Plugs into assistant infrastructure**: an OpenAI-compatible endpoint
   (`/v1/chat/completions`) lets OpenClaw-style gateways use AIDAM from
   WhatsApp/Telegram — no messenger bridges to maintain here.
+- **Task mode (ReAct)**: `aidam tarea "resume los README de esta carpeta"`
+  — the local reasoning model runs a thought→action→observation cycle over
+  permission-gated tools (read/write/sandboxed commands/evidence search),
+  consulting the NLI verifier before asserting facts; unsupported sentences
+  in the final answer are visibly marked «sin verificar», never hidden.
 
 Runs on GPU, on CPU without PyTorch (`aidam[verificador-cpu]`, ONNX Runtime),
 or on low-RAM machines (319 MB quantized model, `AIDAM_BACKEND=onnx-mini`).

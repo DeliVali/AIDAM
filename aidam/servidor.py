@@ -267,6 +267,70 @@ class _Sesion:
             excluir_dominios=excluir_dominios,
         )
 
+    def _ejecutar_tarea(self, tarea: str, lang: str) -> Informe:
+        """Runs the ReAct reasoner in the worker thread. Steps stream as
+        progreso events (they double as the cancellation check); writes and
+        commands raise a REAL permission card even in auto mode — the same
+        forced pattern file orders use."""
+        from .agente.auditoria import RegistroAuditoria
+        from .agente.herramientas import crear_herramientas
+        from .agente.permisos import cargar_motor
+        from .agente.razonador import ejecutar_tarea
+        from .pipeline import _generador_preguntas
+
+        generador = _generador_preguntas()
+        if generador is None:
+            return Informe(
+                afirmacion=tarea, veredicto=Veredicto.INSUFICIENTE,
+                confianza=0.0, hechos=[], tipo="tarea",
+                respuesta="El modo tarea necesita el modelo razonador local "
+                          "y no está disponible en esta instalación.",
+            )
+
+        def progreso(mensaje: str) -> None:
+            if self.cancelado.is_set():
+                raise _Cancelado()
+            self._enviar({"tipo": "progreso", "mensaje": mensaje})
+
+        def confirmar(texto: str) -> bool:
+            modo_previo = self.modo
+            self.modo = "permisos"
+            try:
+                return self.pedir_permiso("tarea", texto[:800])
+            finally:
+                self.modo = modo_previo
+
+        if not hasattr(self, "_tareas"):
+            from .verify import crear_verificador
+
+            try:
+                nli = crear_verificador()
+            except Exception:
+                nli = None  # grounding gate degrades to the extractive check
+            self._tareas = {
+                "motor": cargar_motor("preguntar"),
+                "auditoria": RegistroAuditoria(),
+                "nli": nli,
+            }
+        herramientas = crear_herramientas(
+            self._tareas["motor"], self._tareas["auditoria"], self.carpeta_trabajo,
+            confirmar=confirmar, progreso=progreso, verificador=self._tareas["nli"],
+        )
+        resultado = ejecutar_tarea(
+            tarea, herramientas, generador, self._tareas["auditoria"],
+            verificador=self._tareas["nli"], lang=lang, progreso=progreso,
+        )
+        respuesta = resultado.respuesta
+        if resultado.sin_verificar:
+            respuesta += (
+                f"\n({len(resultado.sin_verificar)} frase(s) quedaron "
+                "marcadas «sin verificar».)"
+            )
+        return Informe(
+            afirmacion=tarea, veredicto=Veredicto.INSUFICIENTE, confianza=1.0,
+            hechos=[], tipo="tarea", respuesta=respuesta,
+        )
+
     async def ejecutar(self, peticion: dict) -> None:
         afirmacion = (peticion.get("afirmacion") or "").strip()
         if not afirmacion:
@@ -378,6 +442,44 @@ class _Sesion:
                 )),
             })
             return
+
+        # Task act (Jeffrey's re-centering, 2026-07-17): imperative tasks go
+        # to the ReAct reasoner — opt-in via the UI toggle until the
+        # pre-registered gates T1+T4 pass (docs/AGENT.md). The detection is
+        # always announced; without the toggle the input flows on unchanged.
+        from .agente.razonador import interpretar_tarea
+
+        tarea = interpretar_tarea(afirmacion)
+        if tarea is not None:
+            if bool(peticion.get("tareas")):
+                await self._enviar_async(
+                    {"tipo": "progreso", "mensaje": f"tarea detectada: «{tarea}»"}
+                )
+                try:
+                    informe = await asyncio.to_thread(
+                        self._ejecutar_tarea, tarea, peticion.get("lang", "es")
+                    )
+                    if memoria is not None:
+                        try:
+                            memoria.guardar(informe, sesion_id=self.conversacion_id)
+                        except Exception:
+                            pass
+                    await self._enviar_async(
+                        {"tipo": "informe", "informe": informe_a_dict(informe)}
+                    )
+                except _Cancelado:
+                    await self._enviar_async({"tipo": "cancelado"})
+                except Exception as exc:
+                    await self._enviar_async(
+                        {"tipo": "error", "mensaje": f"La tarea falló: {exc}"}
+                    )
+                return
+            await self._enviar_async(
+                {"tipo": "progreso",
+                 "mensaje": "Esto parece una tarea. Activa «Modo tarea» en la "
+                            "configuración (⚙) para que la ejecute; por ahora "
+                            "la trato como texto a verificar."}
+            )
 
         social = respuesta_social(afirmacion)
         if social is not None:

@@ -32,11 +32,24 @@ def crear_herramientas(
     raiz: Path,
     confirmar: Callable[[str], bool] | None = None,
     progreso: Callable[[str], None] | None = None,
+    verificador=None,
 ) -> dict[str, Herramienta]:
-    """Builds the tool registry bound to one permission engine + audit log."""
+    """Builds the tool registry bound to one permission engine + audit log.
+
+    `verificador` is the resident NLI used by the cheap consultant tool;
+    lazily created on first use when not injected (tests inject fakes).
+    """
     raiz = Path(raiz).resolve()
     preguntar = confirmar or (lambda _texto: False)  # unattended default: unconfirmed = refused
     avisar = progreso or (lambda _mensaje: None)
+    _nli = {"instancia": verificador}
+
+    def _verificador():
+        if _nli["instancia"] is None:
+            from ..verify import crear_verificador
+
+            _nli["instancia"] = crear_verificador()
+        return _nli["instancia"]
 
     def _resolver(herramienta: str, argumento: str) -> tuple[bool, str]:
         """Permission gate shared by all tools; returns (allowed, motive)."""
@@ -122,6 +135,39 @@ def crear_herramientas(
         informe = verificar(afirmacion, lang=lang, progreso=avisar)
         return _compactar(informe_a_dict(informe))
 
+    def consultar_verificador(afirmacion: str, evidencia: str) -> str:
+        # The consultant pattern (Jeffrey's architecture, 2026-07-17): the
+        # reasoner asks the resident 0.3B NLI many times, cheaply, at pair
+        # level. This is support, not a verdict — verdicts only ever come
+        # from verificar_afirmacion (pipeline + auditable aggregation).
+        permitido, _ = _resolver("Consultar", afirmacion[:120])
+        if not permitido:
+            return "error: consulta denegada"
+        from ..models import Evidencia, HechoAtomico
+
+        hecho = HechoAtomico(texto=afirmacion, origen="consulta")
+        par = _verificador().juzgar(
+            hecho, [Evidencia(texto=evidencia, url="(proporcionada)", titulo="",
+                              dominio="(proporcionada)", fuente="consulta")]
+        )
+        if not par:
+            return "sin juicio (evidencia vacía)"
+        return f"etiqueta: {par[0].etiqueta.value} · prob: {par[0].prob:.2f}"
+
+    def buscar_evidencia(consulta: str, lang: str = "es") -> str:
+        permitido, _ = _resolver("Buscar", consulta[:120])
+        if not permitido:
+            return "error: búsqueda denegada"
+        from ..retrieve import buscar_web
+
+        resultados = buscar_web(consulta, max_resultados=4, lang=lang, paginas_completas=1)
+        if not resultados:
+            return "sin resultados"
+        return "\n".join(
+            f"{i}. [{e.dominio}] {e.texto[:300].strip()} ({e.url})"
+            for i, e in enumerate(resultados, 1)
+        )
+
     def investigar_afirmacion(afirmacion: str, nivel: int | None = None, lang: str = "es") -> str:
         from ..models import informe_a_dict
         from .orquestador import investigar
@@ -144,6 +190,15 @@ def crear_herramientas(
         "ejecutar_comando": Herramienta(
             "ejecutar_comando", "ejecuta un comando en el sandbox (bubblewrap, sin red)",
             {"comando": "str"}, ejecutar_comando,
+        ),
+        "consultar_verificador": Herramienta(
+            "consultar_verificador",
+            "puntúa si una evidencia sustenta una afirmación (NLI residente, barato, úsalo a menudo)",
+            {"afirmacion": "str", "evidencia": "str"}, consultar_verificador,
+        ),
+        "buscar_evidencia": Herramienta(
+            "buscar_evidencia", "busca pasajes de evidencia en la web (lista numerada con fuentes)",
+            {"consulta": "str", "lang": "str"}, buscar_evidencia,
         ),
         "verificar_afirmacion": Herramienta(
             "verificar_afirmacion", "verifica una afirmación con el pipeline completo",

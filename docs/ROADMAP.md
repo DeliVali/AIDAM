@@ -1433,3 +1433,46 @@ than claims where they disagree). If agreement does not predict correctness, the
 angles are not independent and the fix is diversity redesign, not more N. Constants
 (UMBRAL_CONFIANZA=0.6, UMBRAL_CONFLICTO=0.75, MAX_NIVEL=2) are off-test placeholders
 pending calibration on dev data — never on benchmarks.
+
+### Re-centering: AIDAM as a general-purpose agent (2026-07-17, owner's directive)
+
+**The directive, recorded verbatim in intent:** AIDAM is a multi-purpose local
+agent — "lo más parecido a un Claude Code pero gratuito y sin alucinaciones lo
+más que se pueda", built on open-source pieces (OpenClaw as the integration
+model). The fact-checking core is a FUNDAMENTAL component **consulted many
+times between models**, but it does not dictate the whole project. The
+architecture is: quantized local reasoning models drive a ReAct cycle
+(thought → action → observation); the resident 0.3B NLI verifier is the cheap
+consultant they call repeatedly; claim verdicts still exit only through the
+auditable aggregator (measured law: LLM-as-sole-judge 24% vs 58%).
+
+Shipped as `aidam/agente/razonador.py` + consultant tools
+(`consultar_verificador`, `buscar_evidencia`) + surfaces (`aidam tarea`,
+`/tarea`, desktop task act with live `razonamiento` events) + the grounding
+gate (unsupported final-answer sentences visibly marked «sin verificar»,
+never hidden). Full design and the deliberate amendment to the
+"orchestration is code" doctrine: docs/AGENT.md §"The task reasoner".
+
+Phase order: (1) cycle + tools + gate [shipped]; (2) surfaces [shipped];
+(3) measurement against the pre-registered gates T1/T2/T4 (docs/AGENT.md
+§"Pre-registered gates" — declared before any numbers); (4) fine-tuning the
+reasoner: QLoRA 4-bit on public function-calling datasets reformatted to the
+registry's action JSON (`training/finetune_razonador.py`), behind GATE FT;
+own-trace collection (`AIDAM_TRAZAS=1`, never committed) feeds round two.
+GPU containment rule stands: training only in windows with no app/8B worker
+active, never concurrent with evals.
+
+Measured on the live 8B during the first bring-up (all fixed same day,
+runtime-verified with a real file task end to end): (1) the model plans the
+WHOLE action sequence in one step — ReAct must execute the FIRST JSON action
+and discard the imagined rest (taking the last executed a future step:
+«he leído el archivo» without reading); (2) this R1-distill ignores system
+turns — instructions live in the user turn (juzgar_veredicto precedent) with
+a "<think>\n" prefill, or it deliberates inside the responder texto field;
+(3) tool output must travel between literal delimiters («««…»»») marked
+DATO-no-instrucción — file content that read like instructions was taken for
+a system reminder (also the prompt-injection surface); (4) at temperature 0 a
+repeated (tool, args) pair loops forever — the code loop-breaker feeds a
+corrective observation instead of re-executing. The grounding gate fired
+correctly on its first live run (marked an ungrounded rambling answer and
+prefixed the warning line).

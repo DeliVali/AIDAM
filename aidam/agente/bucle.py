@@ -21,6 +21,7 @@ Comandos:
   /leer <ruta>                    leer un archivo (con permisos)
   /escribir <ruta>                escribir un archivo (pide el contenido, con diff)
   /ejecutar <comando>             ejecutar en el sandbox (bubblewrap, sin red)
+  /tarea <descripción>            modo tarea (ReAct): el razonador actúa con herramientas
   /fuentes                        listar fuentes de evidencia
   /permisos                       reglas de permisos vigentes
   /modo [nuevo]                   ver o cambiar el modo de permisos
@@ -147,6 +148,34 @@ def bucle_agente(
                 )
             elif comando == "ejecutar":
                 consola.print(herramientas["ejecutar_comando"].funcion(resto))
+            elif comando == "tarea":
+                if not resto:
+                    consola.print("[dim]uso: /tarea <descripción>[/dim]")
+                    continue
+                from ..pipeline import _generador_preguntas
+                from .razonador import ejecutar_tarea
+
+                generador = _generador_preguntas()
+                if generador is None:
+                    avisar("el modo tarea requiere el modelo razonador local")
+                    continue
+                if verificador is None:
+                    avisar("Cargando el núcleo verificador…")
+                    from ..verify import crear_verificador
+
+                    verificador = crear_verificador()
+                resultado_tarea = ejecutar_tarea(
+                    resto, herramientas, generador, auditoria,
+                    verificador=verificador, lang=lang, progreso=avisar,
+                )
+                from rich.text import Text
+
+                consola.print(Panel(
+                    Text(resultado_tarea.respuesta),  # not rich markup
+                    title=f"Tarea · {len(resultado_tarea.pasos)} paso(s)",
+                    border_style="cyan" if resultado_tarea.terminado_por == "respuesta" else "yellow",
+                ))
+                hablar(resultado_tarea.respuesta[:200])
             elif comando in ("verificar", "investigar", ""):
                 texto = resto
                 nivel_pedido = nivel

@@ -184,6 +184,13 @@ class MotorPermisos:
     # ── evaluación ──
 
     def evaluar(self, herramienta: str, argumento: str) -> ResultadoPermiso:
+        if herramienta in ("Consultar", "Buscar"):
+            # Read-only consultations (resident NLI, web search) — the task
+            # reasoner's consultant pattern. Allowed in every acting mode so
+            # checking facts is never friction; denied only in plan (dry-run).
+            if self.modo is ModoPermisos.PLAN:
+                return ResultadoPermiso(Decision.DENEGAR, f"modo:{self.modo.value}")
+            return ResultadoPermiso(Decision.PERMITIR, "consulta de solo lectura")
         if herramienta not in _HERRAMIENTAS:
             return ResultadoPermiso(Decision.DENEGAR, f"herramienta desconocida: {herramienta}")
         if herramienta == "Ejecutar":

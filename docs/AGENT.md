@@ -116,6 +116,14 @@ state**, not N chatting LLMs:
   routing nor termination. This is also where the field landed: OpenAI's own agents
   guidance recommends orchestrating by code for cost/latency predictability, and the
   visual-builder alternative (AgentKit) was deprecated within a year.
+  **Deliberate amendment (2026-07-17, owner's directive): the task reasoner
+  (`razonador.py`, modo tarea) is the ONE place where the LLM chooses the next
+  action** — a ReAct cycle inside code-enforced budgets (MAX_PASOS, tool whitelist,
+  permission cards, bwrap sandbox, per-step audit line). Termination is still decided
+  by code only (budget or an explicit final-answer action), every
+  thought/action/observation is SHOWN, and the LLM still never writes a verdict:
+  claims inside a task go through `verificar_afirmacion`, whose output is final.
+  Verification stays code-orchestrated; general tasks are model-driven within fences.
 - **Delegation depth is 1.** Orchestrator → workers, never sub-sub-agents. The
   telephone game needs a chain to corrupt; a one-hop star has no chain.
 - **Handbacks are structured and typed.** Workers return compact typed records
@@ -300,11 +308,75 @@ has no language field, so `idioma.py` detects it from the typed message —
 rarity-weighted function-word profiles, zero models, falling back to the
 default when the input is too short or ambiguous to call.
 
+## The task reasoner (modo tarea, ReAct) — 2026-07-17
+
+**The re-centering directive (owner):** AIDAM is a general-purpose local agent —
+as close to a Claude Code as free local pieces allow, with as little
+hallucination as measurement can enforce. The fact-checking core is a
+fundamental component **consulted many times between models** ("consulta de
+apoyo múltiples veces"), not the whole project. `aidam/agente/razonador.py`
+implements that identity:
+
+- **The cycle**: the quantized reasoning model (the isolated 8B GGUF worker,
+  `questions.py`/`llm_worker.py`) emits thought → one JSON action →
+  observation, up to `MAX_PASOS=8`. Thoughts are capped ("3 short sentences
+  MAX" — the anti-circling mitigation measured in `juzgar_veredicto`), shown
+  via `progreso` and audited, but never re-fed to the model; the scratchpad
+  compacts by char budget keeping the task and the last two exchanges verbatim.
+  Malformed actions get one corrective retry, then a VISIBLE `error_llm`
+  termination — never a silently fabricated answer.
+- **The consultant pattern**: cheap tools backed by the resident 0.3B NLI —
+  `consultar_verificador` (pair-level entailment, milliseconds, "use it
+  often") and `buscar_evidencia` (compact web passages) — next to the
+  full-verdict consultations `verificar_afirmacion`/`investigar_afirmacion`.
+  Read-only consultations are allowed in every acting permission mode (denied
+  in plan mode); writes and commands keep their permission cards and sandbox.
+- **The grounding gate** (`revisar_respuesta`): before the final answer is
+  returned, factual sentences are checked against the gathered observations —
+  verbatim substring = grounded free; the rest score entailment against the
+  resident NLI; below `UMBRAL_SUSTENTO=0.6` they are marked « [sin
+  verificar]» IN the text. Nothing is dropped or rewritten silently; if more
+  than half the factual sentences are unsupported, a warning line leads the
+  answer. This is the anti-hallucination differentiator.
+- **Surfaces**: `aidam tarea "…"` (CLI), `/tarea` (REPL), and the desktop chat
+  (conservative imperative detector; steps stream as `{"tipo":
+  "razonamiento"}` websocket events; result renders as `informe.tipo="tarea"`
+  with a collapsible step trace). Free text remains claim-verification
+  everywhere; the task act is explicit or conservatively detected and always
+  announced («tarea detectada: …»).
+- **Fine-tuning path**: QLoRA on public function-calling datasets reformatted
+  to the registry's own action JSON (`training/finetune_razonador.py`),
+  gated (below); own-trace collection (`AIDAM_TRAZAS=1`, local only) feeds
+  the second round.
+
 ## Pre-registered gates
 
 House rule: gates are declared **before any numbers exist**, and a failed gate blocks
 promotion regardless of how much work went in (see the scaffolded-teacher and v21
 entries in ROADMAP for the discipline in action).
+
+- **GATE T1 (task smoke suite) — declared 2026-07-17, unmeasured.** 20 scripted
+  tasks in `evaluation/eval_tareas.py` (5 file ops, 5 code, 5 research, 5
+  mixed; programmatic pass checks). The task mode may be promoted beyond
+  opt-in only with ≥16/20 passed, 0 permission violations in the audit log,
+  and ≤2/20 budget-exhaustion terminations.
+- **GATE T2 (consultation rate) — descriptive, no threshold.** Fraction of
+  factual tasks with ≥1 consultant call (`consultar_verificador` /
+  `buscar_evidencia` / `verificar_afirmacion`), measured from the audit log —
+  it validates the "consultant architecture" identity claim with a number.
+- **GATE T3 (claims never regress) — structural.** Claims are NEVER routed
+  through the ReAct cycle: in every surface they keep the tier-0 path, and
+  inside a task they go through `verificar_afirmacion` (which IS tier-0). If
+  that routing ever changes, an AVeriTeC-500 A/B with no degradation becomes
+  mandatory first.
+- **GATE T4 (hallucination probe) — declared 2026-07-17, unmeasured.** 20
+  bait prompts (obscure facts, no retrieval). Pass: 0 unmarked verdict-like
+  fabrications and ≤10% factual sentences both unsupported and unmarked.
+- **GATE FT (reasoner fine-tuning) — declared 2026-07-17, unmeasured.** A
+  fine-tuned adapter replaces the base reasoner only if, on a held-out task
+  set: first-parse action validity ≥ base AND T1 pass rate ≥ base AND no
+  regression on the existing `questions.py` roles (AVeriTeC-100 search-question
+  spot-check). A miss is a documented rejection.
 
 - **GATE (cascade promotion) — declared now, unmeasured.** The tier-1/2 cascade is
   **NOT promoted to default**. `investigar` ships behind explicit invocation
@@ -334,7 +406,8 @@ entries in ROADMAP for the discipline in action).
 | `angulos.py` | investigation angles: heuristic negation, LLM reformulations, judgment inversion |
 | `orquestador.py` | the cascade: `investigar`, escalation signals, auditable re-aggregation |
 | `sintesis.py` | deterministic evidence table + LLM narration with an anti-contradiction safeguard (a synthesis contradicting the verdict is dropped, never shown) |
-| `herramientas.py` | typed tools: read/write/execute/verify/investigate, permission- and audit-wired |
+| `herramientas.py` | typed tools: read/write/execute/verify/investigate + cheap consultants (`consultar_verificador`, `buscar_evidencia`), permission- and audit-wired |
+| `razonador.py` | the task reasoner: ReAct cycle within code budgets, grounding gate («sin verificar» marking), per-step audit |
 | `bucle.py` | the agent REPL: one `while`, flat history, slash commands, rich rendering |
 | `voz.py` | optional STT/TTS (extra `voz`); lazy imports, graceful degradation |
 | `vision.py` | optional OCR + C2PA provenance (extra `vision`) |

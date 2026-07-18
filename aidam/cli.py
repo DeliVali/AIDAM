@@ -162,6 +162,22 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_agente.add_argument("--nivel", type=int, choices=(0, 1, 2), default=None)
 
+    p_tarea = sub.add_parser(
+        "tarea",
+        help="modo tarea (ReAct): el razonador local piensa→actúa→observa con "
+        "herramientas con permisos; el verificador NLI es su consultor",
+    )
+    p_tarea.add_argument("tarea", help="descripción de la tarea a resolver")
+    p_tarea.add_argument(
+        "--modo",
+        choices=("plan", "preguntar", "aceptar-ediciones", "lote"),
+        default="preguntar",
+        help="modo de permisos (plan = solo lectura; lote = deniega lo no listado)",
+    )
+    p_tarea.add_argument("--lang", default="es", help="idioma de la respuesta")
+    p_tarea.add_argument("--max-pasos", type=int, default=8,
+                         help="presupuesto de pasos del ciclo (el código termina, no el modelo)")
+
     p_imagen = sub.add_parser(
         "imagen", help="verificar el texto extraído de una imagen (OCR local)"
     )
@@ -287,6 +303,65 @@ def main(argv: list[str] | None = None) -> int:
             nivel=args.nivel,
             preguntas=args.preguntas,
         )
+
+    if args.comando == "tarea":
+        from pathlib import Path
+
+        from rich.console import Console
+        from rich.panel import Panel
+
+        from .agente.auditoria import RegistroAuditoria
+        from .agente.herramientas import crear_herramientas
+        from .agente.permisos import cargar_motor
+        from .agente.razonador import ejecutar_tarea
+        from .pipeline import _generador_preguntas
+
+        consola = Console()
+        generador = _generador_preguntas()
+        if generador is None:
+            print(
+                "[aidam] el modo tarea requiere el modelo razonador local "
+                "(descarga el GGUF de models/ o define AIDAM_MODELO_PREGUNTAS)",
+                file=sys.stderr,
+            )
+            return 1
+        motor = cargar_motor(args.modo.replace("-", "_"))
+        auditoria = RegistroAuditoria()
+        avisar = lambda m: print(f"[aidam] {m}", file=sys.stderr)  # noqa: E731
+
+        def confirmar(texto: str) -> bool:
+            consola.print(Panel(texto[:2000], title="Aprobación requerida", border_style="yellow"))
+            return input("¿Aprobar? [s/N] ").strip().casefold() in ("s", "si", "sí", "y", "yes")
+
+        try:
+            from .verify import crear_verificador
+
+            verificador = crear_verificador()
+        except Exception:
+            verificador = None  # gate degrades to the extractive check only
+        herramientas = crear_herramientas(
+            motor, auditoria, Path.cwd(), confirmar=confirmar, progreso=avisar,
+            verificador=verificador,
+        )
+        resultado = ejecutar_tarea(
+            args.tarea, herramientas, generador, auditoria,
+            verificador=verificador, max_pasos=args.max_pasos,
+            lang=args.lang, progreso=avisar,
+        )
+        from rich.text import Text
+
+        borde = {"respuesta": "cyan", "presupuesto": "yellow", "error_llm": "red"}
+        consola.print(Panel(
+            Text(resultado.respuesta),  # Text: «[sin verificar]» is not rich markup
+            title=f"Tarea · {len(resultado.pasos)} paso(s) · {resultado.terminado_por}",
+            border_style=borde[resultado.terminado_por],
+        ))
+        if resultado.sin_verificar:
+            consola.print(
+                f"[yellow]{len(resultado.sin_verificar)} frase(s) marcadas "
+                f"«sin verificar» — no las sustentó ninguna observación[/yellow]"
+            )
+        return 0
 
     if args.comando == "imagen":
         from .agente.vision import verificar_imagen
