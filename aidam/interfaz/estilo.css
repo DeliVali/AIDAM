@@ -803,3 +803,133 @@ details.citas > summary:hover { background: var(--vidrio-alzado); border-color: 
   cursor: pointer;
 }
 .boton-copiar:hover { background: rgba(255, 255, 255, 0.18); }
+
+/* =====================================================================
+ * Animaciones — cada una comunica algo, no decora por decorar.
+ * Todo detrás de prefers-reduced-motion (bloque al final): en modo de
+ * movimiento reducido la interfaz aparece instantánea, como el fondo WebGL.
+ * ===================================================================== */
+
+@keyframes aidam-entrar {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes aidam-surgir {
+  from { opacity: 0; transform: translateY(6px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes aidam-llenar {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+
+@keyframes aidam-ping {
+  0%   { transform: scale(1);   opacity: 0.7; }
+  70%  { transform: scale(2.6); opacity: 0; }
+  100% { transform: scale(2.6); opacity: 0; }
+}
+
+@keyframes aidam-pulso-dorado {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(228, 201, 143, 0); }
+  50%      { box-shadow: 0 0 14px 1px rgba(228, 201, 143, 0.45); }
+}
+
+@keyframes aidam-pulso-detener {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(230, 69, 51, 0); }
+  50%      { box-shadow: 0 0 16px 2px rgba(230, 69, 51, 0.55); }
+}
+
+@keyframes aidam-parpadeo {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.25; }
+}
+
+@keyframes aidam-respirar {
+  0%, 100% { box-shadow: 0 0 0 2px var(--dorado), 0 0 30px rgba(114, 210, 255, 0.35); }
+  50%      { box-shadow: 0 0 0 2px var(--dorado), 0 0 46px rgba(114, 210, 255, 0.6); }
+}
+
+@keyframes aidam-aviso-entrar {
+  from { opacity: 0; transform: translateX(24px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* «esto acaba de llegar»: turnos y bloques del informe entran suave */
+.turno { animation: aidam-entrar 0.32s ease-out both; }
+
+.tarjeta-veredicto,
+.tarjeta-permiso,
+.chip-memoria,
+.chip-fecha,
+.nota-cancelado,
+.nota-error,
+.respuesta-texto { animation: aidam-surgir 0.34s ease-out both; }
+
+/* «este es el nivel medido»: la barra se llena de 0 al % (scaleX no depende
+ * del ancho inline, así anima sea cual sea la confianza) */
+.barra-confianza > div {
+  transform-origin: left center;
+  animation: aidam-llenar 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* «aquí está el resultado»: el punto de veredicto emite un anillo una vez */
+.punto-veredicto { position: relative; }
+.punto-veredicto::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: currentColor;
+  animation: aidam-ping 0.9s ease-out 1 both;
+  pointer-events: none;
+}
+
+/* «te espero a ti»: la tarjeta de permiso pulsa en dorado hasta responder */
+.tarjeta-permiso:not(.respondida) {
+  animation: aidam-surgir 0.34s ease-out both,
+             aidam-pulso-dorado 1.8s ease-in-out 0.34s infinite;
+}
+.tarjeta-permiso.respondida { animation: none; }
+
+/* «hay trabajo en marcha»: el botón detener late en rojo */
+.boton-enviar.detener { animation: aidam-pulso-detener 1.3s ease-in-out infinite; }
+
+/* «vivo, no colgado»: el marcador de la línea de progreso activa parpadea */
+.registro .actual::before { animation: aidam-parpadeo 1.1s ease-in-out infinite; }
+
+/* «salgo de aquí»: los menús brotan desde su botón */
+.menu-adjuntar:not(.oculto) {
+  animation: aidam-surgir 0.16s ease-out both;
+  transform-origin: bottom right;
+}
+.menu-modo:not(.oculto) { transform-origin: bottom left; }
+.menu-config:not(.oculto) { transform-origin: bottom left; }
+
+/* llegada de los avisos (la salida la hace app.js quitando el nodo) */
+.aviso { animation: aidam-aviso-entrar 0.28s ease-out both; }
+
+/* ambiente, no urgencia: el halo de bienvenida respira */
+.bienvenida-icono { animation: aidam-respirar 4.5s ease-in-out infinite; }
+
+/* micro-interacciones: realce al pasar / pulsar (feedback inmediato) */
+.lista-conversaciones li,
+.lista-espacios li,
+.ejemplo { transition: background 0.15s, border-color 0.15s, transform 0.12s; }
+.lista-conversaciones li:hover,
+.lista-espacios li:hover { transform: translateX(2px); }
+.ejemplo:active { transform: scale(0.96); }
+.boton-icono { transition: background 0.2s, border-color 0.2s, transform 0.1s; }
+.boton-icono:active { transform: scale(0.9); }
+.boton-enviar:not(.detener):active { transform: scale(0.9); }
+.boton-nueva { transition: background 0.2s, transform 0.1s, box-shadow 0.2s; }
+
+/* accesibilidad: sin movimiento, todo instantáneo (igual que el fondo WebGL) */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
