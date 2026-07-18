@@ -259,7 +259,8 @@ interpretation is SHOWN, never silently guessed):
 | question | `sintesis.es_pregunta` (tuned against AVeriTeC false-positives: WHO-acronym, Why-rants) | answer mode: best SENTENCE from meaning-ranked passages, cited; code questions get a copy-ready block extracted verbatim from evidence |
 | ambiguous question («qué es lora») | distinctive-term clustering splits the evidence into senses (`aclaracion_necesaria`) | the agent ASKS, listing the senses actually found; the reply joins the pending context block and the refined question re-runs |
 | rejection («no, no es esa») | `contexto.es_rechazo` | re-answer with rejected domains excluded |
-| follow-up («y en ese contexto…») | connectors/deictics + antecedent search | rewritten self-contained against the best prior turn |
+| request («tienes un ejemplo de código», «show me…») | second-person openers (`contexto._P_PETICION`) — a request is a question by dialogue act, whatever its punctuation (measured 2026-07-17: it was verified as a claim, SUSTENTADO 100% against an OOP tutorial) | answer mode; if it names no topic of its own, it is a follow-up and inherits the previous turn's topic |
+| follow-up («y en ese contexto…») | connectors/deictics + antecedent search; elliptical requests join this act | rewritten self-contained against the best prior turn, closing as a question so routing stays in answer mode |
 | claim (everything else) | default | the full verify pipeline; verdicts always carry a one-breath grounded explanation (`respuesta_concisa`) |
 
 **Conversational context is three tiers, RAM-only** (dies with the session;
@@ -290,6 +291,14 @@ provider for assistant infrastructure (OpenClaw gateways: point them at
 `http://localhost:8236/v1`, model `aidam-verificador`) and any
 OpenAI-style client — verification from WhatsApp/Telegram without
 building messenger bridges ourselves.
+
+**The answer follows the user's language.** The deterministic answer
+templates exist in the six UI languages (es/en/fr/de/pt/it, phrase table
+in `sintesis.py`; measured failure 2026-07-17: German claim, Spanish
+answer). The websocket client sends the UI's `lang`; the OpenAI endpoint
+has no language field, so `idioma.py` detects it from the typed message —
+rarity-weighted function-word profiles, zero models, falling back to the
+default when the input is too short or ambiguous to call.
 
 ## Pre-registered gates
 
@@ -335,6 +344,7 @@ entries in ROADMAP for the discipline in action).
 | `archivos.py` | native file control from conversation: HOME-only, trash-only, strict parsing, permission-gated |
 | `codigo.py` | measured code comparison: sandboxed timing (core-pinned), correctness fingerprints, LLM/web candidates |
 | `ortografia.py` | guarded question spelling cleanup; curated Spanish accent map (broken upstream dictionary, measured) |
+| `idioma.py` | deterministic input-language detection (function-word profiles) for callers that send no `lang` |
 
 All modules import without torch, network or GPU; heavy dependencies load lazily
 behind pyproject extras. The binding interface contracts live in the implementation

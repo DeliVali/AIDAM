@@ -1240,6 +1240,23 @@ AggreFact gate is dropped because the grounding champion (v20) is
 untouched by this experiment. Any miss = documented rejection, v10
 stands.
 
+**VERDICT (2026-07-17, real AVeriTeC-500): REJECTED — both gates
+missed.** Accuracy 51.4 (gate 62.0; v10 stands at 62.6), NEI F1 0.169
+(gate 0.25, up from 0.09 but not enough). Per-class: Refuted 0.666,
+Supported 0.412, Conflicting 0.103; macro F1 0.338. What the numbers
+say: the 3,051 cross-claim NEI pairs DID move the blind class (NEI
+predictions went 9→83, F1 nearly doubled) but taught over-abstention
+that bled the majority classes — Supported collapsed and overall
+accuracy fell 11 points below production. The mechanism works in the
+intended direction at pair level and fails at aggregate level: NEI
+training signal at this dose poisons the supports/refutes decision
+boundary on the same backbone. Lesson recorded next to scidoc-NEI
+(taught credulity) and DocNLI-relabel (taught anti-refutation): this is
+the third failed route to abstention, and the first that at least moved
+the target class. If a v23 attempt ever runs, the pre-registered
+variable to change is DOSE (≤1k pairs) or a separate abstention head —
+not more of the same mix. v10 remains AVeriTeC production (62.6).
+
 ### Goal RAISED (2026-07-13, Jeffrey): 90 general — "ya no será 80 general
 sino 90% general". Recorded with the honest operationalization already
 established: the benchmarks as published cap at ~85-88 (annotation

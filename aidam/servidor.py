@@ -586,6 +586,7 @@ def crear_app(
             return JSONResponse({"error": {"message": "sin mensaje de usuario"}}, status_code=400)
 
         from .agente.contexto import respuesta_social
+        from .agente.idioma import detectar_idioma
 
         social = respuesta_social(usuario)
         if social is not None:
@@ -594,8 +595,11 @@ def crear_app(
             def progreso(_m: str) -> None:
                 pass
 
+            # Gateways send no language field — the typed message itself
+            # is the only signal, so the answer follows it (idioma.py).
             informe = await asyncio.to_thread(
-                verificar_fn, usuario, progreso=progreso,
+                verificar_fn, usuario, lang=detectar_idioma(usuario),
+                progreso=progreso,
             )
             if informe.tipo == "pregunta":
                 texto = informe.respuesta

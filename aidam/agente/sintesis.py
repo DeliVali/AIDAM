@@ -12,6 +12,7 @@ from __future__ import annotations
 import re
 
 from ..models import Informe, Veredicto
+from .contexto import _P_PETICION
 
 _PENSAMIENTO = re.compile(r"<think>.*?</think>", re.DOTALL)
 
@@ -206,6 +207,8 @@ def es_pregunta(texto: str) -> bool:
     primera = limpio.split()[0] if limpio.split() else ""
     if primera.isupper() and len(primera) > 2:
         return False  # acronym subject (WHO, NASA…), not a question word
+    if _P_PETICION.match(limpio) and len(limpio) < 140:
+        return True  # request to the agent: a dialogue act, not a claim
     return bool(_INTERROGATIVOS.match(limpio)) and len(limpio) < 140 and not limpio.endswith(".")
 
 

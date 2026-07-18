@@ -62,6 +62,34 @@ def _terminos_clave(texto: str, maximo: int = 4) -> list[str]:
     return claves
 
 
+# Requests addressed TO the agent. Measured product failure (2026-07-17,
+# Jeffrey's screenshot): «tienes un ejemplo de codigo» — no «?», no
+# interrogative opener — fell through to the claim path and came back
+# SUSTENTADO 100% against an OOP tutorial. A second-person request is a
+# question by dialogue act, whatever its punctuation.
+_P_PETICION = re.compile(
+    r"^\s*¿?\s*(tienes|tendr[ií]as|dame|mu[eé]strame|ens[eé][ñn]ame|ponme|hazme"
+    r"|me (das|puedes|podr[ií]as|muestras|ense[ñn]as|pones|haces)"
+    r"|puedes|podr[ií]as|sabes"
+    r"|do you have|can you|could you|show me|give me|tell me)\b",
+    re.IGNORECASE,
+)
+# Objects a request can name while still being elliptical: «un ejemplo»,
+# «el código», «otro caso» point at the CURRENT topic, they are not one.
+_PEDIDO_GENERICO = {
+    "tienes", "tendrias", "dame", "muestrame", "ensename", "ponme", "hazme",
+    "puedes", "podrias", "sabes", "muestras", "ensenas", "pones", "haces",
+    "ejemplo", "ejemplos", "codigo", "muestra", "caso", "casos", "demo",
+    "otro", "otra", "otros", "otras", "have", "could", "show", "give",
+    "tell", "example", "examples", "code", "sample", "another",
+}
+
+
+def _plano(palabra: str) -> str:
+    plano = unicodedata.normalize("NFKD", palabra.casefold())
+    return "".join(c for c in plano if not unicodedata.combining(c))
+
+
 _RECHAZOS = re.compile(
     r"^\s*¿?\s*(no[,.]?\s*(no\s*)?(es|era)\s*(esa?|ese|eso)?|esa? no|ese no"
     r"|otra( vez)?|dame otra|busca otra|not (that|this) one|another one|wrong)\s*[\.\!\?]*\s*$",
@@ -119,7 +147,14 @@ def es_seguimiento(texto: str) -> bool:
     limpio = texto.strip()
     if _CONECTORES.match(limpio):
         return True
-    return len(limpio) < 60 and bool(_DEICTICOS.search(limpio))
+    if len(limpio) < 60 and _DEICTICOS.search(limpio):
+        return True
+    # Elliptical request: «tienes un ejemplo de código» names no topic of
+    # its own — the topic lives in the previous turn. A request WITH its
+    # own topic («dame la capital de Francia») stays self-contained.
+    if len(limpio) < 60 and _P_PETICION.match(limpio):
+        return all(_plano(t) in _PEDIDO_GENERICO for t in _terminos_clave(limpio))
+    return False
 
 
 class GrafoPalabras:
@@ -286,4 +321,11 @@ def resolver_seguimiento(entrada: str, pregunta_previa: str | None) -> str:
     cuerpo = _CONECTORES.sub("", entrada.strip(), count=1).strip(" ,;")
     cuerpo = cuerpo or entrada.strip()
     resuelta = f"{' '.join(tema)} — {cuerpo}"
-    return resuelta if resuelta.endswith("?") or not entrada.strip().endswith("?") else resuelta + "?"
+    # A rewritten follow-up that was a question or a request stays one, so
+    # downstream routing (es_pregunta) sends it to answer mode, never to
+    # the claim path.
+    if not resuelta.endswith("?") and (
+        entrada.strip().endswith("?") or _P_PETICION.match(entrada.strip())
+    ):
+        resuelta += "?"
+    return resuelta
