@@ -1500,3 +1500,13 @@ measured honestly and discarded if inert). GATE PERF: promote only at
 quality ≥98% with latency −20% or memory −25%; harness sanity (<5%
 variance) required first. This program absorbs and concretizes the old
 Phase-5 "extreme efficiency" items.
+
+Program B harness sanity (2026-07-17, pre-registered <5% variance bar,
+base config ×2): PASS for reasoner chars/s (0.9%), RSS (0.8%), VRAM (0.0%)
+and NLI label agreement (1.0 — perfect reproducibility); FAIL for the
+6-micro-task probe (4/6 vs 2/6 — CUDA at temperature 0 is not
+deterministic and n=6 makes every flip 17%) and NLI pairs/s (20.9%,
+likely clocks/thermals). Honest consequence, effective immediately: GATE
+PERF quality comparisons use NLI agreement + the full T1 suite; the
+6-task probe and pairs/s are reported but not gate-bearing until the
+probe grows or is averaged over ≥3 runs.
