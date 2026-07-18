@@ -95,7 +95,7 @@ def verificar(
         # caller binds the user's next message to this context block.
         from .agente.sintesis import aclaracion_necesaria
 
-        aclaracion = aclaracion_necesaria(afirmacion, evidencias)
+        aclaracion = aclaracion_necesaria(afirmacion, evidencias, lang=lang)
         if aclaracion is not None:
             avisar("Evidencia ambigua: pido aclaración en vez de adivinar")
             return Informe(
@@ -108,7 +108,7 @@ def verificar(
             confianza=0.0,
             hechos=[],
             tipo="pregunta",
-            respuesta=responder_pregunta(afirmacion, evidencias, excluir_dominios),
+            respuesta=responder_pregunta(afirmacion, evidencias, excluir_dominios, lang=lang),
         )
 
     if verificador is None:
@@ -250,5 +250,5 @@ def verificar(
     # Every claim report carries the one-breath grounded explanation.
     from .agente.sintesis import respuesta_concisa
 
-    informe.respuesta = respuesta_concisa(informe)
+    informe.respuesta = respuesta_concisa(informe, lang=lang)
     return informe

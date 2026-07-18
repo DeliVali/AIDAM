@@ -362,10 +362,10 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.comando == "recordar":
-        from .memoria import RUTA_DEFECTO
+        from .memoria import ruta_defecto
         from .vectores import IndiceEvidencia
 
-        indice = IndiceEvidencia(RUTA_DEFECTO)
+        indice = IndiceEvidencia(ruta_defecto())
         resultados = indice.buscar(args.consulta, args.limite)
         if not resultados:
             print("[aidam] la memoria de evidencia está vacía todavía", file=sys.stderr)

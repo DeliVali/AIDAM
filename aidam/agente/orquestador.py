@@ -133,7 +133,7 @@ def investigar(
         avisar("Pregunta detectada: buscando la respuesta en las fuentes…")
         hecho_q = HechoAtomico(texto=afirmacion, origen="pregunta")
         evidencias = _recuperar(hecho_q, lang, max_idiomas, None)
-        respuesta = responder_pregunta(afirmacion, evidencias)
+        respuesta = responder_pregunta(afirmacion, evidencias, lang=lang)
         informe_q = Informe(
             afirmacion=afirmacion, veredicto=Veredicto.INSUFICIENTE,
             confianza=0.0, hechos=[], tipo="pregunta", respuesta=respuesta,
@@ -272,7 +272,7 @@ def investigar(
 
     from .sintesis import respuesta_concisa
 
-    respuesta = respuesta_concisa(informe)
+    respuesta = respuesta_concisa(informe, lang=lang)
     sintesis = None
     if sintetizar_final and generador is not None:
         from .sintesis import sintetizar
@@ -300,11 +300,11 @@ def _desde_memoria(hecho: HechoAtomico, vistas: set[tuple[str, str]]) -> list:
     index this contributes nothing and costs nothing.
     """
     try:
-        from ..memoria import RUTA_DEFECTO
+        from ..memoria import ruta_defecto
         from ..models import Evidencia
         from ..vectores import IndiceEvidencia
 
-        indice = IndiceEvidencia(RUTA_DEFECTO)
+        indice = IndiceEvidencia(ruta_defecto())
         try:
             filas = indice.buscar(hecho.texto, limite=4)
         finally:

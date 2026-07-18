@@ -30,7 +30,15 @@ from pathlib import Path
 
 from .models import Informe
 
-RUTA_DEFECTO = Path(os.environ.get("AIDAM_MEMORIA", "~/.aidam/memoria.db"))
+def ruta_defecto() -> Path:
+    """Read AIDAM_MEMORIA at call time, not import time — frozen-at-import
+    made test isolation impossible (the env override arrived too late) and
+    would ignore any runtime reconfiguration."""
+    return Path(os.environ.get("AIDAM_MEMORIA", "~/.aidam/memoria.db"))
+
+
+# Backwards-compatible alias for existing imports; prefer ruta_defecto().
+RUTA_DEFECTO = ruta_defecto()
 
 _ESQUEMA = """
 CREATE TABLE IF NOT EXISTS sesiones (
@@ -82,7 +90,7 @@ class MemoriaAgente:
     """Session + verification store shared by CLI and pipeline."""
 
     def __init__(self, ruta: Path | str | None = None) -> None:
-        self.ruta = Path(ruta or RUTA_DEFECTO).expanduser()
+        self.ruta = Path(ruta or ruta_defecto()).expanduser()
         self.ruta.parent.mkdir(parents=True, exist_ok=True)
         self._db = sqlite3.connect(self.ruta)
         version = self._db.execute("PRAGMA user_version").fetchone()[0]

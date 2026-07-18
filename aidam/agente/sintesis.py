@@ -35,6 +35,130 @@ _TITULO = {
     Veredicto.INSUFICIENTE: "NOT ENOUGH EVIDENCE",
 }
 
+# The agent answers in the user's language (reported 2026-07-17: German UI,
+# Spanish answer). Deterministic templates per language — same shape, same
+# honesty; unknown codes fall back to English, callers default to "es".
+_FRASES = {
+    "es": {
+        "si": "Sí — la evidencia lo confirma",
+        "no": "No — la evidencia lo refuta",
+        "senala": "señala que",
+        "dice": "dice",
+        "confianza": "confianza",
+        "ambos": "Hay evidencia seria en ambos sentidos: ",
+        "pero": "; pero ",
+        "insuficiente": lambda n: (
+            "No hay evidencia suficiente para confirmarlo ni refutarlo "
+            f"({n} pasaje(s) evaluados; conviene reformular o esperar mejores fuentes)."),
+        "sin_respuesta": ("No encontré evidencia para responder esta pregunta; "
+                          "conviene reformularla o intentar más tarde."),
+        "fuente": "Fuente",
+        "tambien": "También lo cubren",
+        "aclaracion": lambda tema, opciones: (
+            f"Encontré temas distintos para «{tema}»: {opciones}. "
+            "¿A cuál te refieres? Respóndeme y afino la búsqueda."),
+    },
+    "en": {
+        "si": "Yes — the evidence confirms it",
+        "no": "No — the evidence refutes it",
+        "senala": "states that",
+        "dice": "says",
+        "confianza": "confidence",
+        "ambos": "There is serious evidence both ways: ",
+        "pero": "; but ",
+        "insuficiente": lambda n: (
+            "There is not enough evidence to confirm or refute it "
+            f"({n} passage(s) reviewed; consider rephrasing or trying later)."),
+        "sin_respuesta": ("I found no evidence to answer this question; "
+                          "try rephrasing it or asking again later."),
+        "fuente": "Source",
+        "tambien": "Also covered by",
+        "aclaracion": lambda tema, opciones: (
+            f"I found different topics for «{tema}»: {opciones}. "
+            "Which one do you mean? Reply and I'll refine the search."),
+    },
+    "fr": {
+        "si": "Oui — les preuves le confirment",
+        "no": "Non — les preuves le réfutent",
+        "senala": "indique que",
+        "dice": "dit",
+        "confianza": "confiance",
+        "ambos": "Il existe des preuves sérieuses dans les deux sens : ",
+        "pero": " ; mais ",
+        "insuficiente": lambda n: (
+            "Il n'y a pas assez de preuves pour le confirmer ou le réfuter "
+            f"({n} passage(s) évalués ; reformulez ou réessayez plus tard)."),
+        "sin_respuesta": ("Je n'ai trouvé aucune preuve pour répondre à cette question ; "
+                          "reformulez-la ou réessayez plus tard."),
+        "fuente": "Source",
+        "tambien": "Également couvert par",
+        "aclaracion": lambda tema, opciones: (
+            f"J'ai trouvé des sujets différents pour «{tema}» : {opciones}. "
+            "Lequel voulez-vous dire ? Répondez et j'affine la recherche."),
+    },
+    "de": {
+        "si": "Ja — die Belege bestätigen es",
+        "no": "Nein — die Belege widerlegen es",
+        "senala": "schreibt:",
+        "dice": "sagt:",
+        "confianza": "Konfidenz",
+        "ambos": "Es gibt ernstzunehmende Belege in beide Richtungen: ",
+        "pero": "; aber ",
+        "insuficiente": lambda n: (
+            "Es gibt nicht genug Belege, um es zu bestätigen oder zu widerlegen "
+            f"({n} Passagen geprüft; formuliere um oder versuche es später erneut)."),
+        "sin_respuesta": ("Ich habe keine Belege gefunden, um diese Frage zu beantworten; "
+                          "formuliere sie um oder versuche es später."),
+        "fuente": "Quelle",
+        "tambien": "Ebenfalls behandelt von",
+        "aclaracion": lambda tema, opciones: (
+            f"Ich habe verschiedene Themen zu «{tema}» gefunden: {opciones}. "
+            "Welches meinst du? Antworte und ich verfeinere die Suche."),
+    },
+    "pt": {
+        "si": "Sim — as evidências confirmam",
+        "no": "Não — as evidências refutam",
+        "senala": "indica que",
+        "dice": "diz",
+        "confianza": "confiança",
+        "ambos": "Há evidências sérias em ambos os sentidos: ",
+        "pero": "; mas ",
+        "insuficiente": lambda n: (
+            "Não há evidência suficiente para confirmar ou refutar "
+            f"({n} passagem(ns) avaliadas; reformule ou tente mais tarde)."),
+        "sin_respuesta": ("Não encontrei evidências para responder a esta pergunta; "
+                          "reformule-a ou tente mais tarde."),
+        "fuente": "Fonte",
+        "tambien": "Também cobrem o tema",
+        "aclaracion": lambda tema, opciones: (
+            f"Encontrei temas diferentes para «{tema}»: {opciones}. "
+            "A qual você se refere? Responda e eu refino a busca."),
+    },
+    "it": {
+        "si": "Sì — le prove lo confermano",
+        "no": "No — le prove lo confutano",
+        "senala": "indica che",
+        "dice": "dice",
+        "confianza": "fiducia",
+        "ambos": "Ci sono prove serie in entrambi i sensi: ",
+        "pero": "; ma ",
+        "insuficiente": lambda n: (
+            "Non ci sono prove sufficienti per confermarlo o confutarlo "
+            f"({n} passaggi valutati; riformula o riprova più tardi)."),
+        "sin_respuesta": ("Non ho trovato prove per rispondere a questa domanda; "
+                          "riformulala o riprova più tardi."),
+        "fuente": "Fonte",
+        "tambien": "Ne parlano anche",
+        "aclaracion": lambda tema, opciones: (
+            f"Ho trovato argomenti diversi per «{tema}»: {opciones}. "
+            "Quale intendi? Rispondi e affino la ricerca."),
+    },
+}
+
+
+def _frases(lang: str) -> dict:
+    return _FRASES.get(lang, _FRASES["en"])
+
 
 def tabla_evidencia(informe: Informe) -> str:
     """Deterministic rendering of the aggregated result — the ONLY thing the LLM sees."""
@@ -115,7 +239,7 @@ def _extraer_codigo(evidencias: list) -> str | None:
     return None
 
 
-def aclaracion_necesaria(pregunta: str, evidencias: list) -> str | None:
+def aclaracion_necesaria(pregunta: str, evidencias: list, lang: str = "es") -> str | None:
     """Jeffrey's clarification design (2026-07-16): when retrieval is
     inconclusive, ASK instead of answering off-context. «¿qué es lora?»
     retrieves passages about DIFFERENT senses (IoT radio vs ML
@@ -174,8 +298,7 @@ def aclaracion_necesaria(pregunta: str, evidencias: list) -> str | None:
         return None
     opciones = " · ".join(f"«{e}»" for e in etiquetas)
     tema = " ".join(contenido) or pregunta.strip("¿?")
-    return (f"Encontré temas distintos para «{tema}»: {opciones}. "
-            "¿A cuál te refieres? Respóndeme y afino la búsqueda.")
+    return _frases(lang)["aclaracion"](tema, opciones)
 
 
 def unicodedata_plano(texto: str) -> str:
@@ -186,7 +309,8 @@ def unicodedata_plano(texto: str) -> str:
 
 
 def responder_pregunta(pregunta: str, evidencias: list,
-                       excluir_dominios: set[str] | None = None) -> str:
+                       excluir_dominios: set[str] | None = None,
+                       lang: str = "es") -> str:
     """Evidence-grounded answer to a question, phrased like a person.
 
     Two-level ranking with the computed-once embedder (order-preserving
@@ -202,8 +326,7 @@ def responder_pregunta(pregunta: str, evidencias: list,
         restantes = [e for e in utiles if e.dominio not in excluir_dominios]
         utiles = restantes or utiles
     if not utiles:
-        return ("No encontré evidencia para responder esta pregunta; "
-                "conviene reformularla o intentar más tarde.")
+        return _frases(lang)["sin_respuesta"]
     candidatas: list[tuple[str, object]] = []  # (frase, evidencia)
     for e in utiles:
         for frase in re.split(r"(?<=[.!?»])\s+", e.texto):
@@ -236,7 +359,7 @@ def responder_pregunta(pregunta: str, evidencias: list,
         codigo = _extraer_codigo(fuentes_top)
         if codigo:
             lineas.append(f"```python\n{codigo}\n```")
-    lineas.append(f"Fuente: {fuente.dominio} — {fuente.url}")
+    lineas.append(f"{_frases(lang)['fuente']}: {fuente.dominio} — {fuente.url}")
     otras = []
     for f2, e2 in orden[1:]:
         if e2.dominio != fuente.dominio and e2.dominio not in otras:
@@ -244,11 +367,11 @@ def responder_pregunta(pregunta: str, evidencias: list,
         if len(otras) == 2:
             break
     if otras:
-        lineas.append(f"También lo cubren: {', '.join(otras)}.")
+        lineas.append(f"{_frases(lang)['tambien']}: {', '.join(otras)}.")
     return "\n".join(lineas)
 
 
-def respuesta_concisa(informe: Informe) -> str:
+def respuesta_concisa(informe: Informe, lang: str = "es") -> str:
     """Deterministic one-breath answer: direct, grounded, never long.
 
     Jeffrey's product rule (2026-07-16): the user always gets an
@@ -257,6 +380,8 @@ def respuesta_concisa(informe: Informe) -> str:
     and cannot contradict the verdict because it is BUILT from it; the
     optional LLM polish (sintetizar) obeys the same brevity contract.
     """
+    frases = _frases(lang)
+
     def _mejor(pares):
         return max(pares, key=lambda p: p.prob, default=None)
 
@@ -266,29 +391,28 @@ def respuesta_concisa(informe: Informe) -> str:
 
     if informe.veredicto is Veredicto.REFUTADO:
         par = _mejor(hecho.en_contra) if hecho else None
-        base = "No — la evidencia lo refuta"
+        base = frases["no"]
     elif informe.veredicto is Veredicto.SUSTENTADO:
         par = _mejor(hecho.a_favor) if hecho else None
-        base = "Sí — la evidencia lo confirma"
+        base = frases["si"]
     elif informe.veredicto is Veredicto.CONTRADICTORIO:
         favor = _mejor(hecho.a_favor) if hecho else None
         contra = _mejor(hecho.en_contra) if hecho else None
         partes = [
-            f"{p.evidencia.dominio} dice «{p.evidencia.texto[:110].strip()}…»"
+            f"{p.evidencia.dominio} {frases['dice']} «{p.evidencia.texto[:110].strip()}…»"
             for p in (favor, contra) if p is not None
         ]
-        return ("Hay evidencia seria en ambos sentidos: " + "; pero ".join(partes)
-                + f" (confianza {informe.confianza:.0%}).")
+        return (frases["ambos"] + frases["pero"].join(partes)
+                + f" ({frases['confianza']} {informe.confianza:.0%}).")
     else:
         consultadas = sum(len(h.a_favor) + len(h.en_contra) for h in informe.hechos)
-        return ("No hay evidencia suficiente para confirmarlo ni refutarlo "
-                f"({consultadas} pasaje(s) evaluados; conviene reformular o esperar mejores fuentes).")
+        return frases["insuficiente"](consultadas)
 
     if par is None:
-        return f"{base} (confianza {informe.confianza:.0%})."
-    return (f"{base}: {par.evidencia.dominio} señala que "
+        return f"{base} ({frases['confianza']} {informe.confianza:.0%})."
+    return (f"{base}: {par.evidencia.dominio} {frases['senala']} "
             f"«{par.evidencia.texto[:150].strip()}…» "
-            f"(confianza {informe.confianza:.0%}; {par.evidencia.url})")
+            f"({frases['confianza']} {informe.confianza:.0%}; {par.evidencia.url})")
 
 
 def sintetizar(informe: Informe, generador=None, lang: str = "es", max_tokens: int = 700) -> str | None:
