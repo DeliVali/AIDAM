@@ -100,7 +100,19 @@ The model is published on
   PyTorch for training; ONNX Runtime for CPU; weight-only quantization
   (block-wise int4 + int8 embeddings) for the mini variant.
 - **Local LLM**: DeepSeek-R1-0528-Qwen3-8B as GGUF Q4 via llama.cpp
-  (selectable via `AIDAM_MODELO_PREGUNTAS`).
+  (selectable via `AIDAM_MODELO_PREGUNTAS`). The reasoner is under a
+  **competitive fine-tuning program**: small fine-tuned models genuinely
+  compete with 100×-larger frontier models on the agent's own arena —
+  tool-call reliability and task completion — and that is the measured
+  goal (against published leaderboard numbers, never vibes; gates in
+  [docs/AGENT.md](docs/AGENT.md)).
+- **Low-resource by design**: the whole stack is being profiled down to
+  kernel-level knobs (quantization levels, KV-cache quantization, flash
+  attention, hybrid GPU offload, speculative decoding, ONNX int4/int8) to
+  publish measured configuration profiles from a 12 GB GPU down to
+  CPU-only 8 GB RAM machines — the performance/effectiveness sweet spot is
+  chosen by a pre-set criterion on a measured quality↔latency↔memory
+  curve, not by intuition.
 - **Continuous evaluation**: every change is measured before it lands, on
   four public benchmarks, with rejected experiments documented alongside
   promoted ones (see [docs/ROADMAP.md](docs/ROADMAP.md)).

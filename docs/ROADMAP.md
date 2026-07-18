@@ -1476,3 +1476,27 @@ repeated (tool, args) pair loops forever — the code loop-breaker feeds a
 corrective observation instead of re-executing. The grounding gate fired
 correctly on its first live run (marked an ungrounded rambling answer and
 prefixed the warning line).
+
+### Two standing programs (2026-07-17, owner's directive, gates fixed before numbers)
+
+**A — Competitive fine-tuning.** "Make the reasoner better than Fable 5, or
+compete with few parameters" — operationalized honestly (the 90-general
+pattern): the arena where a small model genuinely competes with frontier
+models is agentic reliability (tool-call validity, task completion, step
+economy, groundedness), and the comparison is against PUBLISHED leaderboard
+numbers (owner's decision — no API spend). Baseline of the base 8B recorded
+before any adapter. Rounds R1 (Glaive SFT, scripted) → R2 (own traces + the
+four bring-up laws as training data) → R3 (distill to Qwen3-4B/1.7B students
+for low-resource profiles). Gates FT and R3 in docs/AGENT.md.
+
+**B — Few resources, kernel-level optimization.** Find the measured sweet
+spot between performance and effectiveness across three hardware profiles
+(12 GB GPU dev / 4 GB GPU / CPU-only 8 GB RAM — owner picked the CPU floor).
+Harness `evaluation/perfil_recursos.py`: per config, tokens/s, per-step
+latency, peak VRAM/RSS, fixed quality probe; knobs swept one at a time
+(quant level, hybrid offload, flash attention, KV-cache quant, threads,
+batch, speculative decoding, ONNX variants, OS governor/THP — the last
+measured honestly and discarded if inert). GATE PERF: promote only at
+quality ≥98% with latency −20% or memory −25%; harness sanity (<5%
+variance) required first. This program absorbs and concretizes the old
+Phase-5 "extreme efficiency" items.

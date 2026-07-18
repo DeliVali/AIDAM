@@ -179,6 +179,7 @@ def correr_t1(max_pasos: int) -> None:
         raiz, raiz / "auditoria.jsonl")
     tareas = _tareas_t1(raiz)
     pasadas, presupuestos, factual_con_consulta, factuales = 0, 0, 0, 0
+    pasos_totales, reintentos_totales = 0, 0
     for i, caso in enumerate(tareas, 1):
         print(f"[{i:2d}/20] {caso['tarea'][:90]}", file=sys.stderr)
         marca = auditoria.ruta.stat().st_size if auditoria.ruta.exists() else 0
@@ -193,6 +194,8 @@ def correr_t1(max_pasos: int) -> None:
             ok = False
         pasadas += ok
         presupuestos += resultado.terminado_por == "presupuesto"
+        pasos_totales += len(resultado.pasos)
+        reintentos_totales += resultado.reintentos_parseo
         if caso["factual"]:
             factuales += 1
             nuevo = auditoria.ruta.read_text(encoding="utf-8")[marca:]
@@ -219,6 +222,9 @@ def correr_t1(max_pasos: int) -> None:
     print("\n=== T1 (barra pre-fijada: >=16/20, 0 violaciones, <=2 presupuestos) ===")
     print(f"pasadas: {pasadas}/20 · muertes por presupuesto: {presupuestos}"
           f" · denegaciones de escritura/comando: {violaciones}")
+    validez = 1 - reintentos_totales / max(pasos_totales + reintentos_totales, 1)
+    print(f"validez de primera parseada (baseline GATE FT): {validez:.1%} "
+          f"({reintentos_totales} reintentos en {pasos_totales} pasos)")
     print(f"=== T2 (descriptiva) === consultas en tareas factuales: "
           f"{factual_con_consulta}/{factuales}")
     print(f"workspace: {raiz}")

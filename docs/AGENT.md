@@ -349,6 +349,47 @@ implements that identity:
   gated (below); own-trace collection (`AIDAM_TRAZAS=1`, local only) feeds
   the second round.
 
+### The competitive fine-tuning program (2026-07-17, owner's directive)
+
+The goal, operationalized honestly (the 90-general pattern): an 8B local
+model does not beat a frontier model in general — the measurable goal is its
+ARENA, agentic reliability: tool-call format validity, task completion, step
+economy, groundedness. On public tool-use leaderboards (BFCL-style) small
+fine-tuned models genuinely compete with models 100× larger; the declared
+target is to close that gap **against published frontier numbers** (the
+owner's chosen comparison — no API spend) with ~1/100 of the parameters.
+
+Fixed metrics, baselined on the base 8B BEFORE any adapter: T1 pass rate,
+first-parse action validity, steps-to-completion, T4 unmarked-fabrication
+rate; plus a locally reproducible BFCL-style single-turn subset (leaderboard
+version/date documented when adopted).
+
+Rounds, each behind its gate: **R1** Glaive-v2 SFT (scripted, GATE FT below);
+**R2** own curated traces + the four bring-up laws turned into training data
+(anti-full-plan, anti-loop, observation-as-data, respond-only-when-done);
+**R3** distill the fine-tuned 8B into small students (Qwen3-4B / 1.7B, GGUF
+Q4) for the low-resource profiles — gate: student ≥90% of the teacher on
+T1/BFCL-subset at ≤50% of the latency on the target profile.
+
+### The resource program: kernel-level knobs, measured (2026-07-17)
+
+Owner's directive: the project must run on few resources, optimized at the
+kernel level generally, finding the sweet spot between performance and
+effectiveness. Implementation: `evaluation/perfil_recursos.py` measures, per
+configuration, reasoner tokens/s, per-step task latency, peak VRAM and RSS,
+and a fixed cheap quality probe (6-task T1 subset + 50 cached NLI pairs of
+known accuracy) — producing a quality↔latency↔memory table per hardware
+profile. Knobs swept one at a time (llm_worker env vars): GGUF quant level,
+partial GPU offload, flash attention, KV-cache quantization, n_ctx, threads,
+batch, mmap/mlock; speculative decoding with a small draft model; NLI
+torch/ONNX/onnx-mini × threads; OS-level knobs (governor, THP, affinity)
+measured honestly and discarded if they do not move the needle.
+
+Three published profiles with exact env vars and measured numbers:
+`dev 12GB GPU`, `GPU 4GB` (hybrid offload), `CPU 8GB RAM` (onnx-mini +
+small GGUF). Pre-set sweet-spot criterion per profile: highest quality
+within budget (4GB: ≤3.5 GB VRAM; CPU: ≤6 GB RSS and ≤8 s/reasoner step).
+
 ## Pre-registered gates
 
 House rule: gates are declared **before any numbers exist**, and a failed gate blocks
@@ -376,7 +417,14 @@ entries in ROADMAP for the discipline in action).
   fine-tuned adapter replaces the base reasoner only if, on a held-out task
   set: first-parse action validity ≥ base AND T1 pass rate ≥ base AND no
   regression on the existing `questions.py` roles (AVeriTeC-100 search-question
-  spot-check). A miss is a documented rejection.
+  spot-check). A miss is a documented rejection. Extensions: **GATE R3
+  (student distill)** — student ≥90% of teacher on T1/BFCL-subset at ≤50%
+  latency on the target profile.
+- **GATE PERF (resource configs) — declared 2026-07-17, unmeasured.** A
+  configuration is promoted to a profile's default only if quality ≥98% of
+  the profile's current config AND (latency −20% OR memory −25%). The
+  measurement harness must first show <5% run-to-run variance on a repeated
+  config before any sweep counts. Rejections documented with numbers.
 
 - **GATE (cascade promotion) — declared now, unmeasured.** The tier-1/2 cascade is
   **NOT promoted to default**. `investigar` ships behind explicit invocation

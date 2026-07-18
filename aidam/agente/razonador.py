@@ -53,6 +53,7 @@ class ResultadoTarea:
     pasos: list[Paso] = field(default_factory=list)
     terminado_por: str = "respuesta"  # "respuesta" | "presupuesto" | "error_llm"
     sin_verificar: list[str] = field(default_factory=list)
+    reintentos_parseo: int = 0  # GATE FT metric: first-parse validity = steps without retry
 
 
 def _documentar_herramientas(herramientas: dict[str, Herramienta]) -> str:
@@ -193,6 +194,7 @@ def ejecutar_tarea(
     turnos: list[tuple[str, str]] = []
     pasos: list[Paso] = []
     observaciones: list[str] = []
+    reintentos = 0
 
     def _paso() -> tuple[str, str, dict] | None:
         crudo = generador.completar(
@@ -216,6 +218,7 @@ def ejecutar_tarea(
         if accion is None:
             # Retry once with a corrective turn; a second failure ends the
             # task VISIBLY — never a silently fabricated answer.
+            reintentos += 1
             turnos.append(("user", "Formato inválido. Emite solo el objeto JSON de la acción."))
             accion = _paso()
             if accion is None:
@@ -224,6 +227,7 @@ def ejecutar_tarea(
                     respuesta="No pude completar la tarea: el modelo razonador "
                               "no produjo acciones válidas.",
                     pasos=pasos, terminado_por="error_llm",
+                    reintentos_parseo=reintentos,
                 )
 
         pensamiento, nombre, argumentos = accion
@@ -247,7 +251,7 @@ def ejecutar_tarea(
                 "Razonador", f"responder (paso {numero})", "paso", "tarea",
                 "razonador", exito=True, hash_resultado=hash_contenido(respuesta),
             )
-            return ResultadoTarea(respuesta, pasos, "respuesta", marcadas)
+            return ResultadoTarea(respuesta, pasos, "respuesta", marcadas, reintentos)
 
         avisar(f"acción: {nombre} {json.dumps(argumentos, ensure_ascii=False)[:160]}")
         repetida = next(
@@ -297,7 +301,7 @@ def ejecutar_tarea(
         f"No terminé dentro del presupuesto de {max_pasos} pasos. "
         f"Lo hecho hasta aquí: {hechas or 'nada concluyente'}."
     )
-    return ResultadoTarea(respuesta, pasos, "presupuesto", [])
+    return ResultadoTarea(respuesta, pasos, "presupuesto", [], reintentos)
 
 
 # ── task-act detection (chat surface) ─────────────────────────────────────────
