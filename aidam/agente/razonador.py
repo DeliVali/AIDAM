@@ -141,10 +141,15 @@ def _truncar(texto: str, maximo: int = _MAX_OBSERVACION) -> str:
     return f"{texto[:mitad]}\n… [truncado] …\n{texto[-mitad:]}"
 
 
-def _renderizar(sistema: str, tarea: str, turnos: list[tuple[str, str]]) -> str:
+def _renderizar(
+    sistema: str, tarea: str, turnos: list[tuple[str, str]], pensar: bool = True
+) -> str:
     """ChatML render of the scratchpad, compacting oldest turns when the
     char budget is exceeded — the task and the last 2 full exchanges
-    always survive verbatim."""
+    always survive verbatim. `pensar=False` prefills an EMPTY think block
+    (the `_responder` trick): used on the corrective retry, where the
+    measured failure is rambling past the token cap without ever closing
+    the thinking — the retry allows no thinking, only the JSON."""
     def _render(pares: list[tuple[str, str]]) -> str:
         cuerpo = "".join(
             f"<|im_start|>{rol}\n{contenido}<|im_end|>\n" for rol, contenido in pares
@@ -155,9 +160,10 @@ def _renderizar(sistema: str, tarea: str, turnos: list[tuple[str, str]]) -> str:
         # prefill gives the model its native thinking channel — measured
         # without it (2026-07-17), it deliberated INSIDE the responder
         # texto field instead of thinking before the action.
+        prefill = "<think>\n" if pensar else "<think>\n\n</think>\n"
         return (
             f"<|im_start|>user\n{sistema}\nTarea: {tarea}<|im_end|>\n"
-            f"{cuerpo}<|im_start|>assistant\n<think>\n"
+            f"{cuerpo}<|im_start|>assistant\n{prefill}"
         )
 
     completo = _render(turnos)
@@ -196,9 +202,9 @@ def ejecutar_tarea(
     observaciones: list[str] = []
     reintentos = 0
 
-    def _paso() -> tuple[str, str, dict] | None:
+    def _paso(pensar: bool = True) -> tuple[str, str, dict] | None:
         crudo = generador.completar(
-            _renderizar(sistema, tarea, turnos),
+            _renderizar(sistema, tarea, turnos, pensar=pensar),
             max_tokens=_MAX_TOKENS_PASO, temperature=0.0,
             stop=["<|im_end|>", "\nObservación"],
         )
@@ -220,7 +226,11 @@ def ejecutar_tarea(
             # task VISIBLY — never a silently fabricated answer.
             reintentos += 1
             turnos.append(("user", "Formato inválido. Emite solo el objeto JSON de la acción."))
-            accion = _paso()
+            # Measured failure mode (first T1 run: 5/12 tasks dead on
+            # error_llm, every research task among them): the model rambles
+            # past the token cap without closing its thinking. The retry
+            # forbids thinking entirely — empty-think prefill, JSON only.
+            accion = _paso(pensar=False)
             if accion is None:
                 avisar("el razonador no produjo una acción válida; detengo la tarea")
                 return ResultadoTarea(

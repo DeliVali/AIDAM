@@ -198,12 +198,19 @@ def correr_t1(max_pasos: int) -> None:
         reintentos_totales += resultado.reintentos_parseo
         if caso["factual"]:
             factuales += 1
-            nuevo = auditoria.ruta.read_text(encoding="utf-8")[marca:]
-            usadas = {
-                json.loads(l).get("herramienta") for l in nuevo.splitlines() if l
-            } | {
-                json.loads(l).get("argumento", "").split(" ")[0]
-                for l in nuevo.splitlines() if l
+            # marca is a BYTE offset (stat().st_size): slice bytes, then
+            # decode — slicing decoded text by it lands mid-line on any
+            # multibyte character (measured: crashed the first T1 run at
+            # task 13). Parsing stays defensive per line.
+            nuevo = auditoria.ruta.read_bytes()[marca:].decode("utf-8", errors="replace")
+            eventos = []
+            for linea in nuevo.splitlines():
+                try:
+                    eventos.append(json.loads(linea))
+                except ValueError:
+                    continue
+            usadas = {e.get("herramienta") for e in eventos} | {
+                str(e.get("argumento", "")).split(" ")[0] for e in eventos
             }
             if _CONSULTORAS & usadas or any(
                 a.startswith(("consultar_verificador", "buscar_evidencia",
