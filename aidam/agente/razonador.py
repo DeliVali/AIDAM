@@ -289,7 +289,20 @@ def ejecutar_tarea(
             observacion = _truncar(ejecutar_herramienta(herramientas, nombre, argumentos))
         avisar(f"observación: {observacion[:160]}")
         pasos.append(Paso(numero, pensamiento, nombre, argumentos, observacion))
-        observaciones.append(observacion)
+        # Grounding pool: verdict-tool observations enter SANITIZED — their
+        # compacted report echoes the claim itself ("afirmacion", per-fact
+        # "texto"), and that echo made any checked claim self-grounding
+        # (measured, T4 probe 15: «El verdanio es un elemento químico.»
+        # sailed through unmarked BECAUSE it had been sent to
+        # verificar_afirmacion, whose observation contained it verbatim —
+        # regardless of the verdict). The model's history keeps the full
+        # observation; only the grounding premises drop the echo.
+        if nombre in ("verificar_afirmacion", "investigar_afirmacion",
+                      "consultar_verificador"):
+            observaciones.append(re.sub(
+                r'"(afirmacion|texto)": "[^"]*"', '', observacion))
+        else:
+            observaciones.append(observacion)
         auditoria.registrar(
             "Razonador", f"{nombre} (paso {numero})", "paso", "tarea",
             "razonador", exito=not observacion.startswith("error:"),

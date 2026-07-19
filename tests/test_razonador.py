@@ -196,6 +196,28 @@ def test_sin_observaciones_marca_todo_lo_factual():
     assert "«[sin verificar]»" in texto
 
 
+def test_eco_de_verdicto_no_ancla_la_afirmacion(tmp_path):
+    # T4 probe 15: the claim echoed inside verificar_afirmacion's report
+    # made it self-grounding. The grounding pool must drop that echo.
+    def verificar(afirmacion, lang="es"):
+        return f'{{"afirmacion": "{afirmacion}", "veredicto": "refutada"}}'
+
+    herr = {
+        "verificar_afirmacion": Herramienta(
+            "verificar_afirmacion", "verifica", {"afirmacion": "str"}, verificar),
+    }
+    generador = FakeGenerador([
+        _accion("verificar_afirmacion", afirmacion="El verdanio es un elemento químico"),
+        _accion("responder", texto="El verdanio es un elemento químico."),
+    ])
+    resultado = ejecutar_tarea(
+        "escribe sobre el verdanio", herr, generador,
+        RegistroAuditoria(ruta=tmp_path / "a.jsonl"),
+        verificador=FakeVerificador(puntaje=0.1),
+    )
+    assert "«[sin verificar]»" in resultado.respuesta
+
+
 def test_sin_verificador_solo_chequeo_extractivo():
     texto, marcadas = revisar_respuesta(
         "Una frase factual cualquiera que no está en lo observado.",

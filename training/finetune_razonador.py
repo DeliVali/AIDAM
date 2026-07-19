@@ -165,7 +165,14 @@ def main() -> None:
         ),
         device_map="auto",
     )
-    modelo = prepare_model_for_kbit_training(modelo)
+    # Attempt-3 post-mortem: OOM at loss time with 10.24 GiB already used —
+    # consistent with gradient checkpointing never engaging. Belt and
+    # braces: configure it HERE (kbit-aware path) and kill the KV cache.
+    modelo.config.use_cache = False
+    modelo = prepare_model_for_kbit_training(
+        modelo, use_gradient_checkpointing=True,
+        gradient_checkpointing_kwargs={"use_reentrant": False},
+    )
     # Attention-only adapter: attempt 2 OOMed by 178 MiB on 12 GB even at
     # 1024 tokens with the paged optimizer — MLP adapters cost the margin,
     # and the training objective (action-format reliability) lives mostly
@@ -181,7 +188,7 @@ def main() -> None:
         # >11.5 GiB at step 1). Tool-call turns are short; truncation from
         # the LEFT would lose the system prompt, so plain right truncation
         # keeps instructions + drops only overlong middle history.
-        ids = tokenizador(completo, truncation=True, max_length=768)
+        ids = tokenizador(completo, truncation=True, max_length=640)
         etiquetas = list(ids["input_ids"])
         n_prompt = len(tokenizador(ejemplo["prompt"])["input_ids"])
         etiquetas[:n_prompt] = [-100] * min(n_prompt, len(etiquetas))

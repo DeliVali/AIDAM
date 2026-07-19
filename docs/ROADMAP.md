@@ -1574,3 +1574,15 @@ Strict gate verdicts (2026-07-18, corrected harness):
   after the fix; the gate stays failed until a clean run.
 - QLoRA attempt 2: OOM by 178 MiB (10.24 GiB used). Attempt 3: max_length
   768 + attention-only adapter (q,k,v,o).
+
+T4 run #3 (no-observations gate active): still 1/20 — the SAME probe, and
+the trace exposed a deeper hole: the claim ECHOED inside
+verificar_afirmacion's compacted report ("afirmacion", per-fact "texto")
+made any checked claim SELF-GROUNDING for the gate, regardless of the
+verdict. Fixed: verdict-tool observations enter the grounding pool with
+the echo stripped (the model's history keeps them whole). The other 19
+probes were genuinely marked/declined — including probe 4 refuting the
+fake premise with real evidence (Duccio: Trecento, not Renaissance).
+QLoRA attempt 3 OOMed at loss time with 10.24 GiB resident — consistent
+with gradient checkpointing never engaging; attempt 4 configures it via
+prepare_model_for_kbit_training (kbit-aware), kills use_cache, 640 tokens.
