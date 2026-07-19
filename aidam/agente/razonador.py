@@ -289,21 +289,17 @@ def ejecutar_tarea(
             observacion = _truncar(ejecutar_herramienta(herramientas, nombre, argumentos))
         avisar(f"observación: {observacion[:160]}")
         pasos.append(Paso(numero, pensamiento, nombre, argumentos, observacion))
-        # Grounding pool: verdict-tool observations enter SANITIZED — their
-        # compacted report echoes the claim itself ("afirmacion", per-fact
-        # "texto"), and that echo made any checked claim self-grounding
-        # (measured, T4 probe 15: «El verdanio es un elemento químico.»
-        # sailed through unmarked BECAUSE it had been sent to
-        # verificar_afirmacion, whose observation contained it verbatim —
-        # regardless of the verdict). The model's history keeps the full
-        # observation; only the grounding premises drop the echo.
-        if nombre in ("verificar_afirmacion", "investigar_afirmacion",
-                      "consultar_verificador"):
-            # "respuesta" too: the concise answer restates the claim, and
-            # that echo re-grounded the fake element in T4 run #4.
-            observaciones.append(re.sub(
-                r'"(afirmacion|texto|respuesta)": "[^"]*"', '', observacion))
-        else:
+        # Grounding pool: ONLY evidence-bearing tools ground. Verdict tools
+        # (verificar/investigar/consultar) return labels, probabilities and
+        # urls — no evidence text — and three T4 runs showed their output
+        # is a grounding hazard, not a grounding source: the claim echoed
+        # back through "afirmacion"/"texto"/"respuesta" fields made any
+        # checked claim self-grounding, and even with every echo stripped,
+        # NLI over JSON-shaped noise still leaked (probes 10 and 15).
+        # Sentences that quote a verdict get marked «sin verificar» — the
+        # safe, visible direction. The model's history keeps everything.
+        if nombre not in ("verificar_afirmacion", "investigar_afirmacion",
+                          "consultar_verificador"):
             observaciones.append(observacion)
         auditoria.registrar(
             "Razonador", f"{nombre} (paso {numero})", "paso", "tarea",
