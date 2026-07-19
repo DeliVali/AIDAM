@@ -169,15 +169,22 @@ def _renderizar(
     completo = _render(turnos)
     if len(completo) <= _PRESUPUESTO_HISTORIAL or len(turnos) <= 4:
         return completo
-    # Fold oldest exchanges into one-line summaries until it fits.
+    # Fold oldest exchanges into one-line summaries until it fits. Every
+    # iteration either strictly shrinks an element or removes one, so the
+    # loop provably terminates — the first version's discard condition was
+    # dead code and could spin forever (found by adversarial review,
+    # REPRODUCED with a 7-step scratchpad of max-size observations).
     plegados = list(turnos)
     while len(_render(plegados)) > _PRESUPUESTO_HISTORIAL and len(plegados) > 4:
-        rol, contenido = plegados.pop(0)
-        resumen = contenido.replace("\n", " ")[:120]
-        plegados.insert(0, ("user", f"[compactado {rol}] {resumen}"))
-        # A summary that is itself the oldest gets dropped next round:
-        if plegados[0][1].startswith("[compactado [compactado"):
-            plegados.pop(0)
+        rol, contenido = plegados[0]
+        if contenido.startswith("[compactado "):
+            plegados.pop(0)  # already a summary and still over budget: drop
+            continue
+        resumen = f"[compactado {rol}] {contenido[:120]}".replace("\n", " ")
+        if len(resumen) >= len(contenido):
+            plegados.pop(0)  # folding would not shrink it: drop
+        else:
+            plegados[0] = ("user", resumen)
     return _render(plegados)
 
 

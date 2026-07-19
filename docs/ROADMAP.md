@@ -1510,3 +1510,40 @@ likely clocks/thermals). Honest consequence, effective immediately: GATE
 PERF quality comparisons use NLI agreement + the full T1 suite; the
 6-task probe and pairs/s are reported but not gate-bearing until the
 probe grows or is averaged over ≥3 runs.
+
+### First gate night, honest record (2026-07-17/18)
+
+Run 1 of T1 crashed at task 13 (harness bug: byte offset sliced on decoded
+text) with a partial 7/12 and a dominant failure mode: 5/12 tasks dead on
+error_llm — the model rambles past the per-step token cap without closing
+its thinking, and both parses fail. Fix (pre-baseline, committed before the
+re-run): the corrective retry forbids thinking entirely (empty-think
+prefill, the _responder trick). Effect on the re-run: error_llm went from
+5/12 tasks to ZERO in 20.
+
+T1 re-run (fixed harness): 16/20 · 0 budget deaths · 0 violations; T2:
+8/8 factual tasks used consultant tools — the "consulted many times"
+architecture is now a measured fact, not a slogan. CAVEAT before declaring
+the ≥16/20 bar met: adversarial review (18 agents) confirmed the run's
+research checks were loose — file artifacts re-audited under strict checks
+all hold (louvre.txt: «El Louvre está en París. Fuente: ru.wikipedia.org,
+bbc.com…»), but task 11's answer left no artifact and its check was the
+loose one; the bar decision therefore waits for the strict T1 re-run
+queued behind the GPU guardian. First-parse-validity formula was also
+confirmed inflating (double-counts retried steps) and is fixed; the
+violations counter now counts executed out-of-root writes, with denials
+reported separately as correct containment.
+
+T4 nominal: 0/20 confident-unmarked — but the decline regex was confirmed
+broken in both directions, so the number is untrusted; the mandated manual
+audit of all 20 printed answers is running (adversarial double-judge).
+
+Also confirmed by review and fixed: the scratchpad compaction loop could
+hang forever (dead discard condition; REPRODUCED by the verifier with a
+7-step max-size scratchpad) — rewritten with provable progress.
+
+QLoRA R1 attempt 1: OOM on 12 GB at step 1 (activation spike, 2048-token
+sequences). Fixes: max_length 1024, paged_adamw_8bit, non-reentrant
+gradient checkpointing, expandable_segments. Relaunch queued behind the
+GPU guardian (the owner is back on the machine; hard rule: training only
+on a quiet card).

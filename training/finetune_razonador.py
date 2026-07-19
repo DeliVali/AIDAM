@@ -174,7 +174,11 @@ def main() -> None:
 
     def _tokenizar(ejemplo):
         completo = ejemplo["prompt"] + ejemplo["respuesta"]
-        ids = tokenizador(completo, truncation=True, max_length=2048)
+        # 1024, not 2048: the first run OOMed on 12 GB (activation spike to
+        # >11.5 GiB at step 1). Tool-call turns are short; truncation from
+        # the LEFT would lose the system prompt, so plain right truncation
+        # keeps instructions + drops only overlong middle history.
+        ids = tokenizador(completo, truncation=True, max_length=1024)
         etiquetas = list(ids["input_ids"])
         n_prompt = len(tokenizador(ejemplo["prompt"])["input_ids"])
         etiquetas[:n_prompt] = [-100] * min(n_prompt, len(etiquetas))
@@ -195,6 +199,11 @@ def main() -> None:
             per_device_train_batch_size=1, gradient_accumulation_steps=16,
             learning_rate=1e-4, bf16=True, logging_steps=20,
             save_strategy="epoch", report_to=[], gradient_checkpointing=True,
+            # OOM fixes after the first run died on 12 GB: paged optimizer
+            # states + non-reentrant checkpointing (required for PEFT
+            # adapters to actually recompute instead of caching).
+            optim="paged_adamw_8bit",
+            gradient_checkpointing_kwargs={"use_reentrant": False},
         ),
         train_dataset=datos,
         data_collator=DataCollatorForSeq2Seq(tokenizador, padding=True),
