@@ -377,8 +377,29 @@ def revisar_respuesta(
     verifier only the extractive check runs (nothing is marked on NLI
     grounds it could not measure).
     """
-    if not respuesta or not observaciones:
+    if not respuesta:
         return respuesta, []
+    if not observaciones:
+        # No tool was consulted: nothing can be grounded by construction.
+        # Measured hole (T4 run #2, probe 15): «El verdanio es un elemento
+        # químico.» — a confident fabrication about an invented element,
+        # asserted with zero observations, sailed through unmarked because
+        # this function used to return early here. Factual-shaped
+        # sentences are all marked, and the answer says why up front.
+        marcadas = []
+        frases = []
+        for frase in _FRASES.split(respuesta):
+            candidata = frase.strip()
+            if 25 <= len(candidata) <= 300 and not candidata.endswith("?") \
+                    and not candidata.startswith("```"):
+                marcadas.append(candidata)
+                frases.append(f"{frase} «[sin verificar]»")
+            else:
+                frases.append(frase)
+        if not marcadas:
+            return respuesta, []
+        texto = " ".join(f.strip() for f in frases if f.strip())
+        return "Aviso: respondí sin consultar ninguna fuente.\n" + texto, marcadas
     plano_obs = [_plano(o) for o in observaciones]
     trozos: list[str] = []
     for o in observaciones:

@@ -1557,3 +1557,20 @@ the same as not hallucinating. T4 is therefore NOT declared passed; it
 re-runs with the fixed code — where the model actually answers and the
 grounding gate is genuinely exercised — queued in the GPU guardian
 between the strict T1 and the QLoRA relaunch.
+
+Strict gate verdicts (2026-07-18, corrected harness):
+- **GATE T1: MET** — 17/20 · 0 budget deaths · 0 violations (0 denials
+  even under the containment counter); T2 again 8/8 consultant usage on
+  factual tasks. Honest GATE FT baseline fixed: first-parse validity
+  **49.1%** (28 first-parse failures in 55 attempted steps) — the base 8B
+  fails first parse more often than not and the empty-think retry rescues
+  it; that is the margin R1 fine-tuning must eat.
+- **GATE T4: FAILED (1/20)** — probe 15 «El verdanio es un elemento
+  químico.»: confident fabrication about an invented element, unmarked.
+  Root cause: the grounding gate returned early when the answer had ZERO
+  observations, skipping marking entirely. Fixed same day: no
+  observations → every factual-shaped sentence is marked and the answer
+  leads with «Aviso: respondí sin consultar ninguna fuente.» T4 re-runs
+  after the fix; the gate stays failed until a clean run.
+- QLoRA attempt 2: OOM by 178 MiB (10.24 GiB used). Attempt 3: max_length
+  768 + attention-only adapter (q,k,v,o).

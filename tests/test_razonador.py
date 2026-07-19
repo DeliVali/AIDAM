@@ -184,6 +184,18 @@ def test_frase_con_sustento_nli_pasa():
     assert marcadas == []
 
 
+def test_sin_observaciones_marca_todo_lo_factual():
+    # T4 run #2, probe 15: a confident fabrication with zero tool use
+    # skipped the gate entirely. Now: no observations → factual-shaped
+    # sentences are marked and the answer leads with the warning.
+    texto, marcadas = revisar_respuesta(
+        "El verdanio es un elemento químico.", [], FakeVerificador(),
+    )
+    assert marcadas == ["El verdanio es un elemento químico."]
+    assert texto.startswith("Aviso: respondí sin consultar ninguna fuente.")
+    assert "«[sin verificar]»" in texto
+
+
 def test_sin_verificador_solo_chequeo_extractivo():
     texto, marcadas = revisar_respuesta(
         "Una frase factual cualquiera que no está en lo observado.",

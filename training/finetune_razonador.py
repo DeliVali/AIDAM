@@ -166,10 +166,13 @@ def main() -> None:
         device_map="auto",
     )
     modelo = prepare_model_for_kbit_training(modelo)
+    # Attention-only adapter: attempt 2 OOMed by 178 MiB on 12 GB even at
+    # 1024 tokens with the paged optimizer — MLP adapters cost the margin,
+    # and the training objective (action-format reliability) lives mostly
+    # in attention. max_length 768 for the same reason.
     modelo = get_peft_model(modelo, LoraConfig(
         r=16, lora_alpha=32, lora_dropout=0.05, task_type="CAUSAL_LM",
-        target_modules=["q_proj", "k_proj", "v_proj", "o_proj",
-                        "gate_proj", "up_proj", "down_proj"],
+        target_modules=["q_proj", "k_proj", "v_proj", "o_proj"],
     ))
 
     def _tokenizar(ejemplo):
@@ -178,7 +181,7 @@ def main() -> None:
         # >11.5 GiB at step 1). Tool-call turns are short; truncation from
         # the LEFT would lose the system prompt, so plain right truncation
         # keeps instructions + drops only overlong middle history.
-        ids = tokenizador(completo, truncation=True, max_length=1024)
+        ids = tokenizador(completo, truncation=True, max_length=768)
         etiquetas = list(ids["input_ids"])
         n_prompt = len(tokenizador(ejemplo["prompt"])["input_ids"])
         etiquetas[:n_prompt] = [-100] * min(n_prompt, len(etiquetas))
