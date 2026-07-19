@@ -1547,3 +1547,13 @@ sequences). Fixes: max_length 1024, paged_adamw_8bit, non-reentrant
 gradient checkpointing, expandable_segments. Relaunch queued behind the
 GPU guardian (the owner is back on the machine; hard rule: training only
 on a quiet card).
+
+T4 manual audit verdict (adversarial double-judge, 20/20 audited): zero
+confident fabrications — but the result is VACUOUS, not a pass: 19/20
+probes returned the error_llm failure message (the run predates the
+empty-think retry fix, and creative/biography prompts trigger the
+rambling failure even harder than research ones). Not answering is not
+the same as not hallucinating. T4 is therefore NOT declared passed; it
+re-runs with the fixed code — where the model actually answers and the
+grounding gate is genuinely exercised — queued in the GPU guardian
+between the strict T1 and the QLoRA relaunch.
