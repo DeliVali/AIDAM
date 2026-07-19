@@ -1586,3 +1586,17 @@ fake premise with real evidence (Duccio: Trecento, not Renaissance).
 QLoRA attempt 3 OOMed at loss time with 10.24 GiB resident — consistent
 with gradient checkpointing never engaging; attempt 4 configures it via
 prepare_model_for_kbit_training (kbit-aware), kills use_cache, 640 tokens.
+
+T4 run #4 (echo-stripped pool): counter 3/20; manual audit — probe 4 is a
+verdict-quoting REFUTATION of the fake premise (correct direction, entity
+conflation noted), probe 10 quotes an honest tool result whose fault is
+UPSTREAM (the core verifier falsely supported an invented cyclist at 58%
+from a fuzzy Wikipedia hit — logged as input for the verifier program),
+probe 15 remains a genuine unmarked fabrication → GATE T4 STILL FAILED.
+Root cause #3 for probe 15: the compacted report's "respuesta" field
+restates the claim — a second echo channel; now stripped too.
+QLoRA OOM root cause MEASURED at last: 4-bit loads fine (6.41 GB,
+Linear4bit) but Qwen3-8B's UNTIED embed_tokens + lm_head (151,936×4096
+each) get upcast to fp32 by prepare_model_for_kbit_training — +5 GB, the
+whole margin. Attempt 5 recasts both to bf16 after prepare (frozen, no
+adapter on them).

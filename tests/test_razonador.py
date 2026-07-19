@@ -200,7 +200,8 @@ def test_eco_de_verdicto_no_ancla_la_afirmacion(tmp_path):
     # T4 probe 15: the claim echoed inside verificar_afirmacion's report
     # made it self-grounding. The grounding pool must drop that echo.
     def verificar(afirmacion, lang="es"):
-        return f'{{"afirmacion": "{afirmacion}", "veredicto": "refutada"}}'
+        return (f'{{"afirmacion": "{afirmacion}", "veredicto": "refutada", '
+                f'"respuesta": "No hay evidencia de que {afirmacion}."}}')
 
     herr = {
         "verificar_afirmacion": Herramienta(

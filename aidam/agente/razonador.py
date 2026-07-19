@@ -299,8 +299,10 @@ def ejecutar_tarea(
         # observation; only the grounding premises drop the echo.
         if nombre in ("verificar_afirmacion", "investigar_afirmacion",
                       "consultar_verificador"):
+            # "respuesta" too: the concise answer restates the claim, and
+            # that echo re-grounded the fake element in T4 run #4.
             observaciones.append(re.sub(
-                r'"(afirmacion|texto)": "[^"]*"', '', observacion))
+                r'"(afirmacion|texto|respuesta)": "[^"]*"', '', observacion))
         else:
             observaciones.append(observacion)
         auditoria.registrar(

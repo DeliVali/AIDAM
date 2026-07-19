@@ -163,6 +163,7 @@ def main() -> None:
             load_in_4bit=True, bnb_4bit_quant_type="nf4",
             bnb_4bit_compute_dtype=torch.bfloat16,
         ),
+        dtype=torch.bfloat16,
         device_map="auto",
     )
     # Attempt-3 post-mortem: OOM at loss time with 10.24 GiB already used —
@@ -173,6 +174,13 @@ def main() -> None:
         modelo, use_gradient_checkpointing=True,
         gradient_checkpointing_kwargs={"use_reentrant": False},
     )
+    # MEASURED root cause of four OOMs: Qwen3-8B has UNTIED embed_tokens and
+    # lm_head (151,936 × 4096 each) and prepare_model_for_kbit_training
+    # upcasts every non-quantized parameter to fp32 — +5 GB on their own,
+    # which is the whole 12 GB margin. Both are frozen (no adapter targets
+    # them), so bf16 is safe for training; the loss already upcasts logits.
+    modelo.get_input_embeddings().to(torch.bfloat16)
+    modelo.get_output_embeddings().to(torch.bfloat16)
     # Attention-only adapter: attempt 2 OOMed by 178 MiB on 12 GB even at
     # 1024 tokens with the paged optimizer — MLP adapters cost the margin,
     # and the training objective (action-format reliability) lives mostly
