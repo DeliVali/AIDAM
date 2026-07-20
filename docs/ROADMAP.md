@@ -1612,3 +1612,15 @@ rule that ONLY evidence-bearing tools ground — verdict tools never do.
 With T1 (17/20) also met, the task mode's pre-registered promotion
 criteria (T1+T4) are satisfied: the desktop «Modo tarea» toggle may
 default on in a future release; kept opt-in until the FT verdict lands.
+
+**GATE FT — R1 adapter: REJECTED (2026-07-19), the discipline working as
+designed.** With the adapter: first-parse validity 64.4% vs 49.1% base
+(+15.3 — the training objective genuinely moved), search-question role
+intact (5/5 spot check), but T1 fell 14/20 vs 17/20 and consultation
+dropped to 5/8 vs 8/8 — generic Glaive data taught confident directness,
+eroding AIDAM's verify-first discipline. The conjunctive gate fails →
+the BASE reasoner stays in production; the adapter is kept on disk as
+evidence (models/razonador-lora-v1, not wired anywhere by default).
+Remedy already designed: R2 fine-tunes on OUR curated traces
+(AIDAM_TRAZAS), where the consultant pattern IS the data distribution —
+plus the four bring-up laws as counterexamples.
