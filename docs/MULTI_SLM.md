@@ -509,3 +509,112 @@ A miss is a documented rejection with numbers, exactly like the R1 adapter.
   becomes "hot-swap on pass, after canary, with rollback retained" — the
   cartridge model makes the swap itself trivial (next spawn picks up the new
   `AIDAM_MIMO_LORA`), so all the cost is in the gate, which is where it belongs.
+
+---
+
+## 13. CPU latency budget (the Profile-C survival problem)
+
+The HAL (§6) picks a lighter model on weak hardware — necessary, but it only
+touches **one** of the four factors of task latency. This is the mission's
+number-one UX risk: for a user without resources, a correct answer that takes
+minutes on a cold CPU loop is a failed product. On CPU, inference is
+**memory-bandwidth-bound**, so the levers that win are the ones that move fewer
+bytes per token and process fewer tokens overall — not raw compute.
+
+```text
+   task latency  =  (per-token cost) × (tokens per step) × (steps per task)
+                     └── HAL picks the model; §13.1 ──┘   └── §13.3 ──┘
+                  +  (re-prefill per step)
+                     └────────── §13.2: the CPU killer ──────────┘
+```
+
+### 13.1 Per-token cost — the HAL's lever, plus kernel knobs
+
+Already swept by the resource program (GATE PERF): GGUF quant level (Q4_0 /
+Q3_K on Profile C), threads = physical cores − 1, KV-cache quantization, AVX2
+kernels. Fewer bytes per weight ⇒ faster on a bandwidth-bound CPU. The R3
+distilled 1.7–3B reasoner is the biggest lever here and is on the critical path
+for Profile C — the 8B is too heavy for this class regardless of tuning.
+
+**Longer-term, CPU-specific:** BitNet ternary (`bitnet.cpp`, ROADMAP Phase 5) —
+~1.58 bits/weight is genuinely faster on pure CPU, but it is a **training
+commitment** (QAT / fine-tune the published 2B4T), not a config knob.
+
+### 13.2 Re-prefill — the highest-leverage new work
+
+Today every ReAct step re-renders the full scratchpad and the model re-prefills
+all of it. On CPU that dominates. But the prefix is nearly stable step-to-step:
+system + task + earlier turns are identical; only the newest observation is new.
+
+**Prefix KV-cache reuse:** cache the KV of the stable prefix and prefill only
+the new tokens — a ~14k-token re-prefill collapses to a few hundred. This is the
+single most important CPU optimization for a ReAct loop.
+
+**The design tension (non-obvious):** the scratchpad **compaction** in
+`razonador.py` (folding old turns to fit the char budget) *rewrites the prefix
+mid-conversation*, which **invalidates the cache**. On Profile C, prefer
+**append-only** (no compaction; spend memory, keep n_ctx small) to preserve the
+cached prefix — on a bandwidth-bound CPU that trade (memory for prefill) is the
+right one. Measure both under GATE PERF: compaction saves context but may cost
+more wall-clock than it saves.
+
+### 13.3 Tokens per step and steps per task — do less with the LLM
+
+**Grammar-constrained decoding (GBNF).** The measured failure — the model plans
+the whole sequence, rambles past the token cap, executes an imagined step — is
+pure wasted CPU. llama.cpp's native GBNF grammars can force the output to be
+*only* a valid action JSON object: the model physically cannot spend 500 tokens
+thinking aloud. Double win — fewer tokens per step **and** fewer bad steps
+(malformed actions that today trigger the retry/loop-breaker paths). Attacks
+latency and reliability at once, which is exactly Profile C's triple penalty.
+
+**Route work out of the loop (house doctrine: code doesn't spend parameters).**
+The fastest step is the one that never runs. File ops, category routing, and —
+critically — claim verification go straight to their deterministic path or the
+resident verifier, never through a ReAct step. Each thing removed from the loop
+deletes N tokens × steps.
+
+**Profile modulates agency, not just the model.** When the HAL detects Profile
+C it should also prefer short flows and the verify-first path: a pure claim
+needs *zero* ReAct steps — it runs on the 319 MB verifier alone. The humble user
+gets something fast and truthful instead of a full agent that is slow and less
+reliable. Agency is a HAL-selected dial, parallel to model weight.
+
+**Prevent the bad step, don't just repair it.** The loop-breaker and corrective
+retry already in `razonador.py` are damage control; a grammar-constrained
+(or fine-tuned) model fails less up front, so fewer steps happen at all.
+
+### 13.4 Already wired — keep it on for Profile C
+
+- **Speculative decoding via prompt-lookup** (`AIDAM_MIMO_BORRADOR=lookup`):
+  a natural fit because answers re-quote observations verbatim, so the draft
+  hits for free. Confirm it defaults on for Profile C.
+- Observation truncation (`_MAX_OBSERVACION`), think-block stripping from the
+  scratchpad, resident (not spawn-per-step) worker, terse-thinking prompts.
+
+### 13.5 Perceived latency — near-free, large for the mission
+
+**Streaming.** Showing tokens as they generate, and the live
+thought→action→observation trace (`progreso`/`avisar` already exists), turns
+"30 s frozen" into "30 s watching it work". On a slow machine, perceived speed
+is UX survival — the first thing to guarantee works on Profile C.
+
+### 13.6 Priority order and the discipline
+
+1. **Prefix KV-cache reuse** (§13.2) — the biggest hit; attacks re-prefill.
+2. **Grammar-constrained JSON decoding** (§13.3) — kills rambling and bad steps.
+3. **Profile-modulated agency + route-to-code** (§13.3) — fewer LLM steps.
+4. **Confirm speculative decoding + streaming** on Profile C (§13.4–13.5).
+
+The first three need no better model — they are engineering over what already
+exists, which is exactly what the low-resource mission needs. House rule holds:
+each is a **hypothesis until `evaluation/perfil_recursos.py` measures it under
+GATE PERF**. Prefix-cache and GBNF *should* win big on CPU, but the
+compaction-vs-cache trade in particular can surprise — measure before promoting.
+
+- **GATE LAT (per profile) — declared now, unmeasured.** A latency lever is
+  promoted to a profile's default only if it cuts median task wall-clock on that
+  profile's hardware class by a pre-set margin with **no regression** on GATE T1
+  (task success) or the anti-hallucination metrics. Because Profile C runs a
+  different (weaker) model, GATE T1 and GATE PERF are measured **per profile** —
+  a suite that passes on Profile A's model is not evidence for Profile C.
