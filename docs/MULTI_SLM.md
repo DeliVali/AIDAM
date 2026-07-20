@@ -339,9 +339,15 @@ House rule: a failed gate blocks promotion regardless of the work invested.
 - **GATE QA.** The adversary stage must catch a pre-built set of known-bad
   patches/answers (seeded faults) with a false-positive rate that does not
   block more than a pre-set fraction of known-good ones.
-- **GATE FLY.** Flywheel-collected data must train an adapter that passes
-  GATE FT; until then the flywheel only collects (capture can ship before
-  training does).
+- **GATE FLY.** Flywheel-collected data must train an adapter that passes the
+  full promotion battery of §12.1 (domain skill ≥ incumbent, frozen regression
+  set within ε, anti-hallucination non-regression, calibration, canary); until
+  then the flywheel only collects (capture can ship before training does).
+- **GATE EXPERT (per knowledge domain).** A knowledge domain (legal, medical,
+  biology, physics/chem, history, current-events) gets its own fine-tuned
+  cartridge instead of the shared grounded-reasoner only if it wins on that
+  domain's benchmark suite (§11.2) with no cross-domain regression — otherwise
+  it stays on the shared cartridge (0 extra models). See §11.3.
 
 ---
 
@@ -370,3 +376,136 @@ House rule: a failed gate blocks promotion regardless of the work invested.
 6. **The HAL matrix numbers are hypotheses, not constants.** Context sizes and
    thread counts ship from measured sweeps (GATE PERF), seeded by the spec's
    table.
+
+---
+
+## 11. The expert pool: how many, which base models, which benchmarks
+
+We compete against much larger models, sometimes by *building on* smaller open
+ones. The winning move is not to match their parameter count — it is to make
+size irrelevant on the axis that matters: **a small model that reasons and
+retrieves, gated by the fact-checker core, beats a large model that memorizes
+and hallucinates.** Two consequences shape the whole pool:
+
+- **Experts are picked/trained for SKILL, not for KNOWLEDGE.** Cramming domain
+  facts into a 1.5–3B model is exactly what produces confident hallucination.
+  Knowledge lives in retrieval (the 22 source families) and every factual
+  sentence is gated by the resident 280M verifier. So a "legal expert" is not a
+  model that has memorized case law — it is a model that reasons well over
+  *retrieved* statutes and lets the verifier veto unsupported citations.
+- **This collapses the model count.** Only skills that must live in weights
+  (code generation, symbolic math, tool-calling) need a dedicated fine-tune.
+  Knowledge domains (legal, medical, biology, physics/chem, history, current
+  events) can share ONE grounded-reasoner cartridge, differentiated by the
+  router's domain (which retrieval sources, which QA adversary), until a gate
+  proves a domain earns its own model.
+
+### 11.1 Why "saturated" benchmarks still discriminate for us
+
+Several 2026 leaderboards are saturated **at the frontier** — MATH-500
+(97–99%), AIME-2025 (98%+), MMLU, and GPQA-Diamond is near its asymptote
+([Epoch AI](https://epoch.ai/benchmarks/gpqa-diamond)). That does **not** make
+them useless here: a 1.5–4B model sits far below the ceiling, so the same
+benchmark that no longer separates two frontier models cleanly separates two of
+*our* candidates. Rule: pick per-domain benchmarks where our size class still
+has headroom; cite frontier-hard sets (FrontierMath, GPQA-Diamond, HLE) as
+*ceilings we report*, never as promotion gates we must pass. Pinning discipline
+from [BENCHMARKS.md](../evaluation/BENCHMARKS.md) applies to every number below:
+pin the version and date, and a leaderboard figure is a *reference frame*, not
+our score until we reproduce it locally.
+
+### 11.2 The roster (design target)
+
+Small open base models, current July 2026. Numbers are the base model's
+published scores (size class in parentheses), the frame we start from before
+any AIDAM fine-tune — not AIDAM results.
+
+| Role | Router domain | Small base candidate (July 2026) | Public benchmark suite (pinned per run) | AIDAM-side referee | Kind |
+|---|---|---|---|---|---|
+| **Code / Dev** | `programacion` | Qwen2.5-Coder-3B-Instruct (1.5B on profile C) — HumanEval 84.1 / MBPP 80.5 / BigCodeBench 73.6 / LiveCodeBench 62.4 ([tech report](https://arxiv.org/html/2409.12186v3)) | HumanEval, MBPP, BigCodeBench, LiveCodeBench (contamination-resistant), SWE-bench (agentic) | **sandbox execution** (`codigo.py`) — perfect verification | Skill expert |
+| **Math / Logic** | `matematicas` | Qwen2.5-Math-1.5B — beats DeepSeekMath-7B-Base on GSM8K/MATH/CMATH/GaoKao ([tech report](https://arxiv.org/pdf/2409.12122)) | GSM8K, MATH-500 (floor), AIME-2025, MMLU-STEM; FrontierMath as ceiling ([MindStudio](https://www.mindstudio.ai/blog/frontier-math-benchmark-open-research-problems-ai-reasoning)) | **SymPy/NumPy** probes (frontier mode + QA adversary) | Skill expert |
+| **Reasoner / Agent** (ReAct driver, search-question generator) | cross-cutting | DeepSeek-R1-Qwen3-8B (current) → distilled Qwen3-4B / 1.7B (R3). Cf. xLAM-2-3b-fc-r BFCL 65.74 (v3, 04/2025) ([HF](https://huggingface.co/Salesforce/xLAM-2-3b-fc-r)) | **BFCL V4** (anchors: 8B ceiling ~46.7, frontier ~77.5), τ²-bench (pass^k), AVeriTeC-500, citation-support | verifier + per-step audit | Skill expert (exists) |
+| **Legal** | `legal` (new) | grounded-reasoner cartridge + legal retrieval; dedicated fine-tune only on a gated win (Saul-class / Qwen3-4B) | LegalBench (162 tasks, 6 reasoning types), LexGLUE, CaseHOLD, LawBench, LexGenius, ContractNLI ([leaderboard](https://awesomeagents.ai/leaderboards/legal-llm-leaderboard/)) | official statutes/case-law retrieval + NLI veto on citations | Knowledge domain |
+| **Medicine / Clinical** | `medicina` | grounded-reasoner + medical retrieval (openFDA, ClinicalTrials, Europe PMC) | MedQA (USMLE; July-2026 top 95.2%, avg 77.3 — [leaderboard](https://awesomeagents.ai/leaderboards/medical-llm-leaderboard/)), MedMCQA, PubMedQA, MMLU-Medical (6 tasks, 1089 q), HealthBench | retrieval + NLI (hallucination = harm here) | Knowledge domain |
+| **Biology / Life sci** | `biologia` (new) | grounded-reasoner + Europe PMC / Semantic Scholar | GPQA-Diamond (biology subset), MMLU-Med (college biology, genetics), PubMedQA, MMLU-Pro biology | retrieval + NLI | Knowledge domain |
+| **Physics / Chemistry** | `ciencia` | grounded-reasoner + computation | GPQA-Diamond (physics/chem; O1 phys 92.8 / chem 77.3 — chem still hard), MMLU-Pro sciences, SciFact (already run: 63.7%) | computation/simulation + NLI | Knowledge domain |
+| **History / Humanities** | `historia` (new) | grounded-reasoner + Wikipedia family / Wikisource | MMLU-Pro humanities (history, philosophy, law), MMLU history subjects, EduArt (art history) | retrieval + NLI + **anachronism/consistency** QA check | Knowledge domain |
+| **Current events / General** | `actualidad`, `general` | grounded-reasoner + GDELT / Wikinews | AVeriTeC-500 (real viral claims), citation-support, MMLU-Pro general | retrieval + NLI | Knowledge domain |
+| **Router** (optional model) | — | 0.5B GGUF classifier | routing accuracy on a labeled task set vs keywords+NLI | — | Experiment (GATE ROUTE) |
+| **Verifier CORE** (resident, never swapped) | all | mDeBERTa-v3 280M (319 MB onnx-mini) — exists | **LLM-AggreFact** (target MiniCheck-FT5 ~74–75), FEVER 77.7, SciFact 63.7, AVeriTeC 62.6 | *is* the referee | The core |
+
+### 11.3 The estimate, stated honestly
+
+- **Models that must exist in weights (skill):** 3 — Code, Math, Reasoner/Agent.
+- **Resident core:** 1 — the 280M verifier (not swapped, not a topic expert).
+- **Optional router model:** +1, only if GATE ROUTE beats keywords+NLI.
+- **Knowledge domains (legal, medical, biology, physics/chem, history,
+  current-events):** start as **0 new models** — one shared grounded-reasoner
+  cartridge serves them, differentiated by router domain + retrieval sources +
+  QA adversary. Each becomes its own fine-tuned expert **only** when GATE EXPERT
+  shows the shared cartridge loses on that domain's benchmark suite above.
+
+So: **~5 models to start (3 skill + 1 core + 1 router), a design ceiling near
+8–10** if every knowledge domain earns a dedicated expert through its gate. The
+per-domain benchmark suites are defined *now* regardless — they do double duty
+as the router's ground truth and as GATE EXPERT's promotion bar. This keeps the
+pool small (efficiency), keeps knowledge in retrieval (anti-hallucination), and
+spends a fine-tune only where a measured gap justifies it (the R1-rejection
+discipline).
+
+---
+
+## 12. Auto-training: benchmarks and failure prevention
+
+The flywheel (§8) can retrain an expert on captured traces. Retraining a small
+model on a narrow, self-generated, user-biased stream is a minefield; the
+defense is that **no adapter is ever promoted without clearing a fixed
+benchmark battery, and the core anti-hallucination metric can never regress.**
+
+### 12.1 The promotion battery (every flywheel adapter runs all of it)
+
+Reuses GATE FT + the external-benchmark program — no new harness invented:
+
+1. **Domain-skill suite** — the expert's own public benchmarks from §11.2 (e.g.
+   Code → HumanEval + MBPP + LiveCodeBench + sandbox pass rate). Must be **≥ the
+   current adapter**, not merely ≥ base.
+2. **Frozen cross-domain regression set (the forgetting probe)** — a pinned mix
+   run before and after: T1 task suite + BFCL-subset + AVeriTeC-100 +
+   LLM-AggreFact-subset. **No slice may drop beyond ε** (declared off-test).
+   This is the catastrophic-forgetting tripwire.
+3. **Anti-hallucination gate (non-negotiable, the core)** — the grounding-gate
+   «sin verificar» rate, AVeriTeC verdict accuracy, and citation-support
+   recall/precision must **not regress**. The fact-checker core is the product;
+   an adapter that codes better but grounds worse is rejected.
+4. **Calibration** — post-hoc ECE no worse than the incumbent (a flywheel that
+   makes the model overconfident is a net loss even at equal accuracy).
+5. **Canary before pointer swap** — the passing adapter runs on a shadow eval
+   for the next N real tasks with output compared to the incumbent; the
+   `AIDAM_MIMO_LORA` pointer moves only after the canary holds. The previous
+   adapter is retained for **instant rollback**.
+
+A miss is a documented rejection with numbers, exactly like the R1 adapter.
+
+### 12.2 Failure-prevention matrix
+
+| # | Failure mode | Why it bites a local flywheel | Prevention (declared, code-enforced) | Detection |
+|---|---|---|---|---|
+| 1 | **Catastrophic forgetting** | LoRA limits weight change but not functional drift; a narrow retrain erases unrelated skills ([OPLoRA](https://arxiv.org/pdf/2510.13003)) | Orthogonal-subspace LoRA (CLoRA/OPLoRA) + **replay buffer**: every retrain mixes a fixed fraction of held-out gold traces; small LR; early stop on val. EWC-style penalty on high-Fisher weights ([survey](https://brics-econ.org/preventing-catastrophic-forgetting-during-llm-fine-tuning-techniques-that-work)) | Battery step 2 (frozen regression set) |
+| 2 | **Reward hacking of implicit signals** | TEXT_COPIED / PATCH_ACCEPTED are noisy proxies — a user copies a *wrong* answer; the model learns to be copyable, not correct | Capture **only flows that ALSO passed the verification layer** (fact-checker + sandbox): the label is "validated AND accepted", never "accepted". Cap per-session contribution; require example diversity | Skill suite + anti-halluc gate divergence |
+| 3 | **Model-autophagy / feedback collapse** | Training on self-generated traces → mode collapse, distribution narrowing ("MAD") | **Never train purely on self-data**: cap the self-generated ratio per round; always mix external gold (public datasets, curated traces) | Diversity metrics on the trace store; regression set |
+| 4 | **Data poisoning / prompt injection via traces** | Tool output in a trace carries adversarial text (a file that reads like instructions — the measured 2026-07-17 surface) | Traces store tool output as **data between delimiters**; a sanitize+filter gate strips/flags injected content; never train on flagged traces; content-hash dedup | Audit-log hashes; injected-pattern filter |
+| 5 | **Overfitting to a recent narrow workload** | 100-sample bursts of one task type skew the model | 100×3-epoch cap + replay mixing + val early-stop; per-domain quota so one workload can't dominate a round | Battery step 1 vs step 2 gap |
+| 6 | **Silent quality regression** | An adapter looks fine on aggregate but breaks a specific case | Gated promotion (never auto-swap) + canary shadow eval + retained rollback adapter | Canary divergence (battery step 5) |
+| 7 | **Starving interactive work** | Background training steals CPU/RAM from the UI | `nice 15` / `IDLE_PRIORITY_CLASS` detached child; **≤ 5 h projected** or abort and offer cloud export; single job at a time; kill-switch | Feasibility micro-benchmark (§8) + scheduler |
+| 8 | **Non-reproducibility** | A promoted adapter can't be re-derived or audited | Pin seed; log training-data content hash + row count; version the adapter alongside its full battery numbers in ROADMAP | ROADMAP entry required before promotion |
+
+### 12.3 The two invariants that make it safe
+
+- **The core cannot regress.** Battery step 3 gives the fact-checker a veto over
+  its own training loop: any adapter that improves a skill at the cost of
+  grounding fidelity is rejected. Anti-hallucination is the one axis with no
+  trade-off budget.
+- **Promotion is gated, never automatic.** The spec's "hot-swap on finish"
+  becomes "hot-swap on pass, after canary, with rollback retained" — the
+  cartridge model makes the swap itself trivial (next spawn picks up the new
+  `AIDAM_MIMO_LORA`), so all the cost is in the gate, which is where it belongs.
