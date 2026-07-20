@@ -238,6 +238,17 @@ the most expensive model. AIDAM inverts the equation: cheap generators that err 
 plus a cheap strong verifier that filters — total cost per *correct* result drops even
 with retries, because verifying costs cents compared to frontier-model generation.
 
+## Target evolution — Multi-SLM expert cartridges
+
+The next architectural stage generalizes the single-reasoner design into a
+pool of distilled domain experts loaded as disposable worker processes
+(*cartridges*), selected by the router and governed by code: hardware
+auto-detection (HAL) over the measured resource profiles, surgical
+load/unload at task boundaries, a QA adversary stage in the verification
+layer, and an opt-in data flywheel feeding gated QLoRA retraining. Declared
+before implementation, with every component behind a pre-registered gate —
+full specification, diagrams and gates in [MULTI_SLM.md](MULTI_SLM.md).
+
 ## Model selection (cross-cutting)
 
 Always the best, most current open model for each role, with no brand loyalty: open
