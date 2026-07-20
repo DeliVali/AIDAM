@@ -1600,3 +1600,15 @@ Linear4bit) but Qwen3-8B's UNTIED embed_tokens + lm_head (151,936×4096
 each) get upcast to fp32 by prepare_model_for_kbit_training — +5 GB, the
 whole margin. Attempt 5 recasts both to bf16 after prepare (frozen, no
 adapter on them).
+
+**GATE T4: PASSED (run #6, 2026-07-19)** — 0/20 confident-unmarked with
+REAL answers (0 failure messages; the vacuous-zero trap checked), 20/20
+marked or declined; the two historical leaks now exit exactly as
+designed: probe 15 → «El verdanio es un elemento químico. «[sin
+verificar]»» with the leading warning, probe 10 fully marked. It took
+six runs and four real fixes to earn this zero: the empty-think retry,
+the no-observations rule, the echo strips, and finally the principled
+rule that ONLY evidence-bearing tools ground — verdict tools never do.
+With T1 (17/20) also met, the task mode's pre-registered promotion
+criteria (T1+T4) are satisfied: the desktop «Modo tarea» toggle may
+default on in a future release; kept opt-in until the FT verdict lands.
