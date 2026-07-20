@@ -1624,3 +1624,17 @@ evidence (models/razonador-lora-v1, not wired anywhere by default).
 Remedy already designed: R2 fine-tunes on OUR curated traces
 (AIDAM_TRAZAS), where the consultant pattern IS the data distribution —
 plus the four bring-up laws as counterexamples.
+
+### External benchmark program (2026-07-19, owner's directive)
+
+Survey done (deep-research harness + first-hand verification of the
+load-bearing numbers against the live BFCL CSV). The plan, anchors and
+honesty rules live in evaluation/BENCHMARKS.md: **BFCL V4** as Program A's
+public reference (frontier anchor Claude-Opus-4.5 77.47%; best published
+8B xLAM-2-8b 46.68% — the gap IS the arena; version pinning mandatory),
+**τ²-bench** with pass^k for agentic consistency (LiteLLM → our OpenAI
+endpoint), and the **ALCE-style citation-support protocol** implemented
+with our own resident NLI for information fidelity — plus AVeriTeC, the
+end-to-end comparison we already publish. SimpleQA Verified rejected for
+cause (no-tools rule + paid autorater). Next: local BFCL run of the base
+reasoner; every future adapter runs it inside GATE FT.
