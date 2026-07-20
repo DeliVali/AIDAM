@@ -24,6 +24,7 @@ historical behavior exactly:
   AIDAM_MIMO_LOTE           batch size (n_batch)
   AIDAM_MIMO_SIN_MMAP       "1" disables mmap; AIDAM_MIMO_MLOCK "1" locks pages
   AIDAM_MIMO_BORRADOR       "lookup" → speculative decoding by prompt-lookup
+  AIDAM_MIMO_LORA           path to a GGUF LoRA adapter (fine-tuned reasoner)
 """
 
 from __future__ import annotations
@@ -58,6 +59,8 @@ def _config_llama() -> dict:
         config["use_mmap"] = False
     if os.environ.get("AIDAM_MIMO_MLOCK") == "1":
         config["use_mlock"] = True
+    if os.environ.get("AIDAM_MIMO_LORA"):
+        config["lora_path"] = os.environ["AIDAM_MIMO_LORA"]
     return config
 
 

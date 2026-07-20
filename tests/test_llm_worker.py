@@ -10,6 +10,7 @@ _PERILLAS = (
     "AIDAM_MIMO_N_CTX", "AIDAM_MIMO_GPU_LAYERS", "AIDAM_MIMO_FLASH_ATTN",
     "AIDAM_MIMO_KV_TIPO", "AIDAM_MIMO_HILOS", "AIDAM_MIMO_LOTE",
     "AIDAM_MIMO_SIN_MMAP", "AIDAM_MIMO_MLOCK", "AIDAM_MIMO_BORRADOR",
+    "AIDAM_MIMO_LORA",
 )
 
 
@@ -54,6 +55,12 @@ def test_kv_desconocido_se_ignora(monkeypatch):
     monkeypatch.setenv("AIDAM_MIMO_KV_TIPO", "f32")
     config = worker._config_llama()
     assert "type_k" not in config and "flash_attn" not in config
+
+
+def test_lora_se_traduce_a_lora_path(monkeypatch):
+    _limpiar(monkeypatch)
+    monkeypatch.setenv("AIDAM_MIMO_LORA", "models/razonador-lora-v1/a.gguf")
+    assert worker._config_llama()["lora_path"] == "models/razonador-lora-v1/a.gguf"
 
 
 def test_borrador_solo_con_lookup(monkeypatch):
