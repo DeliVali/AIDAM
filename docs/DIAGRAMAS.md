@@ -16,6 +16,7 @@ la aplicación: los nodos citan módulos y funciones existentes
 6. Objetivo Multi-SLM: HAL + router + ciclo del cartucho
 7. Objetivo: capa de verificación (separación de poderes)
 8. Objetivo: flywheel de datos + reentrenamiento asíncrono
+9. **Bajo nivel: cableado completo del sistema** (procesos, IPC, módulos, almacenes, APIs)
 
 ---
 
@@ -252,4 +253,126 @@ flowchart TD
     BATT -->|falla| REJECT["Rechazo documentado<br/>(con números, como R1)"]
     BATT -->|pasa| PROMOTE["Hot-swap del puntero AIDAM_MIMO_LORA<br/>+ rollback retenido"]
     PROMOTE --> POOL(["Experto actualizado<br/>(próximo spawn)"])
+```
+
+---
+
+## 9. Bajo nivel: cableado completo del sistema
+
+Vista técnica de *todo* el sistema: **fronteras de proceso** (recuadros gruesos),
+**IPC/red** (flechas punteadas), **llamadas en-proceso** (flechas sólidas),
+**almacenes** (cilindros) y **APIs externas**. Refleja el código real
+(`aidam/…`, `escritorio/…`). Tres procesos separados por diseño: Electron, el
+servidor Python, y el worker LLM aislado (nació de una corrupción de heap
+medida entre llama.cpp y PyTorch).
+
+```mermaid
+flowchart TB
+    subgraph ENTRY["Puntos de entrada"]
+        direction LR
+        CLI["CLI · aidam<br/>cli.py<br/>verificar · investigar · tarea<br/>codigo · imagen · interfaz"]
+        BROWSER["Navegador<br/>interfaz/app.js"]
+        ELECTRON["Escritorio · Electron<br/>escritorio/main.js"]
+    end
+
+    ELECTRON -. "spawn(): aidam interfaz --sin-navegador --puerto N" .-> SRV
+    BROWSER -. "HTTP + WebSocket (streaming)" .-> SRV
+    CLI -->|"import directo"| PIPE
+    CLI --> ORQ
+
+    subgraph PROC_SRV["◆ PROCESO SERVIDOR — Python (FastAPI + uvicorn)"]
+        SRV["servidor.py<br/>POST /v1/chat/completions<br/>GET /api/* · WebSocket"]
+        NLIRES["Verificador NLI RESIDENTE<br/>_verificador_cacheado() · 1x por proceso"]
+        ROUTECHAT["Enrutado de superficie<br/>archivos · pregunta · tarea · afirmación"]
+        SRV --> ROUTECHAT
+        SRV --> NLIRES
+    end
+    ROUTECHAT --> PIPE
+    ROUTECHAT --> ORQ
+
+    subgraph LIB["Biblioteca núcleo (en-proceso)"]
+        direction TB
+        PIPE["pipeline.py · verificar()"]
+        DEC["decompose.py"]
+        ROU["router.py"]
+        RET["retrieve.py<br/>FUENTES · 22 familias · paralelo"]
+        VER["verify.py · crear_verificador()"]
+        AGG["aggregate.py + comparators.py"]
+        VEC["vectores.py · embedder"]
+        SINT["sintesis.py<br/>responder_pregunta()"]
+        PIPE --> DEC --> ROU --> RET --> VER --> AGG
+        RET --> VEC
+        PIPE --> SINT
+        SINT -. "gate cita secundaria" .-> VER
+    end
+
+    subgraph AGENTE["Subsistema agente (aidam/agente/)"]
+        direction TB
+        ORQ["orquestador.py"]
+        RAZ["razonador.py · bucle ReAct"]
+        HER["herramientas.py"]
+        SBX["sandbox.py"]
+        COLA["cola.py · cola SQLite (reanudable)"]
+        MEM["memoria.py<br/>memoria 3 niveles (SOLO RAM)"]
+        PERM["permisos.py"]
+        AUD["auditoria.py"]
+        CODE["codigo.py · carrera de candidatos"]
+        ORQ --> RAZ
+        RAZ --> HER
+        HER --> PERM
+        HER --> SBX
+        RAZ --> AUD
+        ORQ --> COLA
+        ORQ --> MEM
+        HER --> CODE
+        CODE --> SBX
+    end
+    ORQ --> PIPE
+    RAZ -. "consultar_verificador" .-> VER
+
+    VER --> BACKENDS
+    subgraph BACKENDS["Backends del verificador (selección por AIDAM_BACKEND)"]
+        direction LR
+        TORCH["VerificadorNLI (PyTorch/GPU)<br/>mDeBERTa-v3 280M"]
+        ONNX["VerificadorONNX (CPU)<br/>onnx · onnx-mini 319MB int4/int8"]
+    end
+    NLIRES --> BACKENDS
+
+    subgraph PROC_LLM["◆ PROCESO WORKER LLM — AISLADO"]
+        WORKER["llm_worker.py<br/>llama.cpp · GGUF Q4<br/>create_completion()"]
+    end
+    RAZ -. "subprocess.Popen + JSON-lines (stdin/stdout)" .-> WORKER
+    PIPE -. "questions.py: genera preguntas de búsqueda" .-> WORKER
+    HAL["Config/HAL · env AIDAM_MIMO_*<br/>n_ctx · gpu_layers · kv-cache · flash-attn · lora"]
+    HAL -. "env" .-> WORKER
+
+    subgraph PROC_SBX["◆ SUBPROCESO SANDBOX"]
+        BWRAP["bubblewrap (bwrap)<br/>sin red · FS solo-lectura<br/>.git remontado RO · timeout"]
+    end
+    SBX -. "spawn confinado" .-> BWRAP
+
+    subgraph DISK["Almacenamiento en disco"]
+        direction LR
+        MODELS[("models/<br/>*.gguf · verificador-onnx*")]
+        DL[("data/local/<br/>knowledge_store · search_cache.sqlite")]
+        USER[("dir por-usuario (plataforma.py)<br/>general/ · historial · auditoria.jsonl")]
+    end
+    WORKER -. "mmap (page cache)" .-> MODELS
+    BACKENDS --> MODELS
+    RET --> DL
+    COLA --> USER
+    AUD --> USER
+
+    subgraph EXT["APIs externas · HTTPS · sin claves"]
+        direction LR
+        E1["Wikipedia family<br/>DuckDuckGo · debunks"]
+        E2["Stack Exchange · Semantic Scholar<br/>OpenAlex · arXiv · Europe PMC · Crossref"]
+        E3["GDELT · openFDA<br/>ClinicalTrials · NIST NVD"]
+    end
+    RET -. "HTTPS en paralelo (registro FUENTES)" .-> EXT
+
+    OUT(["Respuesta / veredicto<br/>SIEMPRE con citas · vía WebSocket o stdout"])
+    AGG --> OUT
+    SINT --> OUT
+    RAZ --> OUT
 ```
