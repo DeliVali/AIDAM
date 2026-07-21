@@ -114,16 +114,28 @@ Phase 2, after BFCL lands.
     becomes load-bearing once `sintesis.sintetizar` writes the answer.
   - Primary-citation precision (94.6%) is the genuinely good signal: when
     AIDAM says «Source: X», X almost always backs the sentence.
-  - **Secondary citations are decorative — a measured product defect.**
-    `responder_pregunta` picks the «Also covered by» domains by their
-    *retrieval rank against the question*, and never checks them against the
-    *sentence the answer actually asserts*: topical relevance is not support.
-    Verified not to be a harness artifact (all secondary domains resolve to
-    real passages in the evidence; the 5.6% comes from the NLI, not a failed
-    lookup). Failure traces: `--salida`. Uncorrected as of this entry — the
-    natural fix (filter those domains by entailment against the chosen
-    sentence, reusing the already-loaded NLI) is a product change and needs
-    its own A/B before promotion.
+  - **Secondary citations were decorative — a measured defect, now fixed.**
+    `responder_pregunta` used to pick the «Also covered by» domains by their
+    *retrieval rank against the question*, never checking them against the
+    *sentence the answer asserts*: topical relevance is not support. Verified
+    not a harness artifact (all secondary domains resolved to real passages;
+    the 5.6% came from the NLI, not a failed lookup).
+    **Fixed 2026-07-20** (`_dominios_corroborantes`): a secondary domain is now
+    shown only if one of its passages *entails* the answered sentence at the
+    grounding threshold, verifier-gated, cost bounded to ≤15 comparisons.
+    A/B on the same 261 answers (`--gate-secundarias`):
+
+    | | before (topical) | after (NLI-gated) |
+    |---|---|---|
+    | secondary citations shown | 522 | 38 |
+    | secondary precision | 5.6% | **97.4%** (37/38) |
+    | recall / primary precision | 95.0 / 94.6 | 95.0 / 94.6 (unchanged) |
+
+    Reading honestly: the after-precision is high partly **by construction**
+    (same NLI gates and scores), so the real signal is *coverage* — 484
+    unsupported citations removed, genuine corroboration kept (~15% of answers
+    have a real second source), with zero collateral damage to recall or the
+    primary citation. Fallback without a verifier keeps the old behavior.
 - **Rejected for cause — SimpleQA Verified** (DeepMind, 1,000 prompts):
   its authors bar tool use (search makes it trivial), and grading requires
   a paid GPT-4.1 autorater. Both clauses disqualify it for a tool-using,

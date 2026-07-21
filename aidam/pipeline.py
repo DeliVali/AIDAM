@@ -108,7 +108,8 @@ def verificar(
             confianza=0.0,
             hechos=[],
             tipo="pregunta",
-            respuesta=responder_pregunta(afirmacion, evidencias, excluir_dominios, lang=lang),
+            respuesta=responder_pregunta(afirmacion, evidencias, excluir_dominios,
+                                         lang=lang, verificador=verificador),
         )
 
     if verificador is None:

@@ -133,7 +133,8 @@ def investigar(
         avisar("Pregunta detectada: buscando la respuesta en las fuentes…")
         hecho_q = HechoAtomico(texto=afirmacion, origen="pregunta")
         evidencias = _recuperar(hecho_q, lang, max_idiomas, None)
-        respuesta = responder_pregunta(afirmacion, evidencias, lang=lang)
+        respuesta = responder_pregunta(afirmacion, evidencias, lang=lang,
+                                       verificador=verificador)
         informe_q = Informe(
             afirmacion=afirmacion, veredicto=Veredicto.INSUFICIENTE,
             confianza=0.0, hechos=[], tipo="pregunta", respuesta=respuesta,

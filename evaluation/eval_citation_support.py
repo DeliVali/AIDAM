@@ -133,6 +133,9 @@ def main() -> None:
     parser.add_argument("--pasajes-por-dominio", type=int, default=5,
                         help="cap on passages scored per cited domain")
     parser.add_argument("--lang", default="en")
+    parser.add_argument("--gate-secundarias", action="store_true",
+                        help="pass the NLI to responder_pregunta so «also covered "
+                             "by» domains are entailment-gated (the fix under test)")
     parser.add_argument("--salida", default="", help="optional JSONL trace path")
     args = parser.parse_args()
 
@@ -162,7 +165,10 @@ def main() -> None:
             )
             if not evidencias:
                 continue
-            respuesta = responder_pregunta(pregunta, evidencias, lang=args.lang)
+            respuesta = responder_pregunta(
+                pregunta, evidencias, lang=args.lang,
+                verificador=verificador if args.gate_secundarias else None,
+            )
             if respuesta.strip() == sin_respuesta:
                 n_sin_evidencia += 1
                 continue

@@ -13,6 +13,7 @@ import re
 
 from ..models import Informe, Veredicto
 from .contexto import _P_PETICION
+from .razonador import UMBRAL_SUSTENTO  # single source of truth for the gate
 
 _PENSAMIENTO = re.compile(r"<think>.*?</think>", re.DOTALL)
 
@@ -313,7 +314,7 @@ def unicodedata_plano(texto: str) -> str:
 
 def responder_pregunta(pregunta: str, evidencias: list,
                        excluir_dominios: set[str] | None = None,
-                       lang: str = "es") -> str:
+                       lang: str = "es", verificador=None) -> str:
     """Evidence-grounded answer to a question, phrased like a person.
 
     Two-level ranking with the computed-once embedder (order-preserving
@@ -321,6 +322,16 @@ def responder_pregunta(pregunta: str, evidencias: list,
     inside them — the user reads the sentence that answers, not the
     passage's trivia lead-in. Grounded by construction: every word shown
     comes verbatim from a retrieved source, cited below.
+
+    `verificador` (the resident NLI, when the caller has it) gates the
+    «also covered by» line: a secondary domain is only shown if its passage
+    actually ENTAILS the answered sentence. Measured 2026-07-20
+    (`evaluation/eval_citation_support.py`): those domains used to be picked
+    by retrieval rank against the QUESTION and never checked against the
+    ANSWER, scoring 5.6% citation precision — topical relevance is not
+    support. Without a verifier the old topical behavior stands (safe
+    fallback); the NLI cost is bounded to a few candidate passages so the
+    low-resource answer path stays cheap.
     """
     utiles = [e for e in evidencias if e.texto.strip()]
     if excluir_dominios:
@@ -363,15 +374,49 @@ def responder_pregunta(pregunta: str, evidencias: list,
         if codigo:
             lineas.append(f"```python\n{codigo}\n```")
     lineas.append(f"{_frases(lang)['fuente']}: {fuente.dominio} — {fuente.url}")
-    otras = []
-    for f2, e2 in orden[1:]:
-        if e2.dominio != fuente.dominio and e2.dominio not in otras:
-            otras.append(e2.dominio)
-        if len(otras) == 2:
-            break
+    otras = _dominios_corroborantes(orden, fuente, frase, verificador)
     if otras:
         lineas.append(f"{_frases(lang)['tambien']}: {', '.join(otras)}.")
     return "\n".join(lineas)
+
+
+# Off-test constants, declared before measurement (house rule).
+_MAX_COTEJOS_CORROBORA = 15  # candidate passages scanned before giving up
+_MAX_CORROBORANTES = 2       # domains shown on the «also covered by» line
+
+
+def _dominios_corroborantes(orden, fuente, frase, verificador):
+    """Distinct domains (other than the primary) that corroborate `frase`.
+
+    With a verifier: a domain qualifies only if one of its passages entails
+    the answered sentence at the grounding threshold — real corroboration,
+    not topical proximity. The scan is capped (`_MAX_COTEJOS_CORROBORA`) so a
+    long candidate list can't turn one answer into a long NLI batch.
+
+    Without a verifier: the historical topical behavior (first distinct
+    domains by rank) — a safe fallback, never a silent quality claim."""
+    otras: list[str] = []
+    if verificador is None:
+        for _f2, e2 in orden[1:]:
+            if e2.dominio != fuente.dominio and e2.dominio not in otras:
+                otras.append(e2.dominio)
+            if len(otras) == _MAX_CORROBORANTES:
+                break
+        return otras
+    vistos: set[str] = {fuente.dominio}
+    for _f2, e2 in orden[1:1 + _MAX_COTEJOS_CORROBORA]:
+        if e2.dominio in vistos:
+            continue
+        vistos.add(e2.dominio)
+        try:
+            sustento = max(verificador.puntuar_entailment(e2.texto, [frase]))
+        except Exception:
+            continue
+        if sustento >= UMBRAL_SUSTENTO:
+            otras.append(e2.dominio)
+        if len(otras) == _MAX_CORROBORANTES:
+            break
+    return otras
 
 
 def respuesta_concisa(informe: Informe, lang: str = "es") -> str:
