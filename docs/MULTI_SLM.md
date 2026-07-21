@@ -480,6 +480,29 @@ pool small (efficiency), keeps knowledge in retrieval (anti-hallucination), and
 spends a fine-tune only where a measured gap justifies it (the R1-rejection
 discipline).
 
+### 11.4 Publication requirement: Hugging Face + benchmark card (do not forget)
+
+**Every specialized expert ships to Hugging Face, open, with a model card that
+carries its measured per-domain benchmarks.** This is not optional post-work —
+a promoted expert that is not published with its benchmark card is *not done*.
+It mirrors what the verifier core already does
+([MODEL_CARD_HF.md](MODEL_CARD_HF.md) lists `DeliVali/aidam-verificador` and its
+variants with each one's headline score), and it enforces the project's
+information-is-free principle at the model level: open weights, permissive
+license, no gatekeeping.
+
+Per expert, the card must state:
+- the **base model** and quantization/fine-tuning recipe (§11.2);
+- the **per-domain benchmark suite and the measured numbers**, each with the
+  **pinned version + date** (BENCHMARKS.md discipline) and the GATE EXPERT
+  result that promoted it;
+- the **AIDAM-side arbiter** (sandbox / SymPy / retrieval+NLI) and how to serve
+  it (GGUF + `AIDAM_MIMO_LORA` / `AIDAM_MODELO_*`).
+
+Naming follows the verifier: `DeliVali/aidam-<dominio>` (e.g. `aidam-coder`,
+`aidam-math`). When an expert is promoted, updating MODEL_CARD_HF.md's table
+with its row is part of the release, same as the verifier variants.
+
 ---
 
 ## 12. Auto-training: benchmarks and failure prevention
