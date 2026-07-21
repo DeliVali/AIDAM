@@ -1,0 +1,6 @@
+# Generated BFCL outputs — reproducible from correr_fase1.sh, never public.
+result/
+score/
+.file_locks/
+# Smoke-test id file (regenerated ad hoc for --run-ids debugging).
+test_case_ids_to_generate.json
