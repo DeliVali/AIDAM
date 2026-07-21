@@ -2,16 +2,30 @@
 
 # AIDAM
 
-An open **general-purpose local agent**: it reasons, acts and verifies on your
-machine — as close to a Claude Code as free, open-source, local pieces allow,
-with as little hallucination as measurement can enforce. Its distinguishing
-architecture is the **trust layer**: a small specialized fact-checking core (a
-280M NLI verifier plus auditable aggregation) that the reasoning models
-**consult many times** while they work. That core is a fundamental component —
-verdicts always come from it, never from an LLM — but it does not dictate the
-whole project: tasks, code, files and conversation are driven by a quantized
-local reasoning model that checks its facts against evidence before asserting
-them. Every verdict cites its sources.
+An open, **local, low-resource AI agent** — built so that people *without*
+powerful hardware or any API budget can reason, code and get answers on their
+own machine, with as little hallucination as measurement can enforce. Its
+foundation is a **trust layer**: a small specialized fact-checking core (a 280M
+NLI verifier plus auditable, deterministic aggregation) that every answer passes
+through — **verdicts always come from it, never from an LLM**, and every verdict
+cites its sources.
+
+Its target is an **adaptive, multi-model architecture** (declared and partly
+built — full spec in [docs/MULTI_SLM.md](docs/MULTI_SLM.md), diagrams in
+[docs/DIAGRAMAS.md](docs/DIAGRAMAS.md)): on startup it profiles the machine (a
+hardware abstraction layer) and loads models sized to it; a router sends each
+task to a small **specialized expert** — skill experts that live in weights
+(code, math, the reasoner/agent) and knowledge domains served by *retrieval +
+the verifier* rather than a memorized model (legal, medical, biology,
+physics/chemistry, history, current events); the fact-checker core then
+validates the expert's answer against evidence, and an opt-in, on-device
+**flywheel** can retrain experts — promoting a new model *only if it passes a
+benchmark battery in which the anti-hallucination metric can never regress*.
+Efficiency is the yardstick: the fewer parameters that solve the problem, the
+better. **Built and measured today**: the verification core, the 22-source
+retriever, the comparative-logic aggregator and the ReAct loop. **Target
+(declared, each behind a pre-registered gate)**: the full expert pool, hardware
+auto-selection and the flywheel.
 
 ## How it works
 

@@ -1,5 +1,11 @@
 # AIDAM architecture
 
+> **Canonical architecture:** [DIAGRAMAS.md §1](DIAGRAMAS.md) (the owner's
+> adaptive Multi-SLM flow) is the north star; purpose and mission in
+> [MULTI_SLM.md §0](MULTI_SLM.md). This document details the **fact-checker
+> core** — the "Fact-checker CORE" and "comparative logic" boxes of that
+> diagram — which is the part built and measured today.
+
 AIDAM is not a model: it is a **compound system** where a small specialized model
 is the core and every other module is deterministic engineering or tooling. This is
 deliberate — anything that can be solved with code does not spend parameters.

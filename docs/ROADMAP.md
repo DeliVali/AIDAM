@@ -1,5 +1,11 @@
 # AIDAM roadmap
 
+> **Architectural north star:** the canonical target is the adaptive Multi-SLM
+> architecture ([DIAGRAMAS.md §1](DIAGRAMAS.md), spec in
+> [MULTI_SLM.md](MULTI_SLM.md)). The phases below are the measured path toward
+> it — history is kept as-is (including rejections); nothing here overrides the
+> canonical architecture.
+
 General rule: **every phase produces something that works and is measured against a
 public benchmark**. No architectures floating in the air for months.
 

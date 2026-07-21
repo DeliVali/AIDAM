@@ -12,6 +12,33 @@ program), [ROADMAP.md](ROADMAP.md) (measured history, including rejections).
 
 ---
 
+## 0. Purpose and mission (canonical)
+
+**AIDAM's purpose:** an open, local, low-resource AI agent so that people
+*without* powerful hardware or any API budget can reason, code and get truthful
+answers on their own machine — and to solve, structurally, the problem of
+hallucination and non-veridical information. Two goals that reinforce each
+other: what makes AIDAM trustworthy (verification as a *mechanism* — a small
+NLI core, not a big model) is exactly what makes it cheap.
+
+**This document + the canonical diagram
+([DIAGRAMAS.md §1](DIAGRAMAS.md)) are the architecture the project builds
+toward.** Everything else is either a component of it (built) or a step toward
+it (target, behind a gate). The flow: hardware profile (HAL) → router →
+specialized expert → fact-checker core → deterministic comparative logic →
+cited answer, with an opt-in on-device flywheel. The expert roster and
+per-domain benchmarks are §11; efficiency is the yardstick — the fewer
+parameters that solve the problem, the better.
+
+**Honesty rule (a project principle, not a caveat):** we are governed by this
+target, but we never claim it is built before it is. Built and measured today:
+the verification core, the 22-source retriever, the comparative-logic
+aggregator, the ReAct loop. Target: the full expert pool, hardware
+auto-selection, the flywheel — each ships only after passing its pre-registered
+gate (§9).
+
+---
+
 ## 1. Design laws (inherited from the current system, non-negotiable)
 
 1. **State lives in the orchestrator, never in a model.** The ReAct scratchpad

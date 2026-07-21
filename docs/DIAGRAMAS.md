@@ -1,62 +1,93 @@
 # AIDAM — diagramas de arquitectura (base del proyecto)
 
-Diagramas en **Mermaid** (texto plano). Se renderizan solos en GitHub. Para
-editarlos visualmente, pega cualquier bloque en <https://mermaid.live> (sin
-registro) o impórtalo en <https://app.diagrams.net>. Son la lógica *real* de
-la aplicación: los nodos citan módulos y funciones existentes
-(`aidam/…`), no un ideal. Los diagramas 6–8 son la arquitectura objetivo
-(Multi-SLM), marcada como tal.
+La **arquitectura canónica es el §1** (la visión del owner). Todos los demás
+diagramas son el *detalle de sus cajas* — marcados **✅ construido** o
+**🎯 objetivo**. Nos regimos por el §1; lo que existía antes se reusa solo
+donde sirve para implementar esta arquitectura, no al revés.
+
+Diagramas en **Mermaid** (texto plano): se renderizan solos en GitHub; para
+editarlos visualmente pega cualquier bloque en <https://mermaid.live> (sin
+registro) o impórtalo en <https://app.diagrams.net>. Los nodos citan módulos y
+funciones reales (`aidam/…`). Roster de expertos y benchmarks por dominio:
+[MULTI_SLM.md §11](MULTI_SLM.md).
 
 Índice:
-1. Sistema compuesto (vista de pájaro)
-2. Enrutamiento de la entrada del usuario (superficie de chat)
-3. Pipeline de verificación (afirmación → veredicto)
-4. Modo respuesta (pregunta → respuesta citada)
-5. Bucle ReAct de tareas (el razonador)
-6. Objetivo Multi-SLM: HAL + router + ciclo del cartucho
-7. Objetivo: capa de verificación (separación de poderes)
-8. Objetivo: flywheel de datos + reentrenamiento asíncrono
-9. **Bajo nivel: cableado completo del sistema** (procesos, IPC, módulos, almacenes, APIs)
+1. **Arquitectura canónica (visión del owner)** — perfil → router → experto → fact-checker → comparador → flywheel
+2. Enrutamiento de la entrada (superficie de chat) ✅
+3. Núcleo fact-checker: pipeline de verificación ✅
+4. Modo respuesta (pregunta → respuesta citada) ✅
+5. Bucle ReAct de tareas (el razonador) ✅
+6. Árbitros por dominio (separación de poderes) 🎯
+7. Bajo nivel: cableado actual (procesos, IPC, módulos, almacenes) ✅
 
 ---
 
-## 1. Sistema compuesto (vista de pájaro)
+## 1. Arquitectura canónica (visión del owner)
 
-AIDAM no es un modelo: es un sistema donde un verificador pequeño es el núcleo
-y casi todo lo demás es ingeniería determinista. El LLM razonador es opcional.
+**La referencia del proyecto.** Perfil de hardware → router → experto
+especializado → fact-checker → lógica comparativa → respuesta, más el flywheel
+opt-in. Cuatro matices medidos del proyecto marcados con ★: (1) los dominios de
+conocimiento = recuperación + razonador compartido, no un modelo memorizado;
+(2) el «comparador» es lógica determinista auditable, no un modelo; (3) el
+router-modelo debe ganarle al router de código (GATE ROUTE); (4) el
+reentrenamiento promociona **solo si pasa** la batería, no al terminar. Roster
+completo con modelos base y benchmarks: [MULTI_SLM.md §11](MULTI_SLM.md).
 
 ```mermaid
-flowchart TD
-    U(["Entrada del usuario"]) --> SUP["Superficie de chat<br/>(servidor / CLI / escritorio)"]
-    SUP --> R{"¿Qué es?<br/>(ver diagrama 2)"}
-    R -->|orden de archivos| FS["archivos.interpretar_orden<br/>tarjeta de permiso · HOME · papelera"]
-    R -->|pregunta| ANS["Modo respuesta<br/>(diagrama 4)"]
-    R -->|tarea| REACT["Bucle ReAct<br/>(diagrama 5)"]
-    R -->|afirmación| VER["Pipeline de verificación<br/>(diagrama 3)"]
+flowchart TB
+    ACT(["Usuario · prompt"]) --> ENTRY["Puntos de entrada<br/>Electron · CLI"]
+    ENTRY --> HAL["HAL — al instalar/iniciar audita el hardware<br/>genera 3 perfiles (A alto · B medio · C bajo)<br/>el perfil elige modelo y MODULA la agencia<br/>(perfil bajo: funciones como reentrenar, bloqueadas)"]
+    HAL --> ROUTER["Router — clasifica la intención<br/>★ hoy es CÓDIGO (keywords + NLI, 0 MB);<br/>modelo 0.5B solo si gana (GATE ROUTE)"]
 
-    subgraph NUCLEO["Núcleo de confianza (residente)"]
-        NLI["Verificador NLI 280M<br/>mDeBERTa-v3 / onnx-mini 319MB<br/>aidam/verify.py"]
-        AGG["Agregador lógico-comparativo<br/>reglas auditables · aidam/aggregate.py"]
+    ROUTER --> POOL
+    subgraph POOL["Pool de expertos (cuantizados + fine-tuning, benchmarks por-dominio)"]
+        direction TB
+        subgraph SKILL["Habilidad — se especializan en pesos"]
+            direction LR
+            CODE["Código · Qwen2.5-Coder-3B<br/>HumanEval/MBPP/LiveCodeBench/SWE-bench"]
+            MATH["Matemáticas · Qwen2.5-Math-1.5B<br/>GSM8K/MATH-500/AIME/FrontierMath"]
+            AGENT["Razonador/Agente · R1-Qwen3-8B→4B/1.7B<br/>BFCL V4 · τ²-bench · AVeriTeC-500"]
+        end
+        subgraph KNOW["★ Conocimiento — razonador compartido + recuperación (NO memorizado)"]
+            direction LR
+            LEGAL["Legal · LegalBench/LexGLUE/CaseHOLD"]
+            MED["Medicina · MedQA/PubMedQA/MMLU-Med"]
+            BIO["Biología · GPQA-bio/MMLU-Med"]
+            PHYS["Física/Química · GPQA-Diamond/SciFact"]
+            HIST["Historia · MMLU-Pro/EduArt + anacronismos"]
+            NEWS["Actualidad · AVeriTeC/citation-support"]
+        end
     end
 
-    VER --> NLI
-    ANS -. consulta .-> NLI
-    REACT -. consulta .-> NLI
-    NLI --> AGG
-    AGG --> OUT(["Veredicto / respuesta<br/>SIEMPRE con citas"])
-    VER --> OUT
-    ANS --> OUT
-    REACT --> OUT
-    FS --> OUT
+    POOL --> SUG(["Respuesta sugerida"])
+    SUG --> FC["Fact-checker CORE (residente)<br/>NLI 280M + búsqueda integrada (22 fuentes)<br/>árbitro por dominio: sandbox · SymPy · recuperación+NLI"]
+    FC --> CMP["★ Lógica comparativa (DETERMINISTA, no un modelo)<br/>aggregate.py + grounding gate<br/>¿la respuesta del experto es congruente con la evidencia?<br/>lo no sustentado → «sin verificar»"]
+    CMP --> ANS(["Respuesta al usuario<br/>SIEMPRE con citas"])
+
+    ANS -. "flujo validado (opt-in)" .-> FLY
+    subgraph FLY["Reentrenamiento dinámico (SOLO perfiles A/B)"]
+        direction TB
+        LIM["Se alcanzó el límite de datos guardados"]
+        ASK{"¿Reentrenar con tu telemetría?<br/>(consentimiento del usuario)"}
+        LIM --> ASK
+        ASK -->|No| DEL["Se elimina la telemetría<br/>(se guarda hash/log para auditar)"]
+        ASK -->|Sí| TRAIN["QLoRA en background (nice-15)<br/>+ datos-oro externos (anti-olvido)"]
+        TRAIN --> BATT{"★ Batería de gates:<br/>habilidad ≥ actual · sin regresión<br/>ANTI-ALUCINACIÓN no empeora · canary"}
+        BATT -->|falla| REJ["Rechazo documentado<br/>modelo actual se mantiene"]
+        BATT -->|pasa| UPD["Hot-swap del experto (rollback retenido)"]
+        UPD --> DEL
+        REJ --> DEL
+    end
 ```
 
 ---
 
-## 2. Enrutamiento de la entrada del usuario
+## 2. Enrutamiento de la entrada del usuario ✅
 
-El tipo de entrada decide el camino. Todo es código determinista y testeable;
-un falso positivo que robe una afirmación al camino de verificación es el peor
-error, así que la detección es conservadora.
+Detalle del bloque **Router** del §1: qué es cada entrada decide el camino.
+Todo es código determinista y testeable; un falso positivo que robe una
+afirmación al camino de verificación es el peor error, así que la detección es
+conservadora.
 
 ```mermaid
 flowchart TD
@@ -75,10 +106,11 @@ flowchart TD
 
 ---
 
-## 3. Pipeline de verificación (afirmación → veredicto)
+## 3. Núcleo fact-checker: pipeline de verificación ✅
 
-El corazón del producto: los veredictos SÓLO salen de aquí (NLI + agregación),
-nunca de un LLM (medido: LLM-como-único-juez 24% vs 58%).
+Detalle del bloque **Fact-checker CORE** del §1, ya construido y medido. Los
+veredictos SÓLO salen de aquí (NLI + agregación), nunca de un LLM (medido:
+LLM-como-único-juez 24% vs 58%).
 
 ```mermaid
 flowchart TD
@@ -113,7 +145,7 @@ flowchart TD
 
 ---
 
-## 4. Modo respuesta (pregunta → respuesta citada)
+## 4. Modo respuesta (pregunta → respuesta citada) ✅
 
 Las preguntas se responden con la frase que responde, citada — nunca con un
 veredicto. Fundamentado por construcción: cada palabra viene textual de una
@@ -138,18 +170,19 @@ flowchart TD
 
 ---
 
-## 5. Bucle ReAct de tareas (el razonador)
+## 5. Bucle ReAct de tareas (el razonador) ✅
 
-El LLM elige la SIGUIENTE acción dentro de límites impuestos por código
-(presupuesto, whitelist, permisos, sandbox, auditoría por paso). La
-terminación la decide el código, no el modelo. Todo pensamiento/acción/
-observación se MUESTRA.
+Detalle del bloque **ReAct** del §1. El LLM elige la SIGUIENTE acción dentro de
+límites impuestos por código (presupuesto, whitelist, permisos, sandbox,
+auditoría por paso). La terminación la decide el código, no el modelo. Todo
+pensamiento/acción/observación se MUESTRA. En la arquitectura objetivo, el
+worker único se reemplaza por el experto que el router elige del pool (§1).
 
 ```mermaid
 flowchart TD
     T(["Tarea"]) --> INIT["Estado en el orquestador:<br/>scratchpad · presupuesto · auditoría<br/>(el modelo es SIN-ESTADO)"]
     INIT --> STEP["Render del scratchpad → prompt<br/>razonador._renderizar (ChatML)"]
-    STEP --> LLM["Worker LLM aislado<br/>llm_worker.py (proceso separado)"]
+    STEP --> LLM["Experto del pool (§1)<br/>worker aislado · llm_worker.py"]
     LLM --> PARSE{"Extraer 1 acción JSON<br/>_extraer_accion"}
     PARSE -->|inválida| RETRY["Reintento correctivo<br/>(1 vez, sin pensar)"]
     RETRY -->|falla otra vez| FAILV["Termina VISIBLE<br/>error_llm (nunca inventa)"]
@@ -169,102 +202,45 @@ flowchart TD
 
 ---
 
-## 6. Objetivo Multi-SLM: HAL + router + ciclo del cartucho
+## 6. Árbitros por dominio (separación de poderes) 🎯
 
-*(Arquitectura objetivo — docs/MULTI_SLM.md.)* Los modelos son procesos
-desechables («cartuchos»): swap ≡ interrupción ≡ reanudar ≡ escalar = un mismo
-primitivo (matar worker, lanzar worker, entregar scratchpad).
-
-```mermaid
-flowchart TD
-    BOOT(["Arranque"]) --> HAL["HAL: audita hardware<br/>VRAM · RAM · AVX · núcleos · SSD"]
-    HAL --> PROF{"Perfil medido"}
-    PROF -->|A: GPU ≥12GB| PA["FP16/AWQ · ctx grande"]
-    PROF -->|B: iGPU+16GB| PB["GGUF Q4_K_M · offload híbrido"]
-    PROF -->|C: CPU 8GB| PC["GGUF Q4_0/Q3_K · ctx corto<br/>+ modula la AGENCIA (flujos cortos)"]
-
-    PA --> Q["Cola de trabajo SQLite<br/>cola.py (reanudable)"]
-    PB --> Q
-    PC --> Q
-    Q --> ORQ["Orquestador (código)<br/>dueño de TODO el estado"]
-    ORQ --> ROUTER["Router: keywords → NLI residente<br/>elige especialidad"]
-    ROUTER --> SPAWN["SPAWN worker(experto)<br/>mmap GGUF (page cache caliente)"]
-    SPAWN --> RUN["Pasos ReAct (diagrama 5)"]
-    RUN --> SWAP{"¿regla de swap?<br/>clase de error ≠ especialidad<br/>+ histéresis + tope de swaps<br/>+ presupuesto GLOBAL"}
-    SWAP -->|sí| KILL["KILL worker → RAM al SO<br/>(sin gc/malloc_trim)"]
-    KILL --> SPAWN
-    SWAP -->|no| ENDT{"¿tarea terminada?"}
-    ENDT -->|no| RUN
-    ENDT -->|sí| PEEK{"¿siguiente tarea = misma especialidad?"}
-    PEEK -->|sí| WARM["Keep-warm (TTL corto)"]
-    PEEK -->|no| KILLF["KILL · RAM → base ~150MB"]
-    WARM --> Q
-    KILLF --> Q
-
-    POOL["Pool de expertos (destilados, con gate):<br/>Code · Math · Agente · dominios-de-conocimiento compartidos<br/>escala ~5 → 8-10 modelos"]
-    ROUTER -. selecciona de .-> POOL
-```
-
----
-
-## 7. Objetivo: capa de verificación (separación de poderes)
-
-*(Objetivo.)* Ningún modelo evalúa su propio trabajo. Tres jueces
-independientes; un fallo de cualquiera vuelve al bucle de reparación como
+Detalle del **árbitro por dominio** del §1: ningún modelo evalúa su propio
+trabajo. El árbitro cambia según el dominio (la columna «Árbitro AIDAM» del
+roster) — sandbox para código, SymPy para matemáticas, recuperación+NLI para
+conocimiento. Un fallo de cualquiera vuelve al bucle de reparación como
 observación.
 
 ```mermaid
 flowchart TD
-    DRAFT(["Borrador del experto:<br/>respuesta o parche"])
-    subgraph JUECES["Jueces independientes (ninguno es el autor)"]
-        J1["a· Fact-checker semántico<br/>NLI 280M + agregación<br/>→ «Recopilación de Hechos»"]
-        J2["b· Adversario QA<br/>valores límite · SymPy/NumPy<br/>consistencia/anacronismos · Ruff"]
-        J3["c· Comparador físico<br/>ejecutar en sandbox · diff vs disco<br/>huella de resultado"]
+    DRAFT(["Respuesta sugerida del experto"])
+    subgraph JUECES["Árbitros independientes (ninguno es el autor · según dominio)"]
+        J1["Fact-checker semántico<br/>NLI 280M + agregación<br/>→ congruencia con la evidencia"]
+        J2["Adversario QA / cómputo<br/>valores límite · SymPy/NumPy<br/>consistencia/anacronismos · Ruff"]
+        J3["Comparador físico (código)<br/>ejecutar en sandbox · diff vs disco<br/>huella de resultado"]
     end
     DRAFT --> J1
     DRAFT --> J2
     DRAFT --> J3
-    J1 --> DEC{"¿pasa todo?"}
+    J1 --> DEC{"¿congruente y correcto?"}
     J2 --> DEC
     J3 --> DEC
     DEC -->|no| FIX["Bucle de reparación:<br/>recarga SÓLO el experto que toca<br/>error como Observación (dato)"]
     FIX --> DRAFT
-    DEC -->|sí| APPLY(["Aplicar parche / entregar<br/>+ grounding gate «sin verificar»"])
+    DEC -->|sí| APPLY(["Entregar / aplicar<br/>+ grounding gate «sin verificar»"])
 ```
 
 ---
 
-## 8. Objetivo: flywheel de datos + reentrenamiento asíncrono
+## 7. Bajo nivel: cableado actual ✅
 
-*(Objetivo.)* Auto-alineación opcional y local. Nada se promociona sin pasar
-la batería de gates; el núcleo anti-alucinación tiene VETO sobre su propio
-loop de entrenamiento.
-
-```mermaid
-flowchart TD
-    FLOW(["Flujo validado por la capa de verificación"]) --> CAP{"¿acción positiva del usuario?<br/>(opt-in, local)"}
-    CAP -->|TEXT_COPIED / PATCH_ACCEPTED / SESSION_PERSISTED| TRACE["Traza JSONL<br/>tarea · scratchpad · verificación<br/>etiqueta = validado Y aceptado"]
-    CAP -->|no| DROP["Descartar"]
-    TRACE --> STORE[("Repositorio local JSONL<br/>nunca sale de la máquina")]
-    STORE --> GATE5{"¿proyección ≤ 5h?<br/>micro-benchmark sintético"}
-    GATE5 -->|no| CLOUD["Bloquea · revierte flag<br/>ofrece export a nube (Colab)"]
-    GATE5 -->|sí| BG["Worker en background<br/>nice 15 / IDLE_PRIORITY_CLASS<br/>QLoRA desacoplado del UI"]
-    BG --> BATT{"Batería de promoción (GATE FT+):<br/>habilidad ≥ actual · regresión < ε<br/>ANTI-ALUCINACIÓN no regresa · ECE · canary"}
-    BATT -->|falla| REJECT["Rechazo documentado<br/>(con números, como R1)"]
-    BATT -->|pasa| PROMOTE["Hot-swap del puntero AIDAM_MIMO_LORA<br/>+ rollback retenido"]
-    PROMOTE --> POOL(["Experto actualizado<br/>(próximo spawn)"])
-```
-
----
-
-## 9. Bajo nivel: cableado completo del sistema
-
-Vista técnica de *todo* el sistema: **fronteras de proceso** (recuadros gruesos),
-**IPC/red** (flechas punteadas), **llamadas en-proceso** (flechas sólidas),
+Vista técnica de lo **construido hoy**: **fronteras de proceso** (recuadros
+◆), **IPC/red** (flechas punteadas), **llamadas en-proceso** (sólidas),
 **almacenes** (cilindros) y **APIs externas**. Refleja el código real
 (`aidam/…`, `escritorio/…`). Tres procesos separados por diseño: Electron, el
 servidor Python, y el worker LLM aislado (nació de una corrupción de heap
-medida entre llama.cpp y PyTorch).
+medida entre llama.cpp y PyTorch). **Estado vs §1:** hoy hay un worker
+razonador único; la arquitectura objetivo lo sustituye por el pool de expertos
+que el router selecciona por perfil.
 
 ```mermaid
 flowchart TB
@@ -338,13 +314,13 @@ flowchart TB
     end
     NLIRES --> BACKENDS
 
-    subgraph PROC_LLM["◆ PROCESO WORKER LLM — AISLADO"]
+    subgraph PROC_LLM["◆ PROCESO WORKER LLM — AISLADO (→ pool de expertos, §1)"]
         WORKER["llm_worker.py<br/>llama.cpp · GGUF Q4<br/>create_completion()"]
     end
     RAZ -. "subprocess.Popen + JSON-lines (stdin/stdout)" .-> WORKER
     PIPE -. "questions.py: genera preguntas de búsqueda" .-> WORKER
-    HAL["Config/HAL · env AIDAM_MIMO_*<br/>n_ctx · gpu_layers · kv-cache · flash-attn · lora"]
-    HAL -. "env" .-> WORKER
+    HALW["Config/HAL · env AIDAM_MIMO_*<br/>n_ctx · gpu_layers · kv-cache · flash-attn · lora"]
+    HALW -. "env" .-> WORKER
 
     subgraph PROC_SBX["◆ SUBPROCESO SANDBOX"]
         BWRAP["bubblewrap (bwrap)<br/>sin red · FS solo-lectura<br/>.git remontado RO · timeout"]
@@ -371,8 +347,8 @@ flowchart TB
     end
     RET -. "HTTPS en paralelo (registro FUENTES)" .-> EXT
 
-    OUT(["Respuesta / veredicto<br/>SIEMPRE con citas · vía WebSocket o stdout"])
-    AGG --> OUT
-    SINT --> OUT
-    RAZ --> OUT
+    OUTN(["Respuesta / veredicto<br/>SIEMPRE con citas · vía WebSocket o stdout"])
+    AGG --> OUTN
+    SINT --> OUTN
+    RAZ --> OUTN
 ```
