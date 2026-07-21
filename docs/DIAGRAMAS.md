@@ -17,8 +17,9 @@ funciones reales (`aidam/…`). Roster de expertos y benchmarks por dominio:
 3. Núcleo fact-checker: pipeline de verificación ✅
 4. Modo respuesta (pregunta → respuesta citada) ✅
 5. Bucle ReAct de tareas (el razonador) ✅
-6. Árbitros por dominio (separación de poderes) 🎯
-7. Bajo nivel: cableado actual (procesos, IPC, módulos, almacenes) ✅
+6. Cartuchos: carga perezosa de expertos (ligereza / bajos recursos) 🎯
+7. Árbitros por dominio (separación de poderes) 🎯
+8. Bajo nivel: cableado actual (procesos, IPC, módulos, almacenes) ✅
 
 ---
 
@@ -202,7 +203,36 @@ flowchart TD
 
 ---
 
-## 6. Árbitros por dominio (separación de poderes) 🎯
+## 6. Cartuchos: carga perezosa de expertos (ligereza / bajos recursos) 🎯
+
+**El mecanismo que hace ligero el pool del §1.** Los expertos NO residen todos
+en RAM: se comportan como *cartuchos* que se cargan **uno a la vez, bajo
+demanda**, y se descargan al terminar, dejando el consumo base cercano a cero.
+Esto es lo que permite correr en una máquina humilde. El único modelo que
+queda residente es el verificador NLI (319 MB, se consulta constantemente); los
+expertos son desechables. Detalle de bajo nivel (mmap, keep-warm, re-prefill,
+la regla swap≡reanudar): [MULTI_SLM.md §3](MULTI_SLM.md).
+
+```mermaid
+flowchart TD
+    IDLE["Reposo · RAM base ~150 MB<br/>solo app + verificador NLI residente<br/>NINGÚN experto cargado"]
+    IDLE --> ROUTE["Router elige experto E (§1)"]
+    ROUTE --> LOAD["Cargar SÓLO E (lazy loading)<br/>spawn worker · mmap del GGUF<br/>(page cache: una recarga reciente ≈ gratis)"]
+    LOAD --> RUN["Procesar con E<br/>(pasos ReAct, diagrama 5)"]
+    RUN --> ENDT{"¿tarea terminada?"}
+    ENDT -->|no · sigue el mismo experto| RUN
+    ENDT -->|sí| PEEK{"¿siguiente tarea = mismo experto?"}
+    PEEK -->|sí| WARM["Keep-warm (TTL corto)<br/>evita recargar en ráfagas"]
+    PEEK -->|no| KILL["KILL worker E<br/>RAM vuelve a base — garantizado por el SO<br/>(matar proceso, sin gc/malloc_trim)"]
+    WARM --> ROUTE
+    KILL --> ROUTE
+
+    RULE["★ Perfil C (CPU/8GB): estrictamente UNO a la vez<br/>— matar antes de cargar, NUNCA dos expertos en RAM.<br/>Descarga entre TAREAS, no entre pasos ReAct<br/>(el re-prefill del scratchpad es el coste real en CPU)."]
+```
+
+---
+
+## 7. Árbitros por dominio (separación de poderes) 🎯
 
 Detalle del **árbitro por dominio** del §1: ningún modelo evalúa su propio
 trabajo. El árbitro cambia según el dominio (la columna «Árbitro AIDAM» del
@@ -231,7 +261,7 @@ flowchart TD
 
 ---
 
-## 7. Bajo nivel: cableado actual ✅
+## 8. Bajo nivel: cableado actual ✅
 
 Vista técnica de lo **construido hoy**: **fronteras de proceso** (recuadros
 ◆), **IPC/red** (flechas punteadas), **llamadas en-proceso** (sólidas),
